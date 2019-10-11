@@ -153,9 +153,10 @@ extension = ice.so
 
 You can verify that PHP is loading the Ice extension by running the command
 shown below:
+
 ```
 php -m
-````
+```
 
 Look for `ice` among the installed modules. Note that your library search path
 (`LD_LIBRARY_PATH` on Linux or `DYLD_LIBRARY_PATH` on macOS) must include the
@@ -334,6 +335,6 @@ The enclosing directory also needs to be accessible. For example:
 # chcon -R -t httpd_sys_content_t /opt/MyApp/slice
 ```
 
-[1]: https://zeroc.com/distributions/ice
-[2]: https://doc.zeroc.com/display/Rel/Supported+Platforms+for+Ice+3.7.2
+[1]: https://zeroc.com/downloads/ice
+[2]: https://doc.zeroc.com/ice/3.7/release-notes/supported-platforms-for-ice-3-7-3
 [3]: https://github.com/zeroc-ice/ice-builder-visualstudio
