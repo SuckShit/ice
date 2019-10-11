@@ -1,8 +1,6 @@
-// **********************************************************************
 //
-// Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+// Copyright (c) ZeroC, Inc. All rights reserved.
 //
-// **********************************************************************
 
 #ifndef ICE_NETWORK_H
 #define ICE_NETWORK_H
@@ -40,7 +38,7 @@ typedef int ssize_t;
 #   include <netdb.h>
 #endif
 
-#if defined(__linux) && !defined(ICE_NO_EPOLL)
+#if defined(__linux__) && !defined(ICE_NO_EPOLL)
 #   define ICE_USE_EPOLL 1
 #elif (defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__)) && TARGET_OS_IPHONE == 0 && !defined(ICE_NO_KQUEUE)
 #   define ICE_USE_KQUEUE 1
@@ -333,7 +331,7 @@ ICE_API void checkErrorCode(const char*, int, HRESULT);
 //
 // UWP impose some restriction on operations that block when run from
 // STA thread and throws concurrency::invalid_operation. We cannot
-// directly call task::get or task::way, this helper method is used to
+// directly call task::get or task::wait, this helper method is used to
 // workaround this limitation.
 //
 template<typename T>

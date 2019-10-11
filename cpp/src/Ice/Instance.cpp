@@ -1,8 +1,6 @@
-// **********************************************************************
 //
-// Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+// Copyright (c) ZeroC, Inc. All rights reserved.
 //
-// **********************************************************************
 
 #include <Ice/Instance.h>
 #include <Ice/TraceLevels.h>
@@ -63,7 +61,7 @@
 #   include <sys/types.h>
 #endif
 
-#if defined(__linux) || defined(__sun) || defined(_AIX) || defined(__GLIBC__)
+#if defined(__linux__) || defined(__sun) || defined(_AIX) || defined(__GLIBC__)
 #   include <grp.h> // for initgroups
 #endif
 

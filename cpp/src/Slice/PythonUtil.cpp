@@ -1,8 +1,6 @@
-// **********************************************************************
 //
-// Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+// Copyright (c) ZeroC, Inc. All rights reserved.
 //
-// **********************************************************************
 
 #include <Slice/PythonUtil.h>
 #include <Slice/Checksum.h>
@@ -429,7 +427,8 @@ Slice::Python::CodeVisitor::visitClassDecl(const ClassDeclPtr& p)
             _out << nl << "_M_" << getAbsolute(p, "_t_") << " = IcePy.declareValue('" << scoped << "')";
         }
 
-        if(!p->isLocal() && (p->isInterface() || p->definition()->allOperations().size()))
+        ClassDefPtr def = p->definition();
+        if(!p->isLocal() && (p->isInterface() || (def && def->allOperations().size())))
         {
             _out << nl << "_M_" << getAbsolute(p, "_t_", "Disp") << " = IcePy.declareClass('" << scoped << "')";
             _out << nl << "_M_" << getAbsolute(p, "_t_", "Prx") << " = IcePy.declareProxy('" << scoped << "')";
@@ -1828,7 +1827,7 @@ Slice::Python::CodeVisitor::writeType(const TypePtr& p)
     if(prx)
     {
         ClassDefPtr def = prx->_class()->definition();
-        if(def->isInterface() || def->allOperations().size() > 0)
+        if(def && (def->isInterface() || def->allOperations().size() > 0))
         {
             _out << "_M_" << getAbsolute(prx->_class(), "_t_", "Prx");
         }
@@ -3085,11 +3084,9 @@ void
 Slice::Python::printHeader(IceUtilInternal::Output& out)
 {
     static const char* header =
-"# **********************************************************************\n"
 "#\n"
-"# Copyright (c) 2003-present ZeroC, Inc. All rights reserved.\n"
+"# Copyright (c) ZeroC, Inc. All rights reserved.\n"
 "#\n"
-"# **********************************************************************\n"
         ;
 
     out << header;

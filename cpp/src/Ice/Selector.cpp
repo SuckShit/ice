@@ -1,8 +1,6 @@
-// **********************************************************************
 //
-// Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+// Copyright (c) ZeroC, Inc. All rights reserved.
 //
-// **********************************************************************
 
 #include <Ice/Selector.h>
 #include <Ice/EventHandler.h>
@@ -71,10 +69,16 @@ Selector::initialize(EventHandler* handler)
     }
 
 #ifdef ICE_USE_IOCP
-    HANDLE socket = reinterpret_cast<HANDLE>(handler->getNativeInfo()->fd());
-    if(CreateIoCompletionPort(socket, _handle, reinterpret_cast<ULONG_PTR>(handler), 0) == ICE_NULLPTR)
+    SOCKET socket = handler->getNativeInfo()->fd();
+    if (socket != INVALID_SOCKET)
     {
-        throw Ice::SocketException(__FILE__, __LINE__, GetLastError());
+        if (CreateIoCompletionPort(reinterpret_cast<HANDLE>(socket),
+                                   _handle,
+                                   reinterpret_cast<ULONG_PTR>(handler),
+                                   0) == ICE_NULLPTR)
+        {
+            throw Ice::SocketException(__FILE__, __LINE__, GetLastError());
+        }
     }
     handler->getNativeInfo()->initialize(_handle, reinterpret_cast<ULONG_PTR>(handler));
 #else
@@ -1046,6 +1050,16 @@ public:
     virtual void run()
     {
         _selector.run();
+
+#if TARGET_IPHONE_SIMULATOR != 0
+        //
+        // Workaround for CFSocket bug where the CFSocketManager thread crashes if an
+        // invalidated socket is being processed for reads/writes. We add this sleep
+        // mostly to prevent spurious crashes with testing. This bug is very unlikely
+        // to be hit otherwise.
+        //
+        IceUtil::ThreadControl::sleep(IceUtil::Time::milliSeconds(100));
+#endif
     }
 
 private:

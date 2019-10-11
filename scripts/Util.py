@@ -1,8 +1,6 @@
-# **********************************************************************
 #
-# Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+# Copyright (c) ZeroC, Inc. All rights reserved.
 #
-# **********************************************************************
 
 import os, sys, runpy, getopt, traceback, types, threading, time, datetime, re, itertools, random, subprocess, shutil
 import copy, inspect, xml.sax.saxutils
@@ -158,6 +156,12 @@ class Component(object):
     def getRunOrder(self):
         return []
 
+    def getEnv(self, process, current):
+        return {}
+
+    def getProps(self, process, current):
+        return {}
+
     def isCross(self, testId):
         return False
 
@@ -247,9 +251,9 @@ class Platform(object):
         installDir = component.getInstallDir(mapping, current)
         if isinstance(mapping, CSharpMapping):
             if component.useBinDist(mapping, current):
-                return os.path.join(installDir, "tools", "netcoreapp2.2")
+                return os.path.join(installDir, "tools", "netcoreapp2.1")
             else:
-                return os.path.join(installDir, "bin", "netcoreapp2.2")
+                return os.path.join(installDir, "bin", "netcoreapp2.1")
         return os.path.join(installDir, "bin")
 
     def _getLibDir(self, component, process, mapping, current):
@@ -1161,6 +1165,7 @@ class Process(Runnable):
     def getEffectiveProps(self, current, props):
         allProps = {}
         allProps.update(current.driver.getProps(self, current))
+        allProps.update(current.driver.getComponent().getProps(self, current))
         allProps.update(current.config.getProps(self, current))
         allProps.update(self.getMapping(current).getProps(self, current))
         allProps.update(current.testcase.getProps(self, current))
@@ -1170,11 +1175,18 @@ class Process(Runnable):
         return allProps
 
     def getEffectiveEnv(self, current):
+
+        def merge(envs, newEnvs):
+            if platform.getLdPathEnvName() in newEnvs and platform.getLdPathEnvName() in envs:
+                newEnvs[platform.getLdPathEnvName()] += os.pathsep + envs[platform.getLdPathEnvName()]
+            envs.update(newEnvs)
+
         allEnvs = {}
-        allEnvs.update(self.getMapping(current).getEnv(self, current))
-        allEnvs.update(current.testcase.getEnv(self, current))
-        allEnvs.update(self.getEnv(current))
-        allEnvs.update(self.envs(self, current) if callable(self.envs) else self.envs)
+        merge(allEnvs, current.driver.getComponent().getEnv(self, current))
+        merge(allEnvs, self.getMapping(current).getEnv(self, current))
+        merge(allEnvs, current.testcase.getEnv(self, current))
+        merge(allEnvs, self.getEnv(current))
+        merge(allEnvs, self.envs(self, current) if callable(self.envs) else self.envs)
         return allEnvs
 
     def getEffectiveTraceProps(self, current):
@@ -3269,8 +3281,8 @@ class CSharpMapping(Mapping):
 
             if self.dotnetcore:
                 self.libTargetFramework = "netstandard2.0"
-                self.binTargetFramework = "netcoreapp2.2" if self.framework == "" else self.framework
-                self.testTargetFramework = "netcoreapp2.2" if self.framework == "" else self.framework
+                self.binTargetFramework = "netcoreapp2.1" if self.framework == "" else self.framework
+                self.testTargetFramework = "netcoreapp2.1" if self.framework == "" else self.framework
             else:
                 self.libTargetFramework = "net45" if self.framework == "" else "netstandard2.0"
                 self.binTargetFramework = "net45" if self.framework == "" else self.framework

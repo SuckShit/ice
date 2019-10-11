@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
-# **********************************************************************
 #
-# Copyright (c) 2003-present ZeroC, Inc. All rights reserved.
+# Copyright (c) ZeroC, Inc. All rights reserved.
 #
-# **********************************************************************
 
 import glob
+import os
+import shutil
+
 
 class SliceErrorDetectionTestCase(ClientTestCase):
 
     def runClientSide(self, current):
         testdir = current.testsuite.getPath()
         slice2cpp = SliceTranslator("slice2cpp")
+
+        outdir = "{0}/tmp".format(testdir)
+        if os.path.exists(outdir):
+            shutil.rmtree(outdir)
+        os.mkdir(outdir)
 
         files = glob.glob("{0}/*.ice".format(testdir))
         files.sort()
@@ -41,8 +47,15 @@ class SliceErrorDetectionTestCase(ClientTestCase):
                     i = i + 1
                 else:
                     current.writeln("ok")
+
+            for language in ["cpp", "cs", "html", "java", "js", "matlab", "objc", "php", "py", "rb"]:
+                compiler = SliceTranslator('slice2%s' % language)
+                if not os.path.isfile(compiler.getCommandLine(current)):
+                    continue
+                compiler.run(current, args=["forward/Forward.ice", "--output-dir", "tmp"])
+            current.writeln("ok")
         finally:
-            for file in glob.glob("{0}/tmp/*".format(testdir)):
-                current.files.append(file)
+            if os.path.exists(outdir):
+                shutil.rmtree(outdir)
 
 TestSuite(__name__, [ SliceErrorDetectionTestCase() ])
