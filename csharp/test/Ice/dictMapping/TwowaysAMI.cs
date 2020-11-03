@@ -1,266 +1,132 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Linq;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.DictMapping
 {
-    namespace dictMapping
+    public static class TwowaysAMI
     {
-        public class TwowaysAMI
+        internal static void Run(IMyClassPrx p)
         {
-            private static void test(bool b)
             {
-                if(!b)
+                var i = new Dictionary<int, int>
                 {
-                    throw new System.SystemException();
-                }
+                    [0] = 1,
+                    [1] = 0
+                };
+
+                (Dictionary<int, int> ReturnValue, Dictionary<int, int> o) = p.OpNVAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i));
             }
 
-            private class CallbackBase
             {
-                internal CallbackBase()
+                var i = new Dictionary<string, string>
                 {
-                    _called = false;
-                }
+                    ["a"] = "b",
+                    ["b"] = "a"
+                };
 
-                public virtual void check()
-                {
-                    lock(this)
-                    {
-                        while(!_called)
-                        {
-                            System.Threading.Monitor.Wait(this);
-                        }
-
-                        _called = false;
-                    }
-                }
-
-                public virtual void called()
-                {
-                    lock(this)
-                    {
-                        Debug.Assert(!_called);
-                        _called = true;
-                        System.Threading.Monitor.Pulse(this);
-                    }
-                }
-
-                private bool _called;
+                (Dictionary<string, string> ReturnValue, Dictionary<string, string> o) = p.OpNRAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i));
             }
 
-            private class Callback
             {
-                public void opNVI(Ice.AsyncResult result)
+                var i = new Dictionary<string, Dictionary<int, int>>();
+                var id = new Dictionary<int, int>
                 {
-                    Dictionary<int, int> i =(Dictionary<int, int>)result.AsyncState;
-                    Dictionary<int, int> o;
-                    Dictionary<int, int> r = Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNV(out o, result);
-                    test(Ice.CollectionComparer.Equals(i, o));
-                    test(Ice.CollectionComparer.Equals(i, r));
-                    callback.called();
-                }
+                    [0] = 1,
+                    [1] = 0
+                };
+                i["a"] = id;
+                i["b"] = id;
 
-                public void opNRI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, string> i =(Dictionary<string, string>)result.AsyncState;
-                    Dictionary<string, string> o;
-                    Dictionary<string, string> r = Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNR(out o, result);
-                    test(Ice.CollectionComparer.Equals(i, o));
-                    test(Ice.CollectionComparer.Equals(i, r));
-                    callback.called();
-                }
-
-                public void opNDVI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, Dictionary<int, int>> i =(Dictionary<string, Dictionary<int, int>>)result.AsyncState;
-                    Dictionary<string, Dictionary<int, int>> o;
-                    Dictionary<string, Dictionary<int, int>> r =
-                        Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDV(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public void opNDRI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, Dictionary<string, string>> i =
-                       (Dictionary<string, Dictionary<string, string>>)result.AsyncState;
-                    Dictionary<string, Dictionary<string, string>> o;
-                    Dictionary<string, Dictionary<string, string>> r =
-                        Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDR(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public void opNDAISI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, int[]> i =(Dictionary<string, int[]>)result.AsyncState;
-                    Dictionary<string, int[]> o;
-                    Dictionary<string, int[]> r = Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDAIS(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public void opNDGISI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, List<int>> i =(Dictionary<string, List<int>>)result.AsyncState;
-                    Dictionary<string, List<int>> o;
-                    Dictionary<string, List<int>> r =
-                        Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDGIS(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public void opNDASSI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, string[]> i =(Dictionary<string, string[]>)result.AsyncState;
-                    Dictionary<string, string[]> o;
-                    Dictionary<string, string[]> r =
-                        Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDASS(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public void opNDGSSI(Ice.AsyncResult result)
-                {
-                    Dictionary<string, List<string>> i =(Dictionary<string, List<string>>)result.AsyncState;
-                    Dictionary<string, List<string>> o;
-                    Dictionary<string, List<string>> r =
-                        Test.MyClassPrxHelper.uncheckedCast(result.getProxy()).end_opNDGSS(out o, result);
-                    foreach(string key in i.Keys)
-                    {
-                        test(Ice.CollectionComparer.Equals(i[key], o[key]));
-                        test(Ice.CollectionComparer.Equals(i[key], r[key]));
-                    }
-                    callback.called();
-                }
-
-                public virtual void check()
-                {
-                    callback.check();
-                }
-
-                private CallbackBase callback = new CallbackBase();
+                (Dictionary<string, Dictionary<int, int>> ReturnValue,
+                 Dictionary<string, Dictionary<int, int>> o) = p.OpNDVAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.DictionaryEquals(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.DictionaryEquals(rhs)));
             }
 
-            internal static void twowaysAMI(Ice.Communicator communicator, Test.MyClassPrx p)
             {
+                var i = new Dictionary<string, Dictionary<string, string>>();
+                var id = new Dictionary<string, string>
                 {
-                    Dictionary<int, int> i = new Dictionary<int, int>();
-                    i[0] = 1;
-                    i[1] = 0;
+                    ["a"] = "b",
+                    ["b"] = "a"
+                };
+                i["a"] = id;
+                i["b"] = id;
 
-                    Callback cb = new Callback();
-                    p.begin_opNV(i, null, cb.opNVI, i);
-                    cb.check();
-                }
+                (Dictionary<string, Dictionary<string, string>> ReturnValue,
+                 Dictionary<string, Dictionary<string, string>> o) = p.OpNDRAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.DictionaryEquals(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.DictionaryEquals(rhs)));
+            }
 
+            {
+                int[] ii = new int[] { 1, 2 };
+                var i = new Dictionary<string, int[]>
                 {
-                    Dictionary<string, string> i = new Dictionary<string, string>();
-                    i["a"] = "b";
-                    i["b"] = "a";
+                    ["a"] = ii,
+                    ["b"] = ii
+                };
 
-                    Callback cb = new Callback();
-                    p.begin_opNR(i, null, cb.opNRI, i);
-                    cb.check();
-                }
+                (Dictionary<string, int[]> ReturnValue, Dictionary<string, int[]> o) = p.OpNDAISAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+            }
 
+            {
+                var ii = new List<int>
                 {
-                    Dictionary<string, Dictionary<int, int>> i = new Dictionary<string, Dictionary<int, int>>();
-                    Dictionary<int, int> id = new Dictionary<int, int>();
-                    id[0] = 1;
-                    id[1] = 0;
-                    i["a"] = id;
-                    i["b"] = id;
-
-                    Callback cb = new Callback();
-                    p.begin_opNDV(i, null, cb.opNDVI, i);
-                    cb.check();
-                }
-
+                    1,
+                    2
+                };
+                var i = new Dictionary<string, List<int>>
                 {
-                    Dictionary<string, Dictionary<string, string>> i = new Dictionary<string, Dictionary<string, string>>();
-                    Dictionary<string, string> id = new Dictionary<string, string>();
-                    id["a"] = "b";
-                    id["b"] = "a";
-                    i["a"] = id;
-                    i["b"] = id;
+                    ["a"] = ii,
+                    ["b"] = ii
+                };
 
-                    Callback cb = new Callback();
-                    p.begin_opNDR(i, null, cb.opNDRI, i);
-                    cb.check();
-                }
+                (Dictionary<string, List<int>> ReturnValue,
+                 Dictionary<string, List<int>> o) = p.OpNDGISAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+            }
 
+            {
+                string[] ii = new string[] { "a", "b" };
+                var i = new Dictionary<string, string[]>
                 {
-                    int[] ii = new int[] { 1, 2 };
-                    Dictionary<string, int[]> i = new Dictionary<string, int[]>();
-                    i["a"] = ii;
-                    i["b"] = ii;
+                    ["a"] = ii,
+                    ["b"] = ii
+                };
 
-                    Callback cb = new Callback();
-                    p.begin_opNDAIS(i, null, cb.opNDAISI, i);
-                    cb.check();
-                }
+                (Dictionary<string, string[]> ReturnValue,
+                 Dictionary<string, string[]> o) = p.OpNDASSAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+            }
 
+            {
+                var ii = new List<string>
                 {
-                    List<int> ii = new List<int>();
-                    ii.Add(1);
-                    ii.Add(2);
-                    Dictionary<string, List<int>> i = new Dictionary<string, List<int>>();
-                    i["a"] = ii;
-                    i["b"] = ii;
-
-                    Callback cb = new Callback();
-                    p.begin_opNDGIS(i, null, cb.opNDGISI, i);
-                    cb.check();
-                }
-
+                    "a",
+                    "b"
+                };
+                var i = new Dictionary<string, List<string>>
                 {
-                    string[] ii = new string[] { "a", "b" };
-                    Dictionary<string, string[]> i = new Dictionary<string, string[]>();
-                    i["a"] = ii;
-                    i["b"] = ii;
+                    ["a"] = ii,
+                    ["b"] = ii
+                };
 
-                    Callback cb = new Callback();
-                    p.begin_opNDASS(i, null, cb.opNDASSI, i);
-                    cb.check();
-                }
-
-                {
-                    List<string> ii = new List<string>();
-                    ii.Add("a");
-                    ii.Add("b");
-                    Dictionary<string, List<string>> i = new Dictionary<string, List<string>>();
-                    i["a"] = ii;
-                    i["b"] = ii;
-
-                    Callback cb = new Callback();
-                    p.begin_opNDGSS(i, null, cb.opNDGSSI, i);
-                    cb.check();
-                }
+                (Dictionary<string, List<string>> ReturnValue,
+                 Dictionary<string, List<string>> o) = p.OpNDGSSAsync(i).Result;
+                TestHelper.Assert(o.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
+                TestHelper.Assert(ReturnValue.DictionaryEquals(i, (lhs, rhs) => lhs.SequenceEqual(rhs)));
             }
         }
     }

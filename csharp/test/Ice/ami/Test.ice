@@ -7,8 +7,9 @@
 #include <Ice/BuiltinSequences.ice>
 #include <Ice/Identity.ice>
 
-["cs:namespace:Ice.ami"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::AMI
 {
 
 exception TestIntfException
@@ -18,13 +19,7 @@ exception TestIntfException
 enum CloseMode
 {
     Forcefully,
-    Gracefully,
-    GracefullyWithWait
-}
-
-interface PingReply
-{
-    void reply();
+    Gracefully
 }
 
 interface TestIntf
@@ -32,47 +27,30 @@ interface TestIntf
     void op();
     void opWithPayload(Ice::ByteSeq seq);
     int opWithResult();
-    void opWithUE()
-        throws TestIntfException;
-    void opBatch();
-    int opBatchCount();
-    bool waitForBatch(int count);
+    void opWithUE();
     void close(CloseMode mode);
     void sleep(int ms);
-    ["amd"] void startDispatch();
+    [amd] void startDispatch();
     void finishDispatch();
     void shutdown();
 
     bool supportsAMD();
     bool supportsFunctionalTests();
 
-    ["amd"] void opAsyncDispatch();
-    ["amd"] int opWithResultAsyncDispatch();
-    ["amd"] void opWithUEAsyncDispatch()
-        throws TestIntfException;
+    [amd] void opAsyncDispatch();
+    [amd] int opWithResultAsyncDispatch();
+    [amd] void opWithUEAsyncDispatch();
 
-    void pingBiDir(PingReply* reply);
+    int set(int value);
+    [oneway] void setOneway(int previous, int value);
 }
 
-interface TestIntfController
+module Outer::Inner
 {
-    void holdAdapter();
-    void resumeAdapter();
-}
-
-module Outer
-{
-
-module Inner
-{
-
-interface TestIntf
-{
-    int op(int i, out int j);
-}
-
-}
-
+    interface TestIntf
+    {
+        (int r1, int r2) op(int i);
+    }
 }
 
 }

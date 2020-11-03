@@ -91,12 +91,8 @@ Client::run(int argc, char** argv)
     //
     // Plugin directory is provided as the last argument
     //
-#if defined(ICE_OS_UWP)
-    string pluginDir = "plugins/uwp/";
-#else
     string pluginDir = argv[argc - 1];
     pluginDir += "/";
-#endif
 
     Ice::registerPluginFactory("Static1", createMyPlugin, true); // true = Load on communicator initialization
     Ice::registerPluginFactory("Static2", createMyPlugin, false);
@@ -153,23 +149,9 @@ Client::run(int argc, char** argv)
 
     try
     {
-        int majorVersion = (ICE_INT_VERSION / 10000);
-        int minorVersion = (ICE_INT_VERSION / 100) - majorVersion * 100;
-        int patchVersion = ICE_INT_VERSION % 100;
-        ostringstream os;
-        os << pluginDir << "TestPlugin,";
-        os << majorVersion * 10 + minorVersion;
-        if(patchVersion >= 60)
-        {
-            os << 'b' << (patchVersion - 60);
-        }
-        else if(patchVersion >= 50)
-        {
-            os << 'a' << (patchVersion - 50);
-        }
-        os << ":createPlugin";
+        std::string plugin = "TestPlugin," + std::string(ICE_SO_VERSION) + ":createPlugin";
         Ice::PropertiesPtr properties = createTestProperties(argc, argv);
-        properties->setProperty("Ice.Plugin.Test", os.str());
+        properties->setProperty("Ice.Plugin.Test", plugin);
         Ice::CommunicatorHolder communicator = initialize(argc, argv, properties);
     }
     catch(const Ice::Exception& ex)
@@ -262,7 +244,7 @@ Client::run(int argc, char** argv)
         test(pm->getPlugin("PluginTwo"));
         test(pm->getPlugin("PluginThree"));
 
-        MyPluginPtr p4 = ICE_MAKE_SHARED(MyPlugin);
+        MyPluginPtr p4 = std::make_shared<MyPlugin>();
         pm->addPlugin("PluginFour", p4);
         test(pm->getPlugin("PluginFour"));
 

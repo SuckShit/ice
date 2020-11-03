@@ -4,14 +4,16 @@
 
 #pragma once
 
+[[3.7]]
+
 #include <TestAMD.ice>
 
-[["swift:class-resolver-prefix:IceSlicingObjectsServerAMD"]]
+[[swift:class-resolver-prefix(IceSlicingObjectsServerAMD)]]
 
 module Test
 {
 
-class SBSUnknownDerived extends SBase
+class SBSUnknownDerived : SBase
 {
     string sbsud;
 }
@@ -22,19 +24,19 @@ class SUnknown
     SUnknown cycle;
 }
 
-class D2 extends B
+class D2 : B
 {
     string sd2;
     B pd2;
 }
 
-class D4 extends B
+class D4 : B
 {
     B p1;
     B p2;
 }
 
-exception UnknownDerivedException extends BaseException
+exception UnknownDerivedException : BaseException
 {
     string sude;
     D2 pd2;
@@ -45,19 +47,19 @@ class MyClass
     int i;
 }
 
-class PSUnknown extends Preserved
+class PSUnknown : Preserved
 {
     string psu;
     PNode graph;
     MyClass cl;
 }
 
-class PSUnknown2 extends Preserved
+class PSUnknown2 : Preserved
 {
     PBase pb;
 }
 
-exception PSUnknownException extends PreservedException
+exception PSUnknownException : PreservedException
 {
     PSUnknown2 p;
 }

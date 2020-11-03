@@ -1,1175 +1,1178 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
-using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace IceInternal
+namespace ZeroC.Ice
 {
-    public abstract class Reference : ICloneable
+    /// <summary>Reference is an Ice-internal but publicly visible class. Each Ice proxy has a single Reference.
+    /// Reference represents the untyped implementation of a proxy. Multiples proxies that point to the same Ice object
+    /// and share the same proxy options can share the same Reference object, even if these proxies have different
+    /// types.</summary>
+    public sealed class Reference : IEquatable<Reference>
     {
-        public enum Mode {
-                            ModeTwoway,
-                            ModeOneway,
-                            ModeBatchOneway,
-                            ModeDatagram,
-                            ModeBatchDatagram,
-                            ModeLast=ModeBatchDatagram
-                         };
+        internal string AdapterId => Location.Count == 0 ? "" : Location[0];
+        internal Communicator Communicator { get; }
+        internal string ConnectionId { get; }
+        internal IReadOnlyDictionary<string, string> Context { get; }
+        internal Encoding Encoding { get; }
+        internal IReadOnlyList<Endpoint> Endpoints { get; }
+        internal string Facet { get; }
+        internal Identity Identity { get; }
 
-        public interface GetConnectionCallback
+        // For ice1 proxies, all the enumerators are meaningful. For other proxies, only the Twoway and Oneway
+        // enumerators are used.
+        internal InvocationMode InvocationMode { get; }
+
+        internal TimeSpan InvocationTimeout { get; }
+        internal bool IsConnectionCached { get; }
+        internal bool IsFixed { get; }
+        internal bool IsIndirect => !IsFixed && Endpoints.Count == 0;
+        public bool IsOneway => InvocationMode != InvocationMode.Twoway;
+        internal bool IsWellKnown => !IsFixed && Endpoints.Count == 0 && Location.Count == 0;
+        internal IReadOnlyList<string> Location { get; }
+
+        internal TimeSpan LocatorCacheTimeout { get; }
+
+        internal LocatorInfo? LocatorInfo { get; }
+
+        internal bool PreferNonSecure { get; }
+        internal Protocol Protocol { get; }
+        internal RouterInfo? RouterInfo { get; }
+        private int _hashCode;
+        private volatile Connection? _connection; // readonly when IsFixed is true
+
+        /// <summary>The equality operator == returns true if its operands are equal, false otherwise.</summary>
+        /// <param name="lhs">The left hand side operand.</param>
+        /// <param name="rhs">The right hand side operand.</param>
+        /// <returns><c>true</c> if the operands are equal, otherwise <c>false</c>.</returns>
+        public static bool operator ==(Reference? lhs, Reference? rhs)
         {
-            void setConnection(Ice.ConnectionI connection, bool compress);
-            void setException(Ice.LocalException ex);
-        }
-
-        public Mode getMode()
-        {
-            return _mode;
-        }
-
-        public bool getSecure()
-        {
-            return secure_;
-        }
-
-        public Ice.ProtocolVersion getProtocol()
-        {
-            return _protocol;
-        }
-
-        public Ice.EncodingVersion getEncoding()
-        {
-            return _encoding;
-        }
-
-        public Ice.Identity getIdentity()
-        {
-            return _identity;
-        }
-
-        public string getFacet()
-        {
-            return _facet;
-        }
-
-        public Instance getInstance()
-        {
-            return _instance;
-        }
-
-        public Dictionary<string, string> getContext()
-        {
-            return _context;
-        }
-
-        public int
-        getInvocationTimeout()
-        {
-            return _invocationTimeout;
-        }
-
-        public Ice.Optional<bool>
-        getCompress()
-        {
-            return overrideCompress_ ? compress_ : new Ice.Optional<bool>();
-        }
-
-        public Ice.Communicator getCommunicator()
-        {
-            return _communicator;
-        }
-
-        public abstract EndpointI[] getEndpoints();
-        public abstract string getAdapterId();
-        public abstract LocatorInfo getLocatorInfo();
-        public abstract RouterInfo getRouterInfo();
-        public abstract bool getCollocationOptimized();
-        public abstract bool getCacheConnection();
-        public abstract bool getPreferSecure();
-        public abstract Ice.EndpointSelectionType getEndpointSelection();
-        public abstract int getLocatorCacheTimeout();
-        public abstract string getConnectionId();
-        public abstract Ice.Optional<int> getTimeout();
-        public abstract ThreadPool getThreadPool();
-
-        //
-        // The change* methods (here and in derived classes) create
-        // a new reference based on the existing one, with the
-        // corresponding value changed.
-        //
-        public Reference changeContext(Dictionary<string, string> newContext)
-        {
-            if(newContext == null)
-            {
-                newContext = _emptyContext;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            if(newContext.Count == 0)
-            {
-                r._context = _emptyContext;
-            }
-            else
-            {
-                r._context = new Dictionary<string, string>(newContext);
-            }
-            return r;
-        }
-
-        public Reference changeMode(Mode newMode)
-        {
-            if(newMode == _mode)
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r._mode = newMode;
-            return r;
-        }
-
-        public Reference changeSecure(bool newSecure)
-        {
-            if(newSecure == secure_)
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r.secure_ = newSecure;
-            return r;
-        }
-
-        public Reference changeIdentity(Ice.Identity newIdentity)
-        {
-            if(newIdentity.Equals(_identity))
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r._identity = newIdentity; // Identity is a value type, therefore a copy of newIdentity is made.
-            return r;
-        }
-
-        public Reference changeFacet(string newFacet)
-        {
-            if(newFacet.Equals(_facet))
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r._facet = newFacet;
-            return r;
-        }
-
-        public Reference changeInvocationTimeout(int newTimeout)
-        {
-            if(newTimeout == _invocationTimeout)
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r._invocationTimeout = newTimeout;
-            return r;
-        }
-
-        public virtual Reference changeEncoding(Ice.EncodingVersion newEncoding)
-        {
-            if(newEncoding.Equals(_encoding))
-            {
-                return this;
-            }
-            Reference r = _instance.referenceFactory().copy(this);
-            r._encoding = newEncoding;
-            return r;
-        }
-
-        public virtual Reference changeCompress(bool newCompress)
-        {
-            if(overrideCompress_ && compress_ == newCompress)
-            {
-                return this;
-            }
-
-            Reference r = _instance.referenceFactory().copy(this);
-            r.compress_ = newCompress;
-            r.overrideCompress_ = true;
-            return r;
-        }
-
-        public abstract Reference changeEndpoints(EndpointI[] newEndpoints);
-        public abstract Reference changeAdapterId(string newAdapterId);
-        public abstract Reference changeLocator(Ice.LocatorPrx newLocator);
-        public abstract Reference changeRouter(Ice.RouterPrx newRouter);
-        public abstract Reference changeCollocationOptimized(bool newCollocationOptimized);
-        public abstract Reference changeCacheConnection(bool newCache);
-        public abstract Reference changePreferSecure(bool newPreferSecure);
-        public abstract Reference changeEndpointSelection(Ice.EndpointSelectionType newType);
-        public abstract Reference changeLocatorCacheTimeout(int newTimeout);
-
-        public abstract Reference changeTimeout(int newTimeout);
-        public abstract Reference changeConnectionId(string connectionId);
-        public abstract Reference changeConnection(Ice.ConnectionI connection);
-
-        public override int GetHashCode()
-        {
-            lock(this)
-            {
-                if(hashInitialized_)
-                {
-                    return hashValue_;
-                }
-                int h = 5381;
-                HashUtil.hashAdd(ref h, _mode);
-                HashUtil.hashAdd(ref h, secure_);
-                HashUtil.hashAdd(ref h, _identity);
-                HashUtil.hashAdd(ref h, _context);
-                HashUtil.hashAdd(ref h, _facet);
-                HashUtil.hashAdd(ref h, overrideCompress_);
-                if(overrideCompress_)
-                {
-                    HashUtil.hashAdd(ref h, compress_);
-                }
-                HashUtil.hashAdd(ref h, _protocol);
-                HashUtil.hashAdd(ref h, _encoding);
-                HashUtil.hashAdd(ref h, _invocationTimeout);
-                hashValue_ = h;
-                hashInitialized_ = true;
-                return hashValue_;
-            }
-        }
-
-        public bool getCompressOverride(out bool compress)
-        {
-            DefaultsAndOverrides defaultsAndOverrides = getInstance().defaultsAndOverrides();
-            if(defaultsAndOverrides.overrideCompress)
-            {
-                compress = defaultsAndOverrides.overrideCompressValue;
-            }
-            else if(overrideCompress_)
-            {
-                compress = compress_;
-            }
-            else
-            {
-                compress = false;
-                return false;
-            }
-            return true;
-        }
-
-        public abstract bool isIndirect();
-        public abstract bool isWellKnown();
-
-        //
-        // Marshal the reference.
-        //
-        public virtual void streamWrite(Ice.OutputStream s)
-        {
-            //
-            // Don't write the identity here. Operations calling streamWrite
-            // write the identity.
-            //
-
-            //
-            // For compatibility with the old FacetPath.
-            //
-            if(_facet.Length == 0)
-            {
-                s.writeStringSeq(null);
-            }
-            else
-            {
-                string[] facetPath = { _facet };
-                s.writeStringSeq(facetPath);
-            }
-
-            s.writeByte((byte)_mode);
-
-            s.writeBool(secure_);
-
-            if(!s.getEncoding().Equals(Ice.Util.Encoding_1_0))
-            {
-                _protocol.ice_writeMembers(s);
-                _encoding.ice_writeMembers(s);
-            }
-
-            // Derived class writes the remainder of the reference.
-        }
-
-        //
-        // Convert the reference to its string form.
-        //
-        public override string ToString()
-        {
-            //
-            // WARNING: Certain features, such as proxy validation in Glacier2,
-            // depend on the format of proxy strings. Changes to toString() and
-            // methods called to generate parts of the reference string could break
-            // these features. Please review for all features that depend on the
-            // format of proxyToString() before changing this and related code.
-            //
-            StringBuilder s = new StringBuilder();
-
-            Ice.ToStringMode toStringMode = _instance.toStringMode();
-
-            //
-            // If the encoded identity string contains characters which
-            // the reference parser uses as separators, then we enclose
-            // the identity string in quotes.
-            //
-            string id = Ice.Util.identityToString(_identity, toStringMode);
-            if(IceUtilInternal.StringUtil.findFirstOf(id, " :@") != -1)
-            {
-                s.Append('"');
-                s.Append(id);
-                s.Append('"');
-            }
-            else
-            {
-                s.Append(id);
-            }
-
-            if(_facet.Length > 0)
-            {
-                //
-                // If the encoded facet string contains characters which
-                // the reference parser uses as separators, then we enclose
-                // the facet string in quotes.
-                //
-                s.Append(" -f ");
-                string fs = IceUtilInternal.StringUtil.escapeString(_facet, "", toStringMode);
-                if(IceUtilInternal.StringUtil.findFirstOf(fs, " :@") != -1)
-                {
-                    s.Append('"');
-                    s.Append(fs);
-                    s.Append('"');
-                }
-                else
-                {
-                    s.Append(fs);
-                }
-            }
-
-            switch(_mode)
-            {
-            case Mode.ModeTwoway:
-            {
-                s.Append(" -t");
-                break;
-            }
-
-            case Mode.ModeOneway:
-            {
-                s.Append(" -o");
-                break;
-            }
-
-            case Mode.ModeBatchOneway:
-            {
-                s.Append(" -O");
-                break;
-            }
-
-            case Mode.ModeDatagram:
-            {
-                s.Append(" -d");
-                break;
-            }
-
-            case Mode.ModeBatchDatagram:
-            {
-                s.Append(" -D");
-                break;
-            }
-            }
-
-            if(secure_)
-            {
-                s.Append(" -s");
-            }
-
-            if(!_protocol.Equals(Ice.Util.Protocol_1_0))
-            {
-                //
-                // We only print the protocol if it's not 1.0. It's fine as
-                // long as we don't add Ice.Default.ProtocolVersion, a
-                // stringified proxy will convert back to the same proxy with
-                // stringToProxy.
-                //
-                s.Append(" -p ");
-                s.Append(Ice.Util.protocolVersionToString(_protocol));
-            }
-
-            //
-            // Always print the encoding version to ensure a stringified proxy
-            // will convert back to a proxy with the same encoding with
-            // stringToProxy (and won't use Ice.Default.EncodingVersion).
-            //
-            s.Append(" -e ");
-            s.Append(Ice.Util.encodingVersionToString(_encoding));
-
-            return s.ToString();
-
-            // Derived class writes the remainder of the string.
-        }
-
-        public abstract Dictionary<string, string> toProperty(string prefix);
-
-        public abstract RequestHandler getRequestHandler(Ice.ObjectPrxHelperBase proxy);
-
-        public abstract BatchRequestQueue getBatchRequestQueue();
-
-        public override bool Equals(object obj)
-        {
-            //
-            // Note: if(this == obj) and type test are performed by each non-abstract derived class.
-            //
-
-            Reference r = (Reference)obj; // Guaranteed to succeed.
-
-            if(_mode != r._mode)
-            {
-                return false;
-            }
-
-            if(secure_ != r.secure_)
-            {
-                return false;
-            }
-
-            if(!_identity.Equals(r._identity))
-            {
-                return false;
-            }
-
-            if(!Ice.CollectionComparer.Equals(_context, r._context))
-            {
-                return false;
-            }
-
-            if(!_facet.Equals(r._facet))
-            {
-                return false;
-            }
-
-            if(overrideCompress_ != r.overrideCompress_)
-            {
-                return false;
-            }
-            if(overrideCompress_ && compress_ != r.compress_)
-            {
-                return false;
-            }
-
-            if(!_protocol.Equals(r._protocol))
-            {
-                return false;
-            }
-
-            if(!_encoding.Equals(r._encoding))
-            {
-                return false;
-            }
-
-            if(_invocationTimeout != r._invocationTimeout)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        public object Clone()
-        {
-            //
-            // A member-wise copy is safe because the members are immutable.
-            //
-            return MemberwiseClone();
-        }
-
-        protected int hashValue_;
-        protected bool hashInitialized_;
-        private static Dictionary<string, string> _emptyContext = new Dictionary<string, string>();
-
-        private Instance _instance;
-        private Ice.Communicator _communicator;
-
-        private Mode _mode;
-        private Ice.Identity _identity;
-        private Dictionary<string, string> _context;
-        private string _facet;
-        protected bool secure_;
-        private Ice.ProtocolVersion _protocol;
-        private Ice.EncodingVersion _encoding;
-        private int _invocationTimeout;
-
-        protected bool overrideCompress_;
-        protected bool compress_; // Only used if _overrideCompress == true
-
-        protected Reference(Instance instance,
-                            Ice.Communicator communicator,
-                            Ice.Identity identity,
-                            string facet,
-                            Mode mode,
-                            bool secure,
-                            Ice.ProtocolVersion protocol,
-                            Ice.EncodingVersion encoding,
-                            int invocationTimeout,
-                            Dictionary<string, string> context)
-        {
-            //
-            // Validate string arguments.
-            //
-            Debug.Assert(identity.name != null);
-            Debug.Assert(identity.category != null);
-            Debug.Assert(facet != null);
-
-            _instance = instance;
-            _communicator = communicator;
-            _mode = mode;
-            _identity = identity;
-            _context = context != null ? new Dictionary<string, string>(context) : _emptyContext;
-            _facet = facet;
-            _protocol = protocol;
-            _encoding = encoding;
-            _invocationTimeout = invocationTimeout;
-            secure_ = secure;
-            hashInitialized_ = false;
-            overrideCompress_ = false;
-            compress_ = false;
-        }
-
-        protected static Random rand_ = new Random(unchecked((int)DateTime.Now.Ticks));
-    }
-
-    public class FixedReference : Reference
-    {
-        public FixedReference(Instance instance,
-                              Ice.Communicator communicator,
-                              Ice.Identity identity,
-                              string facet,
-                              Mode mode,
-                              bool secure,
-                              Ice.ProtocolVersion protocol,
-                              Ice.EncodingVersion encoding,
-                              Ice.ConnectionI connection,
-                              int invocationTimeout,
-                              Dictionary<string, string> context,
-                              Ice.Optional<bool> compress)
-        : base(instance, communicator, identity, facet, mode, secure, protocol, encoding, invocationTimeout, context)
-        {
-            _fixedConnection = connection;
-            if(compress.HasValue)
-            {
-                overrideCompress_ = true;
-                compress_ = compress.Value;
-            }
-        }
-
-        public override EndpointI[] getEndpoints()
-        {
-            return _emptyEndpoints;
-        }
-
-        public override string getAdapterId()
-        {
-            return "";
-        }
-
-        public override LocatorInfo getLocatorInfo()
-        {
-            return null;
-        }
-
-        public override RouterInfo getRouterInfo()
-        {
-            return null;
-        }
-
-        public override bool getCollocationOptimized()
-        {
-            return false;
-        }
-
-        public override bool getCacheConnection()
-        {
-            return true;
-        }
-
-        public override bool getPreferSecure()
-        {
-            return false;
-        }
-
-        public override Ice.EndpointSelectionType getEndpointSelection()
-        {
-            return Ice.EndpointSelectionType.Random;
-        }
-
-        public override int getLocatorCacheTimeout()
-        {
-            return 0;
-        }
-
-        public override string getConnectionId()
-        {
-            return "";
-        }
-
-        public override Ice.Optional<int> getTimeout()
-        {
-            return new Ice.Optional<int>();
-        }
-
-        public override ThreadPool getThreadPool()
-        {
-            return _fixedConnection.getThreadPool();
-        }
-
-        public override Reference changeEndpoints(EndpointI[] newEndpoints)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeAdapterId(string newAdapterId)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeLocator(Ice.LocatorPrx newLocator)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeRouter(Ice.RouterPrx newRouter)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeCollocationOptimized(bool newCollocationOptimized)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeCacheConnection(bool newCache)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changePreferSecure(bool prefSec)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeEndpointSelection(Ice.EndpointSelectionType newType)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeLocatorCacheTimeout(int newTimeout)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeTimeout(int newTimeout)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeConnectionId(string connectionId)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Reference changeConnection(Ice.ConnectionI connection)
-        {
-            if(_fixedConnection == connection)
-            {
-                return this;
-            }
-            FixedReference r = (FixedReference)getInstance().referenceFactory().copy(this);
-            r._fixedConnection = connection;
-            return r;
-        }
-
-        public override bool isIndirect()
-        {
-            return false;
-        }
-
-        public override bool isWellKnown()
-        {
-            return false;
-        }
-
-        public override void streamWrite(Ice.OutputStream s)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override Dictionary<string, string> toProperty(string prefix)
-        {
-            throw new Ice.FixedProxyException();
-        }
-
-        public override RequestHandler getRequestHandler(Ice.ObjectPrxHelperBase proxy)
-        {
-            switch(getMode())
-            {
-            case Mode.ModeTwoway:
-            case Mode.ModeOneway:
-            case Mode.ModeBatchOneway:
-            {
-                if(_fixedConnection.endpoint().datagram())
-                {
-                    throw new Ice.NoEndpointException(ToString());
-                }
-                break;
-            }
-
-            case Mode.ModeDatagram:
-            case Mode.ModeBatchDatagram:
-            {
-                if(!_fixedConnection.endpoint().datagram())
-                {
-                    throw new Ice.NoEndpointException(ToString());
-                }
-                break;
-            }
-            }
-
-            //
-            // If a secure connection is requested or secure overrides is set,
-            // check if the connection is secure.
-            //
-            bool secure;
-            DefaultsAndOverrides defaultsAndOverrides = getInstance().defaultsAndOverrides();
-            if(defaultsAndOverrides.overrideSecure)
-            {
-                secure = defaultsAndOverrides.overrideSecureValue;
-            }
-            else
-            {
-                secure = getSecure();
-            }
-            if(secure && !_fixedConnection.endpoint().secure())
-            {
-                throw new Ice.NoEndpointException(ToString());
-            }
-
-            _fixedConnection.throwException(); // Throw in case our connection is already destroyed.
-
-            bool compress = false;
-            if(defaultsAndOverrides.overrideCompress)
-            {
-                compress = defaultsAndOverrides.overrideCompressValue;
-            }
-            else if(overrideCompress_)
-            {
-                compress = compress_;
-            }
-
-            return proxy.iceSetRequestHandler(new ConnectionRequestHandler(this, _fixedConnection, compress));
-        }
-
-        public override BatchRequestQueue getBatchRequestQueue()
-        {
-            return _fixedConnection.getBatchRequestQueue();
-        }
-
-        public override bool Equals(object obj)
-        {
-            if(ReferenceEquals(this, obj))
+            if (ReferenceEquals(lhs, rhs))
             {
                 return true;
             }
-            FixedReference rhs = obj as FixedReference;
-            if(rhs == null)
+
+            if (lhs is null || rhs is null)
             {
                 return false;
             }
-            if(!base.Equals(rhs))
+            return rhs.Equals(lhs);
+        }
+
+        /// <summary>The inequality operator != returns true if its operands are not equal, false otherwise.</summary>
+        /// <param name="lhs">The left hand side operand.</param>
+        /// <param name="rhs">The right hand side operand.</param>
+        /// <returns><c>true</c> if the operands are not equal, otherwise <c>false</c>.</returns>
+        public static bool operator !=(Reference? lhs, Reference? rhs) => !(lhs == rhs);
+
+        /// <summary>Creates a reference from a string and a communicator. This an Ice-internal publicly visible static
+        /// method.</summary>
+        public static Reference Parse(string s, Communicator communicator, string? propertyPrefix = null)
+        {
+            string proxyString = s.Trim();
+            if (proxyString.Length == 0)
+            {
+                throw new FormatException("empty string is invalid");
+            }
+
+            Encoding encoding;
+            IReadOnlyList<Endpoint> endpoints;
+            string facet;
+            Identity identity;
+            InvocationMode invocationMode = InvocationMode.Twoway;
+            TimeSpan? invocationTimeout = null;
+            IReadOnlyList<string> location;
+            Protocol protocol;
+
+            if (UriParser.IsProxyUri(proxyString))
+            {
+                List<string> path;
+                UriParser.ProxyOptions proxyOptions;
+                (endpoints, path, proxyOptions, facet) = UriParser.ParseProxy(proxyString, communicator);
+
+                protocol = proxyOptions.Protocol ?? Protocol.Ice2;
+                Debug.Assert(protocol != Protocol.Ice1); // the URI parsing rejects ice1
+
+                encoding = proxyOptions.Encoding ?? Encoding.V20;
+
+                switch (path.Count)
+                {
+                    case 0:
+                        // TODO: should we add a default identity "Default" or "Root" or "Main"?
+                        throw new FormatException($"missing identity in proxy `{proxyString}'");
+                    case 1:
+                        identity = new Identity(category: "", name: path[0]);
+                        location = ImmutableArray<string>.Empty;
+                        break;
+                    case 2:
+                        identity = new Identity(category: path[0], name: path[1]);
+                        location = ImmutableArray<string>.Empty;
+                        break;
+                    default:
+                        identity = new Identity(category: path[^2], name: path[^1]);
+                        path.RemoveRange(path.Count - 2, 2);
+                        location = path;
+                        break;
+                }
+
+                if (identity.Name.Length == 0)
+                {
+                    throw new FormatException($"invalid identity with empty name in proxy `{proxyString}'");
+                }
+                if (location.Any(segment => segment.Length == 0))
+                {
+                    throw new FormatException($"invalid location with empty segment in proxy `{proxyString}'");
+                }
+
+                invocationTimeout = proxyOptions.InvocationTimeout;
+            }
+            else
+            {
+                protocol = Protocol.Ice1;
+                string location0;
+
+                (identity, facet, invocationMode, encoding, location0, endpoints) =
+                    Ice1Parser.ParseProxy(proxyString, communicator);
+
+                // 0 or 1 segment
+                location = location0.Length > 0 ? ImmutableArray.Create(location0) : ImmutableArray<string>.Empty;
+            }
+
+            bool? cacheConnection = null;
+            IReadOnlyDictionary<string, string>? context = null;
+            TimeSpan? locatorCacheTimeout = null;
+            LocatorInfo? locatorInfo = null;
+            bool? preferNonSecure = null;
+            RouterInfo? routerInfo = null;
+
+            // Override the defaults with the proxy properties if a property prefix is defined.
+            if (propertyPrefix != null && propertyPrefix.Length > 0)
+            {
+                // Warn about unknown properties.
+                if (communicator.WarnUnknownProperties)
+                {
+                    communicator.CheckForUnknownProperties(propertyPrefix);
+                }
+
+                cacheConnection = communicator.GetPropertyAsBool($"{propertyPrefix}.ConnectionCached");
+
+                string property = $"{propertyPrefix}.Context.";
+                context = communicator.GetProperties(forPrefix: property).
+                    ToDictionary(e => e.Key.Substring(property.Length), e => e.Value);
+                if (context.Count == 0)
+                {
+                    context = null;
+                }
+
+                if (invocationTimeout == null)
+                {
+                    property = $"{propertyPrefix}.InvocationTimeout";
+                    invocationTimeout = communicator.GetPropertyAsTimeSpan(property);
+                    if (invocationTimeout == TimeSpan.Zero)
+                    {
+                        throw new InvalidConfigurationException($"0 is not a valid value for property `{property}'");
+                    }
+                }
+
+                locatorInfo = communicator.GetLocatorInfo(
+                    communicator.GetPropertyAsProxy($"{propertyPrefix}.Locator", ILocatorPrx.Factory));
+
+                locatorCacheTimeout = communicator.GetPropertyAsTimeSpan($"{propertyPrefix}.LocatorCacheTimeout");
+                preferNonSecure = communicator.GetPropertyAsBool($"{propertyPrefix}.PreferNonSecure");
+
+                property = $"{propertyPrefix}.Router";
+                if (communicator.GetPropertyAsProxy(property, IRouterPrx.Factory) is IRouterPrx router)
+                {
+                    if (propertyPrefix.EndsWith(".Router", StringComparison.Ordinal))
+                    {
+                        throw new InvalidConfigurationException(
+                            $"`{property}={communicator.GetProperty(property)}': cannot set a router on a router");
+                    }
+                    routerInfo = communicator.GetRouterInfo(router);
+                }
+            }
+
+            return new Reference(cacheConnection: cacheConnection ?? true,
+                                 communicator: communicator,
+                                 connectionId: "",
+                                 context: context ?? communicator.DefaultContext,
+                                 encoding: encoding,
+                                 endpoints: endpoints,
+                                 facet: facet,
+                                 identity: identity,
+                                 invocationMode: invocationMode,
+                                 invocationTimeout: invocationTimeout ?? communicator.DefaultInvocationTimeout,
+                                 location: location,
+                                 locatorCacheTimeout: locatorCacheTimeout ?? communicator.DefaultLocatorCacheTimeout,
+                                 locatorInfo:
+                                    locatorInfo ?? communicator.GetLocatorInfo(communicator.DefaultLocator),
+                                 preferNonSecure: preferNonSecure ?? communicator.DefaultPreferNonSecure,
+                                 protocol: protocol,
+                                 routerInfo: routerInfo ?? communicator.GetRouterInfo(communicator.DefaultRouter));
+        }
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => Equals(obj as Reference);
+
+        /// <inheritdoc/>
+        public bool Equals(Reference? other)
+        {
+            if (other == null)
             {
                 return false;
             }
-            return _fixedConnection.Equals(rhs._fixedConnection);
-        }
-
-        //
-        // If we override Equals, we must also override GetHashCode.
-        //
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
-        }
-
-        private Ice.ConnectionI _fixedConnection;
-        private static EndpointI[] _emptyEndpoints = new EndpointI[0];
-    }
-
-    public class RoutableReference : Reference
-    {
-        public override EndpointI[] getEndpoints()
-        {
-            return _endpoints;
-        }
-
-        public override string getAdapterId()
-        {
-            return _adapterId;
-        }
-
-        public override LocatorInfo getLocatorInfo()
-        {
-            return _locatorInfo;
-        }
-
-        public override RouterInfo getRouterInfo()
-        {
-            return _routerInfo;
-        }
-
-        public override bool getCollocationOptimized()
-        {
-            return _collocationOptimized;
-        }
-
-        public override bool getCacheConnection()
-        {
-            return _cacheConnection;
-        }
-
-        public override bool getPreferSecure()
-        {
-            return _preferSecure;
-        }
-
-        public override Ice.EndpointSelectionType getEndpointSelection()
-        {
-            return _endpointSelection;
-        }
-
-        public override int getLocatorCacheTimeout()
-        {
-            return _locatorCacheTimeout;
-        }
-
-        public override string getConnectionId()
-        {
-            return _connectionId;
-        }
-
-        public override Ice.Optional<int> getTimeout()
-        {
-            return _overrideTimeout ? _timeout : new Ice.Optional<int>();
-        }
-
-        public override ThreadPool getThreadPool()
-        {
-            return getInstance().clientThreadPool();
-        }
-
-        public override Reference changeEncoding(Ice.EncodingVersion newEncoding)
-        {
-            RoutableReference r = (RoutableReference)base.changeEncoding(newEncoding);
-            if(r != this)
+            if (ReferenceEquals(this, other))
             {
-                LocatorInfo locInfo = r._locatorInfo;
-                if(locInfo != null && !locInfo.getLocator().ice_getEncodingVersion().Equals(newEncoding))
+                return true;
+            }
+
+            if (_hashCode != 0 && other._hashCode != 0 && _hashCode != other._hashCode)
+            {
+                return false;
+            }
+
+            if (IsFixed)
+            {
+                // Compare properties and fields specific to fixed references
+                if (_connection != other._connection)
                 {
-                    r._locatorInfo = getInstance().locatorManager().get(
-                        (Ice.LocatorPrx)locInfo.getLocator().ice_encodingVersion(newEncoding));
-                }
-            }
-            return r;
-        }
-
-        public override Reference changeCompress(bool newCompress)
-        {
-            RoutableReference r = (RoutableReference)base.changeCompress(newCompress);
-            if(r != this && _endpoints.Length > 0) // Also override the compress flag on the endpoints if it was updated
-            {
-                EndpointI[] newEndpoints = new EndpointI[_endpoints.Length];
-                for(int i = 0; i < _endpoints.Length; i++)
-                {
-                    newEndpoints[i] = _endpoints[i].compress(newCompress);
-                }
-                r._endpoints = newEndpoints;
-            }
-            return r;
-        }
-
-        public override Reference changeEndpoints(EndpointI[] newEndpoints)
-        {
-            if(Equals(newEndpoints, _endpoints))
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._endpoints = newEndpoints;
-            r._adapterId = "";
-            r.applyOverrides(ref r._endpoints);
-            return r;
-        }
-
-        public override Reference changeAdapterId(string newAdapterId)
-        {
-            if(_adapterId.Equals(newAdapterId))
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._adapterId = newAdapterId;
-            r._endpoints = _emptyEndpoints;
-            return r;
-        }
-
-        public override Reference changeLocator(Ice.LocatorPrx newLocator)
-        {
-            LocatorInfo newLocatorInfo = getInstance().locatorManager().get(newLocator);
-            if(newLocatorInfo != null && _locatorInfo != null && newLocatorInfo.Equals(_locatorInfo))
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._locatorInfo = newLocatorInfo;
-            return r;
-        }
-
-        public override Reference changeRouter(Ice.RouterPrx newRouter)
-        {
-            RouterInfo newRouterInfo = getInstance().routerManager().get(newRouter);
-            if(newRouterInfo != null && _routerInfo != null && newRouterInfo.Equals(_routerInfo))
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._routerInfo = newRouterInfo;
-            return r;
-        }
-
-        public override Reference changeCollocationOptimized(bool newCollocationOptimized)
-        {
-            if(newCollocationOptimized == _collocationOptimized)
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._collocationOptimized = newCollocationOptimized;
-            return r;
-        }
-
-        public override Reference changeCacheConnection(bool newCache)
-        {
-            if(newCache == _cacheConnection)
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._cacheConnection = newCache;
-            return r;
-        }
-
-        public override Reference changePreferSecure(bool newPreferSecure)
-        {
-            if(newPreferSecure == _preferSecure)
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._preferSecure = newPreferSecure;
-            return r;
-        }
-
-        public override Reference changeEndpointSelection(Ice.EndpointSelectionType newType)
-        {
-            if(newType == _endpointSelection)
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._endpointSelection = newType;
-            return r;
-        }
-
-        public override Reference changeLocatorCacheTimeout(int newTimeout)
-        {
-            if(newTimeout == _locatorCacheTimeout)
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._locatorCacheTimeout = newTimeout;
-            return r;
-        }
-
-        public override Reference changeTimeout(int newTimeout)
-        {
-            if(_overrideTimeout && _timeout == newTimeout)
-            {
-                return this;
-            }
-
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._timeout = newTimeout;
-            r._overrideTimeout = true;
-            if(_endpoints.Length > 0)
-            {
-                EndpointI[] newEndpoints = new EndpointI[_endpoints.Length];
-                for(int i = 0; i < _endpoints.Length; i++)
-                {
-                    newEndpoints[i] = _endpoints[i].timeout(newTimeout);
-                }
-                r._endpoints = newEndpoints;
-            }
-            return r;
-        }
-
-        public override Reference changeConnectionId(string id)
-        {
-            if(_connectionId.Equals(id))
-            {
-                return this;
-            }
-            RoutableReference r = (RoutableReference)getInstance().referenceFactory().copy(this);
-            r._connectionId = id;
-            if(_endpoints.Length > 0)
-            {
-                EndpointI[] newEndpoints = new EndpointI[_endpoints.Length];
-                for(int i = 0; i < _endpoints.Length; i++)
-                {
-                    newEndpoints[i] = _endpoints[i].connectionId(id);
-                }
-                r._endpoints = newEndpoints;
-            }
-            return r;
-        }
-
-        public override Reference changeConnection(Ice.ConnectionI connection)
-        {
-            return new FixedReference(getInstance(),
-                                      getCommunicator(),
-                                      getIdentity(),
-                                      getFacet(),
-                                      getMode(),
-                                      getSecure(),
-                                      getProtocol(),
-                                      getEncoding(),
-                                      connection,
-                                      getInvocationTimeout(),
-                                      getContext(),
-                                      getCompress());
-        }
-
-        public override bool isIndirect()
-        {
-            return _endpoints.Length == 0;
-        }
-
-        public override bool isWellKnown()
-        {
-            return _endpoints.Length == 0 && _adapterId.Length == 0;
-        }
-
-        public override void streamWrite(Ice.OutputStream s)
-        {
-            base.streamWrite(s);
-
-            s.writeSize(_endpoints.Length);
-            if(_endpoints.Length > 0)
-            {
-                Debug.Assert(_adapterId.Length == 0);
-                foreach(EndpointI endpoint in _endpoints)
-                {
-                    s.writeShort(endpoint.type());
-                    endpoint.streamWrite(s);
+                    return false;
                 }
             }
             else
             {
-                s.writeString(_adapterId); // Adapter id.
-            }
-        }
-
-        public override string ToString()
-        {
-            //
-            // WARNING: Certain features, such as proxy validation in Glacier2,
-            // depend on the format of proxy strings. Changes to toString() and
-            // methods called to generate parts of the reference string could break
-            // these features. Please review for all features that depend on the
-            // format of proxyToString() before changing this and related code.
-            //
-            StringBuilder s = new StringBuilder();
-            s.Append(base.ToString());
-
-            if(_endpoints.Length > 0)
-            {
-                for(int i = 0; i < _endpoints.Length; i++)
+                // Compare properties specific to routable references
+                if (ConnectionId != other.ConnectionId)
                 {
-                    string endp = _endpoints[i].ToString();
-                    if(endp != null && endp.Length > 0)
-                    {
-                        s.Append(':');
-                        s.Append(endp);
-                    }
+                    return false;
+                }
+                if (!Endpoints.SequenceEqual(other.Endpoints))
+                {
+                    return false;
+                }
+                if (IsConnectionCached != other.IsConnectionCached)
+                {
+                    return false;
+                }
+                if (!Location.SequenceEqual(other.Location))
+                {
+                    return false;
+                }
+                if (LocatorCacheTimeout != other.LocatorCacheTimeout)
+                {
+                    return false;
+                }
+                if (LocatorInfo != other.LocatorInfo)
+                {
+                    return false;
+                }
+                if (PreferNonSecure != other.PreferNonSecure)
+                {
+                    return false;
+                }
+                if (RouterInfo != other.RouterInfo)
+                {
+                    return false;
                 }
             }
-            else if(_adapterId.Length > 0)
-            {
-                s.Append(" @ ");
 
-                //
-                // If the encoded adapter id string contains characters which
-                // the reference parser uses as separators, then we enclose
-                // the adapter id string in quotes.
-                //
-                string a = IceUtilInternal.StringUtil.escapeString(_adapterId, null, getInstance().toStringMode());
-                if(IceUtilInternal.StringUtil.findFirstOf(a, " :@") != -1)
+            // Compare common properties
+            if (!Context.DictionaryEqual(other.Context))
+            {
+                return false;
+            }
+            if (Encoding != other.Encoding)
+            {
+                return false;
+            }
+            if (Facet != other.Facet)
+            {
+                return false;
+            }
+            if (Identity != other.Identity)
+            {
+                return false;
+            }
+            if (InvocationMode != other.InvocationMode)
+            {
+                return false;
+            }
+            if (InvocationTimeout != other.InvocationTimeout)
+            {
+                return false;
+            }
+            if (IsFixed != other.IsFixed)
+            {
+                return false;
+            }
+            if (Protocol != other.Protocol)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            if (_hashCode != 0)
+            {
+                // Already computed, return cached value:
+                return _hashCode;
+            }
+            else
+            {
+                // Lazy initialization of _hashCode to a value other than 0. Reading/writing _hashCode is atomic.
+                var hash = new HashCode();
+
+                // common properties
+                hash.Add(Context.GetDictionaryHashCode());
+                hash.Add(Encoding);
+                hash.Add(Facet);
+                hash.Add(Identity);
+                hash.Add(InvocationMode);
+                hash.Add(InvocationTimeout);
+                hash.Add(Protocol);
+
+                if (IsFixed)
                 {
-                    s.Append('"');
-                    s.Append(a);
-                    s.Append('"');
+                    hash.Add(_connection);
                 }
                 else
                 {
-                    s.Append(a);
-                 }
+                    hash.Add(ConnectionId);
+                    foreach (Endpoint e in Endpoints)
+                    {
+                        hash.Add(e);
+                    }
+                    hash.Add(IsConnectionCached);
+                    foreach (string s in Location)
+                    {
+                        hash.Add(s);
+                    }
+                    hash.Add(LocatorCacheTimeout);
+                    if (LocatorInfo != null)
+                    {
+                        hash.Add(LocatorInfo);
+                    }
+                    hash.Add(PreferNonSecure);
+                    if (RouterInfo != null)
+                    {
+                        hash.Add(RouterInfo);
+                    }
+                }
+
+                int hashCode = hash.ToHashCode();
+                if (hashCode == 0)
+                {
+                    // 0 means uninitialized so we switch to 1
+                    hashCode = 1;
+                }
+                _hashCode = hashCode;
+                return _hashCode;
             }
-            return s.ToString();
         }
 
-        public override Dictionary<string, string> toProperty(string prefix)
+        /// <summary>Converts the reference into a string. The format of this string depends on the protocol: for ice1,
+        /// this method uses the ice1 format, which can be customized by Communicator.ToStringMode. For ice2 and
+        /// greater, this method uses the URI format.</summary>
+        public override string ToString()
         {
-            Dictionary<string, string> properties = new Dictionary<string, string>();
-
-            properties[prefix] = ToString();
-            properties[prefix + ".CollocationOptimized"] = _collocationOptimized ? "1" : "0";
-            properties[prefix + ".ConnectionCached"] = _cacheConnection ? "1" : "0";
-            properties[prefix + ".PreferSecure"] = _preferSecure ? "1" : "0";
-            properties[prefix + ".EndpointSelection"] =
-                       _endpointSelection == Ice.EndpointSelectionType.Random ? "Random" : "Ordered";
-            properties[prefix + ".LocatorCacheTimeout"] = _locatorCacheTimeout.ToString(CultureInfo.InvariantCulture);
-            properties[prefix + ".InvocationTimeout"] = getInvocationTimeout().ToString(CultureInfo.InvariantCulture);
-
-            if(_routerInfo != null)
+            if (Protocol == Protocol.Ice1)
             {
-                Ice.ObjectPrxHelperBase h = (Ice.ObjectPrxHelperBase)_routerInfo.getRouter();
-                Dictionary<string, string> routerProperties = h.iceReference().toProperty(prefix + ".Router");
-                foreach(KeyValuePair<string, string> entry in routerProperties)
+                var sb = new StringBuilder();
+
+                // If the encoded identity string contains characters which the reference parser uses as separators,
+                // then we enclose the identity string in quotes.
+                string id = Identity.ToString(Communicator.ToStringMode);
+                if (StringUtil.FindFirstOf(id, " :@") != -1)
+                {
+                    sb.Append('"');
+                    sb.Append(id);
+                    sb.Append('"');
+                }
+                else
+                {
+                    sb.Append(id);
+                }
+
+                if (Facet.Length > 0)
+                {
+                    // If the encoded facet string contains characters which the reference parser uses as separators,
+                    // then we enclose the facet string in quotes.
+                    sb.Append(" -f ");
+                    string fs = StringUtil.EscapeString(Facet, Communicator.ToStringMode);
+                    if (StringUtil.FindFirstOf(fs, " :@") != -1)
+                    {
+                        sb.Append('"');
+                        sb.Append(fs);
+                        sb.Append('"');
+                    }
+                    else
+                    {
+                        sb.Append(fs);
+                    }
+                }
+
+                switch (InvocationMode)
+                {
+                    case InvocationMode.Twoway:
+                        sb.Append(" -t");
+                        break;
+                    case InvocationMode.Oneway:
+                        sb.Append(" -o");
+                        break;
+                    case InvocationMode.BatchOneway:
+                        sb.Append(" -O");
+                        break;
+                    case InvocationMode.Datagram:
+                        sb.Append(" -d");
+                        break;
+                    case InvocationMode.BatchDatagram:
+                        sb.Append(" -D");
+                        break;
+                }
+
+                // Always print the encoding version to ensure a stringified proxy will convert back to a proxy with the
+                // same encoding with StringToProxy. (Only needed for backwards compatibility).
+                sb.Append(" -e ");
+                sb.Append(Encoding.ToString());
+
+                if (Location.Count > 0)
+                {
+                    Debug.Assert(Location.Count == 1); // at most 1 segment with ice1
+
+                    sb.Append(" @ ");
+
+                    // If the encoded adapter id string contains characters which the reference parser uses as
+                    // separators, then we enclose the adapter id string in quotes.
+                    string a = StringUtil.EscapeString(Location[0], Communicator.ToStringMode);
+                    if (StringUtil.FindFirstOf(a, " :@") != -1)
+                    {
+                        sb.Append('"');
+                        sb.Append(a);
+                        sb.Append('"');
+                    }
+                    else
+                    {
+                        sb.Append(a);
+                    }
+                }
+                else
+                {
+                    foreach (Endpoint e in Endpoints)
+                    {
+                        sb.Append(':');
+                        sb.Append(e);
+                    }
+                }
+                return sb.ToString();
+            }
+            else // >= ice2, use URI format
+            {
+                string path;
+                if (Location.Count > 0)
+                {
+                    var pathBuilder = new StringBuilder();
+                    foreach (string s in Location)
+                    {
+                        pathBuilder.Append(Uri.EscapeDataString(s));
+                        pathBuilder.Append('/');
+                    }
+                    if (Identity.Category.Length == 0)
+                    {
+                        pathBuilder.Append('/');
+                    }
+                    pathBuilder.Append(Identity); // Identity.ToString() escapes the string
+                    path = pathBuilder.ToString();
+                }
+                else
+                {
+                    path = Identity.ToString();
+                }
+
+                var sb = new StringBuilder();
+                bool firstOption = true;
+
+                if (Endpoints.Count > 0)
+                {
+                    // direct proxy using ice+transport scheme
+                    Endpoint mainEndpoint = Endpoints[0];
+                    sb.AppendEndpoint(mainEndpoint, path);
+                    firstOption = !mainEndpoint.HasOptions;
+                }
+                else
+                {
+                    sb.Append("ice:");
+                    sb.Append(path);
+                }
+
+                if (Protocol != Protocol.Ice2) // i.e. > ice2
+                {
+                    StartQueryOption(sb, ref firstOption);
+                    sb.Append("protocol=");
+                    sb.Append(Protocol.GetName());
+                }
+
+                if (Encoding != Ice2Definitions.Encoding) // possible but quite unlikely
+                {
+                    StartQueryOption(sb, ref firstOption);
+                    sb.Append("encoding=");
+                    sb.Append(Encoding);
+                }
+
+                StartQueryOption(sb, ref firstOption);
+                sb.Append("invocation-timeout=");
+                sb.Append(TimeSpanExtensions.ToPropertyString(InvocationTimeout));
+
+                if (Endpoints.Count > 1)
+                {
+                    Transport mainTransport = Endpoints[0].Transport;
+                    StartQueryOption(sb, ref firstOption);
+                    sb.Append("alt-endpoint=");
+                    for (int i = 1; i < Endpoints.Count; ++i)
+                    {
+                        if (i > 1)
+                        {
+                            sb.Append(',');
+                        }
+                        sb.AppendEndpoint(Endpoints[i], "", mainTransport != Endpoints[i].Transport, '$');
+                    }
+                }
+
+                if (Facet.Length > 0)
+                {
+                    sb.Append('#');
+                    sb.Append(Uri.EscapeDataString(Facet));
+                }
+
+                return sb.ToString();
+            }
+
+            static void StartQueryOption(StringBuilder sb, ref bool firstOption)
+            {
+                if (firstOption)
+                {
+                    sb.Append('?');
+                    firstOption = false;
+                }
+                else
+                {
+                    sb.Append('&');
+                }
+            }
+        }
+
+        /// <summary>Reads a reference from the input stream.</summary>
+        /// <param name="istr">The input stream to read from.</param>
+        /// <returns>The reference read from the stream (can be null).</returns>
+        internal static Reference? Read(InputStream istr)
+        {
+            if (istr.Encoding == Encoding.V11)
+            {
+                var identity = new Identity(istr);
+                if (identity.Name.Length == 0)
+                {
+                    return null;
+                }
+
+                var proxyData = new ProxyData11(istr);
+
+                if (proxyData.FacetPath.Length > 1)
+                {
+                    throw new InvalidDataException(
+                        $"received proxy with {proxyData.FacetPath.Length} elements in its facet path");
+                }
+
+                if ((byte)proxyData.Protocol == 0)
+                {
+                    throw new InvalidDataException("received proxy with protocol set to 0");
+                }
+
+                if (proxyData.Protocol != Protocol.Ice1 && proxyData.InvocationMode != InvocationMode.Twoway)
+                {
+                    throw new InvalidDataException(
+                        $"received proxy for protocol {proxyData.Protocol.GetName()} with invocation mode set");
+                }
+
+                if (proxyData.ProtocolMinor != 0)
+                {
+                    throw new InvalidDataException(
+                        $"received proxy with invalid protocolMinor value: {proxyData.ProtocolMinor}");
+                }
+
+                // The min size for an Endpoint with the 1.1 encoding is: transport (short = 2 bytes) + encapsulation
+                // header (6 bytes), for a total of 8 bytes.
+                Endpoint[] endpoints =
+                    istr.ReadArray(minElementSize: 8, istr => istr.ReadEndpoint(proxyData.Protocol));
+
+                string location0 = endpoints.Length == 0 ? istr.ReadString() : "";
+
+                return new Reference(istr.Communicator!,
+                                     proxyData.Encoding,
+                                     endpoints,
+                                     proxyData.FacetPath.Length == 1 ? proxyData.FacetPath[0] : "",
+                                     identity,
+                                     proxyData.InvocationMode,
+                                     location: location0.Length > 0 ?
+                                        ImmutableArray.Create(location0) : ImmutableArray<string>.Empty,
+                                     proxyData.Protocol);
+            }
+            else
+            {
+                Debug.Assert(istr.Encoding == Encoding.V20);
+
+                ProxyKind proxyKind = istr.ReadProxyKind();
+                if (proxyKind == ProxyKind.Null)
+                {
+                    return null;
+                }
+
+                var proxyData = new ProxyData20(istr);
+
+                if (proxyData.Identity.Name.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        $"received non-null proxy with empty identity name");
+                }
+
+                Protocol protocol = proxyData.Protocol ?? Protocol.Ice2;
+
+                if (proxyData.InvocationMode != null && protocol != Protocol.Ice1)
+                {
+                    throw new InvalidDataException(
+                        $"received proxy for protocol {protocol.GetName()} with invocation mode set");
+                }
+
+                // The min size for an Endpoint with the 2.0 encoding is: transport (short = 2 bytes) + host name
+                // (min 2 bytes as it cannot be empty) + port number (ushort, 2 bytes) + options (1 byte for empty
+                // sequence), for a total of 7 bytes.
+                IReadOnlyList<Endpoint> endpoints = proxyKind == ProxyKind.Direct ?
+                    istr.ReadArray(minElementSize: 7, istr => istr.ReadEndpoint(protocol)) :
+                    ImmutableArray<Endpoint>.Empty;
+
+                return new Reference(istr.Communicator!,
+                                     proxyData.Encoding ?? Encoding.V20,
+                                     endpoints,
+                                     proxyData.Facet ?? "",
+                                     proxyData.Identity,
+                                     proxyData.InvocationMode ?? InvocationMode.Twoway,
+                                     (IReadOnlyList<string>?)proxyData.Location ?? ImmutableArray<string>.Empty,
+                                     protocol);
+            }
+        }
+
+        // Helper constructor for routable references, not bound to a connection. Uses the communicator's defaults.
+        internal Reference(
+            Communicator communicator,
+            Encoding encoding,
+            IReadOnlyList<Endpoint> endpoints, // already a copy provided by Ice
+            string facet,
+            Identity identity,
+            InvocationMode invocationMode,
+            IReadOnlyList<string> location, // already a copy provided by Ice
+            Protocol protocol)
+            : this(cacheConnection: true,
+                   communicator: communicator,
+                   connectionId: "",
+                   context: communicator.DefaultContext,
+                   encoding: encoding,
+                   endpoints: endpoints,
+                   facet: facet,
+                   identity: identity,
+                   invocationMode: invocationMode,
+                   invocationTimeout: communicator.DefaultInvocationTimeout,
+                   location: location,
+                   locatorCacheTimeout: communicator.DefaultLocatorCacheTimeout,
+                   locatorInfo: communicator.GetLocatorInfo(communicator.DefaultLocator),
+                   preferNonSecure: communicator.DefaultPreferNonSecure,
+                   protocol: protocol,
+                   routerInfo: communicator.GetRouterInfo(communicator.DefaultRouter))
+        {
+        }
+
+        // Helper constructor for fixed references. Uses the communicator's defaults.
+        internal Reference(Communicator communicator, Connection fixedConnection, Identity identity)
+            : this(communicator: communicator,
+                   context: communicator.DefaultContext,
+                   encoding: fixedConnection.Protocol.GetEncoding(),
+                   facet: "",
+                   fixedConnection: fixedConnection,
+                   identity: identity,
+                   invocationMode: (fixedConnection.Endpoint?.IsDatagram ?? false) ?
+                       InvocationMode.Datagram : InvocationMode.Twoway,
+                   invocationTimeout: communicator.DefaultInvocationTimeout)
+        {
+        }
+
+        internal void ClearConnection(Connection connection)
+        {
+            Debug.Assert(!IsFixed);
+            Interlocked.CompareExchange(ref _connection, null, connection);
+        }
+
+        internal Reference Clone(
+            bool? cacheConnection = null,
+            bool clearLocator = false,
+            bool clearRouter = false,
+            string? connectionId = null,
+            IReadOnlyDictionary<string, string>? context = null, // can be provided by app
+            Encoding? encoding = null,
+            IEnumerable<Endpoint>? endpoints = null, // from app
+            string? facet = null,
+            Connection? fixedConnection = null,
+            Identity? identity = null,
+            string? identityAndFacet = null,
+            InvocationMode? invocationMode = null,
+            TimeSpan? invocationTimeout = null,
+            IEnumerable<string>? location = null, // from app
+            ILocatorPrx? locator = null,
+            TimeSpan? locatorCacheTimeout = null,
+            bool? oneway = null,
+            bool? preferNonSecure = null,
+            IRouterPrx? router = null)
+        {
+            // Check for incompatible arguments
+            if (locator != null && clearLocator)
+            {
+                throw new ArgumentException($"cannot set both {nameof(locator)} and {nameof(clearLocator)}");
+            }
+            if (router != null && clearRouter)
+            {
+                throw new ArgumentException($"cannot set both {nameof(router)} and {nameof(clearRouter)}");
+            }
+            if (invocationMode != null)
+            {
+                if (oneway != null)
+                {
+                    throw new ArgumentException($"cannot set both {nameof(oneway)} and {nameof(invocationMode)}");
+                }
+                if (Protocol != Protocol.Ice1)
+                {
+                    // This way, we won't get an invalid invocationMode when protocol > ice1.
+                    throw new ArgumentException(
+                        $"{nameof(invocationMode)} applies only to ice1 proxies",
+                        nameof(invocationMode));
+                }
+            }
+
+            if (invocationTimeout != null && invocationTimeout.Value == TimeSpan.Zero)
+            {
+                throw new ArgumentException("0 is not a valid value for invocationTimeout", nameof(invocationTimeout));
+            }
+
+            if (identityAndFacet != null && facet != null)
+            {
+                throw new ArgumentException($"cannot set both {nameof(facet)} and {nameof(identityAndFacet)}");
+            }
+
+            if (identityAndFacet != null && identity != null)
+            {
+                throw new ArgumentException($"cannot set both {nameof(identity)} and {nameof(identityAndFacet)}");
+            }
+
+            if (oneway != null)
+            {
+                invocationMode = oneway.Value ? InvocationMode.Oneway : InvocationMode.Twoway;
+            }
+            if (identityAndFacet != null)
+            {
+                (identity, facet) = UriParser.ParseIdentityAndFacet(identityAndFacet);
+            }
+
+            if (IsFixed || fixedConnection != null)
+            {
+                // Note that Clone does not allow to clear the fixedConnection
+
+                // Make sure that all arguments incompatible with fixed references are null
+                if (cacheConnection != null)
+                {
+                    throw new ArgumentException("cannot change the connection caching configuration of a fixed proxy",
+                        nameof(cacheConnection));
+                }
+                if (connectionId != null)
+                {
+                    throw new ArgumentException("cannot change the connection ID of a fixed proxy",
+                        nameof(connectionId));
+                }
+                if (endpoints != null)
+                {
+                    throw new ArgumentException("cannot change the endpoints of a fixed proxy", nameof(endpoints));
+                }
+                if (location != null)
+                {
+                    throw new ArgumentException("cannot change the location of a fixed proxy", nameof(location));
+                }
+                if (locator != null)
+                {
+                    throw new ArgumentException("cannot change the locator of a fixed proxy", nameof(locator));
+                }
+                else if (clearLocator)
+                {
+                    throw new ArgumentException("cannot change the locator of a fixed proxy", nameof(clearLocator));
+                }
+                if (locatorCacheTimeout != null)
+                {
+                    throw new ArgumentException("cannot change the locator cache timeout of a fixed proxy",
+                        nameof(locatorCacheTimeout));
+                }
+                if (preferNonSecure != null)
+                {
+                    throw new ArgumentException("cannot change the prefer non-secure configuration of a fixed proxy",
+                        nameof(preferNonSecure));
+                }
+                if (router != null)
+                {
+                    throw new ArgumentException("cannot change the router of a fixed proxy", nameof(router));
+                }
+                else if (clearRouter)
+                {
+                    throw new ArgumentException("cannot change the router of a fixed proxy", nameof(clearRouter));
+                }
+
+                var clone = new Reference(Communicator,
+                                          context?.ToImmutableDictionary() ?? Context,
+                                          encoding ?? Encoding,
+                                          facet ?? Facet,
+                                          (fixedConnection ?? _connection)!,
+                                          identity ?? Identity,
+                                          invocationMode ?? InvocationMode,
+                                          invocationTimeout ?? InvocationTimeout);
+                return clone == this ? this : clone;
+            }
+            else
+            {
+                // Routable reference
+                if (endpoints?.FirstOrDefault(endpoint => endpoint.Protocol != Protocol) is Endpoint endpoint)
+                {
+                    throw new ArgumentException($"the protocol of endpoint `{endpoint}' is not {Protocol}",
+                                                nameof(endpoints));
+                }
+
+                if (location != null && location.Any(segment => segment.Length == 0))
+                {
+                    throw new ArgumentException($"invalid location `{location}' with an empty segment",
+                                                nameof(location));
+                }
+
+                if (locator != null && clearLocator)
+                {
+                    throw new ArgumentException($"cannot set both {nameof(locator)} and {nameof(clearLocator)}");
+                }
+                if (router != null && clearRouter)
+                {
+                    throw new ArgumentException($"cannot set both {nameof(router)} and {nameof(clearRouter)}");
+                }
+
+                if (locatorCacheTimeout != null &&
+                    locatorCacheTimeout < TimeSpan.Zero && locatorCacheTimeout != Timeout.InfiniteTimeSpan)
+                {
+                    throw new ArgumentException(
+                        $"invalid {nameof(locatorCacheTimeout)}: {locatorCacheTimeout}", nameof(locatorCacheTimeout));
+                }
+
+                IReadOnlyList<Endpoint>? newEndpoints = endpoints?.ToImmutableArray();
+                IReadOnlyList<string>? newLocation = location?.ToImmutableArray();
+
+                if (Protocol == Protocol.Ice1)
+                {
+                    if (newLocation?.Count > 0 && newEndpoints?.Count > 0)
+                    {
+                        throw new ArgumentException(
+                            @$"cannot set both a non-empty {nameof(location)} and a non-empty {
+                                nameof(endpoints)} on an ice1 proxy",
+                            nameof(location));
+                    }
+
+                    if (newLocation?.Count > 0)
+                    {
+                        if (newLocation.Count > 1)
+                        {
+                            throw new ArgumentException(
+                                $"{nameof(location)} is limited to a single segment for ice1 proxies",
+                                nameof(location));
+                        }
+                        newEndpoints = ImmutableArray<Endpoint>.Empty; // make sure the clone's endpoints are empty
+                    }
+                    else if (newEndpoints?.Count > 0)
+                    {
+                        newLocation = ImmutableArray<string>.Empty; // make sure the clone's location is empty
+                    }
+                }
+
+                LocatorInfo? locatorInfo = LocatorInfo;
+                if (locator != null)
+                {
+                    locatorInfo = Communicator.GetLocatorInfo(locator);
+                }
+                else if (clearLocator)
+                {
+                    locatorInfo = null;
+                }
+
+                RouterInfo? routerInfo = RouterInfo;
+                if (router != null)
+                {
+                    routerInfo = Communicator.GetRouterInfo(router);
+                }
+                else if (clearRouter)
+                {
+                    routerInfo = null;
+                }
+
+                var clone = new Reference(cacheConnection ?? IsConnectionCached,
+                                          Communicator,
+                                          connectionId ?? ConnectionId,
+                                          context?.ToImmutableDictionary() ?? Context,
+                                          encoding ?? Encoding,
+                                          newEndpoints ?? Endpoints,
+                                          facet ?? Facet,
+                                          identity ?? Identity,
+                                          invocationMode ?? InvocationMode,
+                                          invocationTimeout ?? InvocationTimeout,
+                                          newLocation ?? Location,
+                                          locatorCacheTimeout ?? LocatorCacheTimeout,
+                                          locatorInfo, // no fallback otherwise breaks clearLocator
+                                          preferNonSecure ?? PreferNonSecure,
+                                          Protocol,
+                                          routerInfo); // no fallback otherwise breaks clearRouter
+
+                return clone == this ? this : clone;
+            }
+        }
+
+        internal Connection? GetCachedConnection() => _connection;
+
+        internal async ValueTask<Connection> GetConnectionAsync(
+            IReadOnlyList<IConnector> excludedConnectors,
+            CancellationToken cancel)
+        {
+            Connection? connection = _connection;
+
+            // If the cached connection is no longer active, clear it and get a new connection.
+            if (!IsFixed && connection != null && !connection.IsActive)
+            {
+                ClearConnection(connection);
+                connection = null;
+            }
+
+            if (connection == null)
+            {
+                Debug.Assert(!IsFixed);
+
+                IReadOnlyList<Endpoint> endpoints = ImmutableArray<Endpoint>.Empty;
+
+                // If the invocation mode is not datagram, we first check if the target is colocated and if that's the
+                // case we use the colocated endpoint.
+                if (InvocationMode != InvocationMode.Datagram &&
+                    Communicator.GetColocatedEndpoint(this) is Endpoint colocatedEndpoint)
+                {
+                    endpoints = ImmutableArray.Create(colocatedEndpoint);
+                }
+
+                if (endpoints.Count == 0 && RouterInfo != null)
+                {
+                    // Get the router client endpoints if a router is configured
+                    endpoints = await RouterInfo.GetClientEndpointsAsync(cancel).ConfigureAwait(false);
+                }
+
+                bool cached = false;
+                if (endpoints.Count == 0)
+                {
+                    // Get the proxy's endpoint or query the locator to get endpoints
+                    if (Endpoints.Count > 0)
+                    {
+                        endpoints = Endpoints;
+                    }
+                    else if (LocatorInfo != null)
+                    {
+                        // TODO: cache and send the new location with requests
+                        (endpoints, _, cached) =
+                            await LocatorInfo.ResolveIndirectReferenceAsync(this, cancel).ConfigureAwait(false);
+                    }
+                }
+
+                if (endpoints.Count == 0)
+                {
+                    throw new NoEndpointException(ToString());
+                }
+
+                // Apply overrides and filter endpoints
+                IEnumerable<Endpoint> filteredEndpoints = endpoints.Where(endpoint =>
+                {
+                    // Filter out opaque endpoints
+                    if (endpoint is OpaqueEndpoint || endpoint is UniversalEndpoint)
+                    {
+                        return false;
+                    }
+
+                    // Filter out based on InvocationMode and IsDatagram
+                    switch (InvocationMode)
+                    {
+                        case InvocationMode.Twoway:
+                        case InvocationMode.Oneway:
+                        case InvocationMode.BatchOneway:
+                            if (endpoint.IsDatagram)
+                            {
+                                return false;
+                            }
+                            break;
+
+                        case InvocationMode.Datagram:
+                        case InvocationMode.BatchDatagram:
+                            if (!endpoint.IsDatagram)
+                            {
+                                return false;
+                            }
+                            break;
+
+                        default:
+                            Debug.Assert(false);
+                            return false;
+                    }
+
+                    // If PreferNonSecure is false, filter out all non-secure endpoints
+                    return PreferNonSecure || endpoint.IsSecure;
+                });
+
+                if (PreferNonSecure)
+                {
+                    // It's just a preference: we can fallback to secure endpoints.
+                    filteredEndpoints = filteredEndpoints.OrderBy(endpoint => endpoint.IsSecure);
+                }
+
+                endpoints = filteredEndpoints.ToArray();
+                if (endpoints.Count == 0)
+                {
+                    throw new NoEndpointException(ToString());
+                }
+
+                // Finally, create the connection.
+                try
+                {
+                    OutgoingConnectionFactory factory = Communicator.OutgoingConnectionFactory;
+                    if (IsConnectionCached)
+                    {
+                        // Get an existing connection or create one if there's no existing connection to one of
+                        // the given endpoints.
+                        connection = await factory.CreateAsync(endpoints,
+                                                               false,
+                                                               ConnectionId,
+                                                               excludedConnectors,
+                                                               cancel).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // Go through the list of endpoints and try to create the connection until it succeeds. This
+                        // is different from just calling create() with all the endpoints since this might create a
+                        // new connection even if there's an existing connection for one of the endpoints.
+                        Endpoint lastEndpoint = endpoints[endpoints.Count - 1];
+                        foreach (Endpoint endpoint in endpoints)
+                        {
+                            try
+                            {
+                                connection = await factory.CreateAsync(ImmutableArray.Create(endpoint),
+                                                                       endpoint != lastEndpoint,
+                                                                       ConnectionId,
+                                                                       excludedConnectors,
+                                                                       cancel).ConfigureAwait(false);
+                                break;
+                            }
+                            catch (Exception)
+                            {
+                                if (endpoint == lastEndpoint)
+                                {
+                                    throw;
+                                }
+                            }
+                        }
+                    }
+                    Debug.Assert(connection != null);
+
+                    if (RouterInfo != null)
+                    {
+                        await RouterInfo.AddProxyAsync(IObjectPrx.Factory(this)).ConfigureAwait(false);
+
+                        // Set the object adapter for this router (if any) on the new connection, so that callbacks from
+                        // the router can be received over this new connection.
+                        if (RouterInfo.Adapter != null)
+                        {
+                            connection.Adapter = RouterInfo.Adapter;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (LocatorInfo != null && IsIndirect)
+                    {
+                        LocatorInfo.ClearCache(this);
+                    }
+
+                    if (cached)
+                    {
+                        TraceLevels traceLevels = Communicator.TraceLevels;
+                        if (traceLevels.Retry >= 2)
+                        {
+                            Communicator.Logger.Trace(TraceLevels.RetryCategory,
+                                                      "connection to cached endpoints failed\n" +
+                                                      $"removing endpoints from cache and trying again\n{ex}");
+                        }
+                        return await GetConnectionAsync(excludedConnectors, cancel).ConfigureAwait(false);
+                    }
+                    throw;
+                }
+
+                if (IsConnectionCached)
+                {
+                    _connection = connection;
+                }
+            }
+            return connection;
+        }
+
+        internal Dictionary<string, string> ToProperty(string prefix)
+        {
+            if (IsFixed)
+            {
+                throw new NotSupportedException("cannot convert a fixed proxy to a property dictionary");
+            }
+
+            var properties = new Dictionary<string, string>
+            {
+                [prefix] = ToString(),
+                [$"{prefix}.ConnectionCached"] = IsConnectionCached ? "1" : "0",
+                [$"{prefix}.LocatorCacheTimeout"] = LocatorCacheTimeout.ToPropertyString(),
+                [$"{prefix}.PreferNonSecure"] = PreferNonSecure ? "1" : "0"
+            };
+
+            if (Protocol == Protocol.Ice1)
+            {
+                // For Ice2 the invocation timeout is included in the URI
+                properties[$"{prefix}.InvocationTimeout"] = InvocationTimeout.ToPropertyString();
+            }
+
+            if (RouterInfo != null)
+            {
+                Dictionary<string, string> routerProperties =
+                    RouterInfo.Router.ToProperty(prefix + ".Router");
+                foreach (KeyValuePair<string, string> entry in routerProperties)
                 {
                     properties[entry.Key] = entry.Value;
                 }
             }
-
-            if(_locatorInfo != null)
+            if (LocatorInfo != null)
             {
-                Ice.ObjectPrxHelperBase h = (Ice.ObjectPrxHelperBase)_locatorInfo.getLocator();
-                Dictionary<string, string> locatorProperties = h.iceReference().toProperty(prefix + ".Locator");
-                foreach(KeyValuePair<string, string> entry in locatorProperties)
+                Dictionary<string, string> locatorProperties =
+                    LocatorInfo.Locator.ToProperty(prefix + ".Locator");
+                foreach (KeyValuePair<string, string> entry in locatorProperties)
                 {
                     properties[entry.Key] = entry.Value;
                 }
@@ -1178,576 +1181,144 @@ namespace IceInternal
             return properties;
         }
 
-        //
-        // If we override Equals, we must also override GetHashCode.
-        //
-        public override int GetHashCode()
+        // Marshal the non-null reference.
+        internal void Write(OutputStream ostr)
         {
-            lock(this)
+            if (IsFixed)
             {
-                if(!hashInitialized_)
+                // TODO: should be true only for the 1.1 encoding once we add Fixed support in the 2.0 encoding
+                throw new NotSupportedException("cannot marshal a fixed proxy");
+            }
+
+            if (ostr.Encoding == Encoding.V11)
+            {
+                Identity.IceWrite(ostr);
+                ostr.WriteProxyData11(Facet, InvocationMode, Protocol, Encoding);
+                ostr.WriteSequence(Endpoints, (ostr, endpoint) => ostr.WriteEndpoint(endpoint));
+
+                if (Endpoints.Count == 0)
                 {
-                    int h = base.GetHashCode(); // Initializes hashValue_.
-                    HashUtil.hashAdd(ref h, _adapterId);
-                    hashValue_ = h;
+                    // If Location holds more than 1 segment, the extra segments are not marshaled.
+                    ostr.WriteString(Location.Count == 0 ? "" : Location[0]);
                 }
-                return hashValue_;
-            }
-        }
-
-        public override bool Equals(object obj)
-        {
-            if(ReferenceEquals(this, obj))
-            {
-                return true;
-            }
-
-            RoutableReference rhs = obj as RoutableReference;
-            if(rhs == null)
-            {
-                return false;
-            }
-
-            if(!base.Equals(obj))
-            {
-                return false;
-            }
-
-            if(_locatorInfo == null ? rhs._locatorInfo != null : !_locatorInfo.Equals(rhs._locatorInfo))
-            {
-                return false;
-            }
-            if(_routerInfo == null ? rhs._routerInfo != null : !_routerInfo.Equals(rhs._routerInfo))
-            {
-                return false;
-            }
-            if(_collocationOptimized != rhs._collocationOptimized)
-            {
-                return false;
-            }
-            if(_cacheConnection != rhs._cacheConnection)
-            {
-                return false;
-            }
-            if(_preferSecure != rhs._preferSecure)
-            {
-                return false;
-            }
-            if(_endpointSelection != rhs._endpointSelection)
-            {
-                return false;
-            }
-            if(_locatorCacheTimeout != rhs._locatorCacheTimeout)
-            {
-                return false;
-            }
-            if(_overrideTimeout != rhs._overrideTimeout)
-            {
-                return false;
-            }
-            if(_overrideTimeout && _timeout != rhs._timeout)
-            {
-                return false;
-            }
-            if(!_connectionId.Equals(rhs._connectionId))
-            {
-                return false;
-            }
-            if(!_adapterId.Equals(rhs._adapterId))
-            {
-                return false;
-            }
-            if(!IceUtilInternal.Arrays.Equals(_endpoints, rhs._endpoints))
-            {
-                return false;
-            }
-            return true;
-        }
-
-        private sealed class RouterEndpointsCallback : RouterInfo.GetClientEndpointsCallback
-        {
-            internal RouterEndpointsCallback(RoutableReference ir, GetConnectionCallback cb)
-            {
-                _ir = ir;
-                _cb = cb;
-            }
-
-            public void setEndpoints(EndpointI[] endpts)
-            {
-                if(endpts.Length > 0)
-                {
-                    _ir.applyOverrides(ref endpts);
-                    _ir.createConnection(endpts, _cb);
-                }
-                else
-                {
-                    _ir.getConnectionNoRouterInfo(_cb);
-                }
-            }
-
-            public void setException(Ice.LocalException ex)
-            {
-                _cb.setException(ex);
-            }
-
-            private RoutableReference _ir;
-            private GetConnectionCallback _cb;
-        }
-
-        public override RequestHandler getRequestHandler(Ice.ObjectPrxHelperBase proxy)
-        {
-            return getInstance().requestHandlerFactory().getRequestHandler(this, proxy);
-        }
-
-        public override BatchRequestQueue getBatchRequestQueue()
-        {
-            return new BatchRequestQueue(getInstance(), getMode() == Reference.Mode.ModeBatchDatagram);
-        }
-
-        public void getConnection(GetConnectionCallback callback)
-        {
-            if(_routerInfo != null)
-            {
-                //
-                // If we route, we send everything to the router's client
-                // proxy endpoints.
-                //
-                _routerInfo.getClientEndpoints(new RouterEndpointsCallback(this, callback));
             }
             else
             {
-                getConnectionNoRouterInfo(callback);
+                Debug.Assert(ostr.Encoding == Encoding.V20);
+
+                ostr.Write(Endpoints.Count > 0 ? ProxyKind.Direct : ProxyKind.Indirect);
+                ostr.WriteProxyData20(Identity, Protocol, Encoding, Location, InvocationMode, Facet);
+
+                if (Endpoints.Count > 0)
+                {
+                    ostr.WriteSequence(Endpoints, (ostr, endpoint) => ostr.WriteEndpoint(endpoint));
+                }
             }
         }
 
-        private sealed class LocatorEndpointsCallback : LocatorInfo.GetEndpointsCallback
+        // Constructor for routable references, not bound to a connection
+        private Reference(
+            bool cacheConnection,
+            Communicator communicator,
+            string connectionId,
+            IReadOnlyDictionary<string, string> context, // already a copy provided by Ice
+            Encoding encoding,
+            IReadOnlyList<Endpoint> endpoints, // already a copy provided by Ice
+            string facet,
+            Identity identity,
+            InvocationMode invocationMode,
+            TimeSpan invocationTimeout,
+            IReadOnlyList<string> location, // already a copy provided by Ice
+            TimeSpan locatorCacheTimeout,
+            LocatorInfo? locatorInfo,
+            bool preferNonSecure,
+            Protocol protocol,
+            RouterInfo? routerInfo)
         {
-            internal LocatorEndpointsCallback(RoutableReference ir, GetConnectionCallback cb)
+            Communicator = communicator;
+            ConnectionId = connectionId;
+            Context = context;
+            Encoding = encoding;
+            Endpoints = endpoints;
+            Facet = facet;
+            Identity = identity;
+            InvocationMode = invocationMode;
+            InvocationTimeout = invocationTimeout;
+            IsConnectionCached = cacheConnection;
+            Location = location;
+            LocatorCacheTimeout = locatorCacheTimeout;
+            LocatorInfo = locatorInfo;
+            PreferNonSecure = preferNonSecure;
+            Protocol = protocol;
+            RouterInfo = routerInfo;
+
+            if (Protocol == Protocol.Ice1)
             {
-                _ir = ir;
-                _cb = cb;
-            }
-
-            public void setEndpoints(EndpointI[] endpoints, bool cached)
-            {
-                if(endpoints.Length == 0)
-                {
-                    _cb.setException(new Ice.NoEndpointException(_ir.ToString()));
-                    return;
-                }
-
-                _ir.applyOverrides(ref endpoints);
-                _ir.createConnection(endpoints, new ConnectionCallback(_ir, _cb, cached));
-            }
-
-            public void setException(Ice.LocalException ex)
-            {
-                _cb.setException(ex);
-            }
-
-            private RoutableReference _ir;
-            private GetConnectionCallback _cb;
-        }
-
-        private sealed class ConnectionCallback : GetConnectionCallback
-        {
-            internal ConnectionCallback(RoutableReference ir, GetConnectionCallback cb, bool cached)
-            {
-                _ir = ir;
-                _cb = cb;
-                _cached = cached;
-            }
-
-            public void setConnection(Ice.ConnectionI connection, bool compress)
-            {
-                _cb.setConnection(connection, compress);
-            }
-
-            public void setException(Ice.LocalException exc)
-            {
-                try
-                {
-                    throw exc;
-                }
-                catch(Ice.NoEndpointException ex)
-                {
-                    _cb.setException(ex); // No need to retry if there's no endpoints.
-                }
-                catch(Ice.LocalException ex)
-                {
-                    Debug.Assert(_ir._locatorInfo != null);
-                    _ir._locatorInfo.clearCache(_ir);
-                    if(_cached)
-                    {
-                        TraceLevels traceLevels = _ir.getInstance().traceLevels();
-                        if(traceLevels.retry >= 2)
-                        {
-                            String s = "connection to cached endpoints failed\n" +
-                                       "removing endpoints from cache and trying again\n" + ex;
-                            _ir.getInstance().initializationData().logger.trace(traceLevels.retryCat, s);
-                        }
-                        _ir.getConnectionNoRouterInfo(_cb); // Retry.
-                        return;
-                    }
-                    _cb.setException(ex);
-                }
-            }
-
-            private RoutableReference _ir;
-            private GetConnectionCallback _cb;
-            private bool _cached;
-        }
-
-        private void getConnectionNoRouterInfo(GetConnectionCallback callback)
-        {
-            if(_endpoints.Length > 0)
-            {
-                createConnection(_endpoints, callback);
-                return;
-            }
-
-            if(_locatorInfo != null)
-            {
-                _locatorInfo.getEndpoints(this, _locatorCacheTimeout, new LocatorEndpointsCallback(this, callback));
+                Debug.Assert(location.Count <= 1);
+                Debug.Assert(location.Count == 0 || endpoints.Count == 0);
             }
             else
             {
-                callback.setException(new Ice.NoEndpointException(ToString()));
+                Debug.Assert((byte)InvocationMode <= (byte)InvocationMode.Oneway);
             }
+
+            Debug.Assert(location.Count == 0 || location[0].Length > 0); // first segment cannot be empty
+            Debug.Assert(!Endpoints.Any(endpoint => endpoint.Protocol != Protocol));
+            Debug.Assert(invocationTimeout != TimeSpan.Zero);
         }
 
-        public RoutableReference(Instance instance,
-                                 Ice.Communicator communicator,
-                                 Ice.Identity identity,
-                                 string facet,
-                                 Mode mode,
-                                 bool secure,
-                                 Ice.ProtocolVersion protocol,
-                                 Ice.EncodingVersion encoding,
-                                 EndpointI[] endpoints,
-                                 string adapterId,
-                                 LocatorInfo locatorInfo,
-                                 RouterInfo routerInfo,
-                                 bool collocationOptimized,
-                                 bool cacheConnection,
-                                 bool preferSecure,
-                                 Ice.EndpointSelectionType endpointSelection,
-                                 int locatorCacheTimeout,
-                                 int invocationTimeout,
-                                 Dictionary<string, string> context)
-        : base(instance, communicator, identity, facet, mode, secure, protocol, encoding, invocationTimeout, context)
+        // Constructor for fixed references.
+        private Reference(
+            Communicator communicator,
+            IReadOnlyDictionary<string, string> context, // already a copy provided by Ice
+            Encoding encoding,
+            string facet,
+            Connection fixedConnection,
+            Identity identity,
+            InvocationMode invocationMode,
+            TimeSpan invocationTimeout)
         {
-            _endpoints = endpoints;
-            _adapterId = adapterId;
-            _locatorInfo = locatorInfo;
-            _routerInfo = routerInfo;
-            _collocationOptimized = collocationOptimized;
-            _cacheConnection = cacheConnection;
-            _preferSecure = preferSecure;
-            _endpointSelection = endpointSelection;
-            _locatorCacheTimeout = locatorCacheTimeout;
-            _overrideTimeout = false;
-            _timeout = -1;
+            Communicator = communicator;
+            ConnectionId = "";
+            Context = context;
+            Encoding = encoding;
+            Endpoints = Array.Empty<Endpoint>();
+            Facet = facet;
+            Identity = identity;
+            InvocationMode = invocationMode;
+            InvocationTimeout = invocationTimeout;
+            IsConnectionCached = false;
+            IsFixed = true;
+            Location = ImmutableArray<string>.Empty;
+            LocatorCacheTimeout = TimeSpan.Zero;
+            LocatorInfo = null;
+            PreferNonSecure = false;
+            Protocol = fixedConnection.Protocol;
+            RouterInfo = null;
 
-            if(_endpoints == null)
+            _connection = fixedConnection;
+
+            if (Protocol == Protocol.Ice1)
             {
-                _endpoints = _emptyEndpoints;
-            }
-
-            if(_adapterId == null)
-            {
-                _adapterId = "";
-            }
-
-            Debug.Assert(_adapterId.Length == 0 || _endpoints.Length == 0);
-        }
-
-        protected void applyOverrides(ref EndpointI[] endpts)
-        {
-            for(int i = 0; i < endpts.Length; ++i)
-            {
-                endpts[i] = endpts[i].connectionId(_connectionId);
-                if(overrideCompress_)
+                if (InvocationMode == InvocationMode.Datagram)
                 {
-                    endpts[i] = endpts[i].compress(compress_);
-                }
-                if(_overrideTimeout)
-                {
-                    endpts[i] = endpts[i].timeout(_timeout);
-                }
-            }
-        }
-
-        private EndpointI[] filterEndpoints(EndpointI[] allEndpoints)
-        {
-            List<EndpointI> endpoints = new List<EndpointI>();
-
-            //
-            // Filter out unknown endpoints.
-            //
-            for(int i = 0; i < allEndpoints.Length; i++)
-            {
-                if(!(allEndpoints[i] is OpaqueEndpointI))
-                {
-                    endpoints.Add(allEndpoints[i]);
-                }
-            }
-
-            //
-            // Filter out endpoints according to the mode of the reference.
-            //
-            switch(getMode())
-            {
-                case Mode.ModeTwoway:
-                case Mode.ModeOneway:
-                case Mode.ModeBatchOneway:
-                {
-                    //
-                    // Filter out datagram endpoints.
-                    //
-                    List<EndpointI> tmp = new List<EndpointI>();
-                    foreach(EndpointI endpoint in endpoints)
+                    if (!(_connection.Endpoint as Endpoint)!.IsDatagram)
                     {
-                        if(!endpoint.datagram())
-                        {
-                            tmp.Add(endpoint);
-                        }
-                    }
-                    endpoints = tmp;
-                    break;
-                }
-
-                case Mode.ModeDatagram:
-                case Mode.ModeBatchDatagram:
-                {
-                    //
-                    // Filter out non-datagram endpoints.
-                    //
-                    List<EndpointI> tmp = new List<EndpointI>();
-                    foreach(EndpointI endpoint in endpoints)
-                    {
-                        if(endpoint.datagram())
-                        {
-                            tmp.Add(endpoint);
-                        }
-                    }
-                    endpoints = tmp;
-                    break;
-                }
-            }
-
-            //
-            // Sort the endpoints according to the endpoint selection type.
-            //
-            switch(getEndpointSelection())
-            {
-                case Ice.EndpointSelectionType.Random:
-                {
-                    lock(rand_)
-                    {
-                        for(int i = 0; i < endpoints.Count - 1; ++i)
-                        {
-                            int r = rand_.Next(endpoints.Count - i) + i;
-                            Debug.Assert(r >= i && r < endpoints.Count);
-                            if(r != i)
-                            {
-                                EndpointI tmp = endpoints[i];
-                                endpoints[i] = endpoints[r];
-                                endpoints[r] = tmp;
-                            }
-                        }
-                    }
-                    break;
-                }
-                case Ice.EndpointSelectionType.Ordered:
-                {
-                    // Nothing to do.
-                    break;
-                }
-                default:
-                {
-                    Debug.Assert(false);
-                    break;
-                }
-            }
-
-            //
-            // If a secure connection is requested or secure overrides
-            // is set, remove all non-secure endpoints. Otherwise make
-            // non-secure endpoints preferred over secure endpoints by
-            // partitioning the endpoint vector, so that non-secure
-            // endpoints come first.
-            //
-            DefaultsAndOverrides overrides = getInstance().defaultsAndOverrides();
-            if(overrides.overrideSecure ? overrides.overrideSecureValue : getSecure())
-            {
-                List<EndpointI> tmp = new List<EndpointI>();
-                foreach(EndpointI endpoint in endpoints)
-                {
-                    if(endpoint.secure())
-                    {
-                        tmp.Add(endpoint);
+                        throw new ArgumentException(
+                            "a fixed datagram proxy requires a datagram connection",
+                            nameof(fixedConnection));
                     }
                 }
-                endpoints = tmp;
-            }
-            else if(getPreferSecure())
-            {
-                IceUtilInternal.Collections.Sort(ref endpoints, _preferSecureEndpointComparator);
+                else if (InvocationMode == InvocationMode.BatchOneway || InvocationMode == InvocationMode.BatchDatagram)
+                {
+                    throw new NotSupportedException("batch invocation modes are not supported for fixed proxies");
+                }
             }
             else
             {
-                IceUtilInternal.Collections.Sort(ref endpoints, _preferNonSecureEndpointComparator);
+                Debug.Assert((byte)InvocationMode <= (byte)InvocationMode.Oneway);
             }
-
-            EndpointI[] arr = new EndpointI[endpoints.Count];
-            endpoints.CopyTo(arr);
-            return arr;
+            Debug.Assert(invocationTimeout != TimeSpan.Zero);
         }
-
-        private sealed class CreateConnectionCallback : OutgoingConnectionFactory.CreateConnectionCallback
-        {
-            internal CreateConnectionCallback(RoutableReference rr, EndpointI[] endpoints, GetConnectionCallback cb)
-            {
-                _rr = rr;
-                _endpoints = endpoints;
-                _callback = cb;
-            }
-
-            public void setConnection(Ice.ConnectionI connection, bool compress)
-            {
-                //
-                // If we have a router, set the object adapter for this router
-                // (if any) to the new connection, so that callbacks from the
-                // router can be received over this new connection.
-                //
-                if(_rr._routerInfo != null && _rr._routerInfo.getAdapter() != null)
-                {
-                    connection.setAdapter(_rr._routerInfo.getAdapter());
-                }
-                _callback.setConnection(connection, compress);
-            }
-
-            public void setException(Ice.LocalException ex)
-            {
-                if(_exception == null)
-                {
-                    _exception = ex;
-                }
-
-                if(_endpoints == null || ++_i == _endpoints.Length)
-                {
-                    _callback.setException(_exception);
-                    return;
-                }
-
-                bool more = _i != _endpoints.Length - 1;
-                EndpointI[] endpoint = new EndpointI[]{ _endpoints[_i] };
-                _rr.getInstance().outgoingConnectionFactory().create(endpoint, more, _rr.getEndpointSelection(), this);
-            }
-
-            private RoutableReference _rr;
-            private EndpointI[] _endpoints;
-            private GetConnectionCallback _callback;
-            private int _i = 0;
-            private Ice.LocalException _exception = null;
-        }
-
-        protected void createConnection(EndpointI[] allEndpoints, GetConnectionCallback callback)
-        {
-            EndpointI[] endpoints = filterEndpoints(allEndpoints);
-            if(endpoints.Length == 0)
-            {
-                callback.setException(new Ice.NoEndpointException(ToString()));
-                return;
-            }
-
-            //
-            // Finally, create the connection.
-            //
-            OutgoingConnectionFactory factory = getInstance().outgoingConnectionFactory();
-            if(getCacheConnection() || endpoints.Length == 1)
-            {
-                //
-                // Get an existing connection or create one if there's no
-                // existing connection to one of the given endpoints.
-                //
-                factory.create(endpoints, false, getEndpointSelection(),
-                               new CreateConnectionCallback(this, null, callback));
-            }
-            else
-            {
-                //
-                // Go through the list of endpoints and try to create the
-                // connection until it succeeds. This is different from just
-                // calling create() with the given endpoints since this might
-                // create a new connection even if there's an existing
-                // connection for one of the endpoints.
-                //
-
-                factory.create(new EndpointI[]{ endpoints[0] }, true, getEndpointSelection(),
-                               new CreateConnectionCallback(this, endpoints, callback));
-            }
-        }
-
-        private class EndpointComparator : IComparer<EndpointI>
-        {
-            public EndpointComparator(bool preferSecure)
-            {
-                _preferSecure = preferSecure;
-            }
-
-            public int Compare(EndpointI le, EndpointI re)
-            {
-                bool ls = le.secure();
-                bool rs = re.secure();
-                if((ls && rs) || (!ls && !rs))
-                {
-                    return 0;
-                }
-                else if(!ls && rs)
-                {
-                    if(_preferSecure)
-                    {
-                        return 1;
-                    }
-                    else
-                    {
-                        return -1;
-                    }
-                }
-                else
-                {
-                    if(_preferSecure)
-                    {
-                        return -1;
-                    }
-                    else
-                    {
-                        return 1;
-                    }
-                }
-            }
-
-            private bool _preferSecure;
-        }
-
-        private static EndpointComparator _preferNonSecureEndpointComparator = new EndpointComparator(false);
-        private static EndpointComparator _preferSecureEndpointComparator = new EndpointComparator(true);
-        private static EndpointI[] _emptyEndpoints = new EndpointI[0];
-
-        private EndpointI[] _endpoints;
-        private string _adapterId;
-        private LocatorInfo _locatorInfo; // Null if no locator is used.
-        private RouterInfo _routerInfo; // Null if no router is used.
-        private bool _collocationOptimized;
-        private bool _cacheConnection;
-        private bool _preferSecure;
-        private Ice.EndpointSelectionType _endpointSelection;
-        private int _locatorCacheTimeout;
-
-        private bool _overrideTimeout;
-        private int _timeout; // Only used if _overrideTimeout == true
-        private string _connectionId = "";
     }
 }

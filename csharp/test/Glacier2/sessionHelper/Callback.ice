@@ -4,8 +4,9 @@
 
 #pragma once
 
-[["java:package:test.Glacier2.sessionHelper"]]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Glacier2::Test::SessionHelper
 {
 
 exception CallbackException
@@ -18,16 +19,14 @@ interface CallbackReceiver
 {
     void callback();
 
-    void callbackEx()
-        throws CallbackException;
+    void callbackEx();
 }
 
 interface Callback
 {
     void initiateCallback(CallbackReceiver* proxy);
 
-    void initiateCallbackEx(CallbackReceiver* proxy)
-        throws CallbackException;
+    void initiateCallbackEx(CallbackReceiver* proxy);
 
     void shutdown();
 }

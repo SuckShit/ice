@@ -1,35 +1,26 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
+using ZeroC.Ice;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.IceBox.Test.Configuration
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.Default.Host", "127.0.0.1");
-        using(var communicator = initialize(properties))
+        public override async Task RunAsync(string[] args)
         {
-            AllTests.allTests(this);
-            //
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
+            await using Communicator communicator = Initialize(properties);
+            AllTests.Run(this);
             // Shutdown the IceBox server.
-            //
-            Ice.ObjectPrx prx = communicator.stringToProxy("DemoIceBox/admin -f Process:default -p 9996");
-            Ice.ProcessPrxHelper.uncheckedCast(prx).shutdown();
+            await IProcessPrx.Parse(Protocol == Protocol.Ice1 ?
+                                    $"DemoIceBox/admin -f Process:{Transport} -h 127.0.0.1 -p 9996" :
+                                    $"ice+{Transport}://127.0.0.1:9996/DemoIceBox/admin#Process",
+                                    communicator).ShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

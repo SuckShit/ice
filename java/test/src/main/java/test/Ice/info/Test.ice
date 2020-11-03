@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/Context.ice>
 
-[["java:package:test.Ice.info"]]
+[[java:package(test.Ice.info)]]
 module Test
 {
 

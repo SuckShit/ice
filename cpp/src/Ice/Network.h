@@ -19,14 +19,10 @@
 #include <Ice/ProtocolInstanceF.h>
 #include <Ice/EndpointTypes.h>
 
-#if defined(ICE_OS_UWP)
-#   include <ppltasks.h>
-#elif defined(_WIN32)
+#if defined(_WIN32)
 #   include <winsock2.h>
 #   include <ws2tcpip.h>
-#  if !defined(__MINGW32__)
 typedef int ssize_t;
-#  endif
 #else
 #   include <unistd.h>
 #   include <fcntl.h>
@@ -45,8 +41,7 @@ typedef int ssize_t;
 #elif defined(__APPLE__) && !defined(ICE_NO_CFSTREAM)
 #   define ICE_USE_CFSTREAM 1
 #elif defined(_WIN32)
-#  if defined(ICE_OS_UWP)
-#  elif !defined(ICE_NO_IOCP)
+#  if !defined(ICE_NO_IOCP)
 #     define ICE_USE_IOCP 1
 #  else
 #     define ICE_USE_SELECT 1
@@ -62,10 +57,6 @@ typedef int socklen_t;
 #if !defined(_WIN32)
 #   define SOCKET int
 #   define INVALID_SOCKET -1
-#   define SOCKET_ERROR -1
-#elif defined(ICE_OS_UWP)
-    typedef Platform::Object^ SOCKET;
-#   define INVALID_SOCKET nullptr
 #   define SOCKET_ERROR -1
 #endif
 
@@ -89,34 +80,9 @@ typedef int socklen_t;
 #   define NETDB_SUCCESS 0
 #endif
 
-#if defined(__MINGW32__) && !defined WSAID_CONNECTEX
-#  define WSAID_CONNECTEX {0x25a207b9,0xddf3,0x4660,{0x8e,0xe9,0x76,0xe5,0x8c,0x74,0x06,0x3e}}
-#  define WSAID_ACCEPTEX {0xb5367df1,0xcbac,0x11cf,{0x95,0xca,0x00,0x80,0x5f,0x48,0xa1,0x92}}
-#  define SO_UPDATE_ACCEPT_CONTEXT   0x700B
-#  define SO_UPDATE_CONNECT_CONTEXT  0x7010
-    typedef BOOL (PASCAL FAR * LPFN_CONNECTEX) (IN SOCKET s, IN const struct sockaddr FAR *name, IN int namelen,
-                                                IN PVOID lpSendBuffer OPTIONAL, IN DWORD dwSendDataLength,
-                                                OUT LPDWORD lpdwBytesSent, IN LPOVERLAPPED lpOverlapped);
-
-    typedef BOOL (PASCAL FAR * LPFN_ACCEPTEX)(IN SOCKET sListenSocket, IN SOCKET sAcceptSocket,
-                                              IN PVOID lpOutputBuffer, IN DWORD dwReceiveDataLength,
-                                              IN DWORD dwLocalAddressLength, IN DWORD dwRemoteAddressLength,
-                                              OUT LPDWORD lpdwBytesReceived, IN LPOVERLAPPED lpOverlapped);
-#endif
-
 namespace IceInternal
 {
 
-//
-// Use Address struct or union depending on the platform
-//
-#ifdef ICE_OS_UWP
-struct ICE_API Address
-{
-    Windows::Networking::HostName^ host;
-    Platform::String^ port;
-};
-#else
 union Address
 {
     Address()
@@ -130,7 +96,6 @@ union Address
     sockaddr_in6 saIn6;
     sockaddr_storage saStorage;
 };
-#endif
 
 enum SocketOperation
 {
@@ -147,7 +112,7 @@ enum SocketOperation
 };
 
 //
-// AsyncInfo struct for Windows IOCP or UWP holds the result of
+// AsyncInfo struct for Windows IOCP holds the result of
 // asynchronous operations after it completed.
 //
 #if defined(ICE_USE_IOCP)
@@ -161,16 +126,6 @@ struct ICE_API AsyncInfo : WSAOVERLAPPED
     DWORD count;
     DWORD error;
 };
-#elif defined(ICE_OS_UWP)
-struct ICE_API AsyncInfo
-{
-    Windows::Foundation::AsyncOperationCompletedHandler<unsigned int>^ completedHandler;
-    Windows::Foundation::IAsyncInfo^ operation;
-    int count;
-    int error;
-};
-
-delegate void SocketOperationCompletedHandler(int);
 #endif
 
 class ICE_API ReadyCallback : public virtual ::IceUtil::Shared
@@ -190,7 +145,7 @@ public:
     virtual ~NativeInfo();
 
     NativeInfo(SOCKET socketFd = INVALID_SOCKET) : _fd(socketFd)
-#if !defined(ICE_USE_IOCP) && !defined(ICE_OS_UWP)
+#if !defined(ICE_USE_IOCP)
         , _newFd(INVALID_SOCKET)
 #endif
     {
@@ -216,12 +171,6 @@ public:
     virtual AsyncInfo* getAsyncInfo(SocketOperation) = 0;
     void initialize(HANDLE, ULONG_PTR);
     void completed(SocketOperation);
-#elif defined(ICE_OS_UWP)
-    virtual AsyncInfo* getAsyncInfo(SocketOperation) = 0;
-    void queueAction(SocketOperation, Windows::Foundation::IAsyncAction^, bool = false);
-    void queueOperation(SocketOperation, Windows::Foundation::IAsyncOperation<unsigned int>^);
-    void setCompletedHandler(SocketOperationCompletedHandler^);
-    void completed(SocketOperation);
 #else
     bool newFd();
     void setNewFd(SOCKET);
@@ -235,22 +184,11 @@ protected:
 #if defined(ICE_USE_IOCP)
     HANDLE _handle;
     ULONG_PTR _key;
-#elif defined(ICE_OS_UWP)
-    bool checkIfErrorOrCompleted(SocketOperation, Windows::Foundation::IAsyncInfo^, Windows::Foundation::AsyncStatus, bool = false);
-    SocketOperationCompletedHandler^ _completedHandler;
 #else
     SOCKET _newFd;
 #endif
 
 private:
-
-#if defined(ICE_OS_UWP)
-    void queueActionCompleted(SocketOperation, AsyncInfo* asyncInfo, Windows::Foundation::IAsyncAction^,
-                              Windows::Foundation::AsyncStatus);
-    void queueOperationCompleted(SocketOperation, AsyncInfo* asyncInfo,
-                                 Windows::Foundation::IAsyncOperation<unsigned int>^,
-                                 Windows::Foundation::AsyncStatus);
-#endif
 };
 typedef IceUtil::Handle<NativeInfo> NativeInfoPtr;
 
@@ -302,7 +240,6 @@ ICE_API void setReuseAddress(SOCKET, bool);
 ICE_API Address doBind(SOCKET, const Address&, const std::string& intf = "");
 ICE_API void doListen(SOCKET, int);
 
-#ifndef ICE_OS_UWP
 ICE_API bool interrupted();
 ICE_API bool acceptInterrupted();
 ICE_API bool noBuffers();
@@ -324,40 +261,6 @@ ICE_API void createPipe(SOCKET fds[2]);
 ICE_API int getSocketErrno();
 
 ICE_API Address getNumericAddress(const std::string&);
-#else
-ICE_API void checkConnectErrorCode(const char*, int, HRESULT);
-ICE_API void checkErrorCode(const char*, int, HRESULT);
-
-//
-// UWP impose some restriction on operations that block when run from
-// STA thread and throws concurrency::invalid_operation. We cannot
-// directly call task::get or task::wait, this helper method is used to
-// workaround this limitation.
-//
-template<typename T>
-T runSync(Windows::Foundation::IAsyncOperation<T>^ operation)
-{
-    std::promise<T> p;
-    concurrency::create_task(operation).then(
-        [&p](concurrency::task<T> t)
-        {
-            try
-            {
-                p.set_value(t.get());
-            }
-            catch(...)
-            {
-                p.set_exception(std::current_exception());
-            }
-        },
-        concurrency::task_continuation_context::use_arbitrary());
-
-    return p.get_future().get();
-}
-
-ICE_API void runSync(Windows::Foundation::IAsyncAction^ action);
-
-#endif
 
 #if defined(ICE_USE_IOCP)
 ICE_API void doConnectAsync(SOCKET, const Address&, const Address&, AsyncInfo&);

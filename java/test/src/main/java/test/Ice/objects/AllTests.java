@@ -13,13 +13,12 @@ import test.Ice.objects.Test.D;
 import test.Ice.objects.Test.E;
 import test.Ice.objects.Test.F;
 import test.Ice.objects.Test.G;
-import test.Ice.objects.Test.H;
 import test.Ice.objects.Test.I;
 import test.Ice.objects.Test.K;
 import test.Ice.objects.Test.L;
-import test.Ice.objects.Test.Initial.OpValueResult;
-import test.Ice.objects.Test.Initial.OpValueSeqResult;
-import test.Ice.objects.Test.Initial.OpValueMapResult;
+import test.Ice.objects.Test.Initial.OpClassResult;
+import test.Ice.objects.Test.Initial.OpClassSeqResult;
+import test.Ice.objects.Test.Initial.OpClassMapResult;
 import test.Ice.objects.Test.L;
 import test.Ice.objects.Test.A1;
 import test.Ice.objects.Test.B1;
@@ -193,16 +192,6 @@ public class AllTests
         }
         out.println("ok");
 
-        out.print("getting I, J and H... ");
-        out.flush();
-        com.zeroc.Ice.Value i = initial.getI();
-        test(i != null && i.ice_id().equals(I.ice_staticId()));
-        com.zeroc.Ice.Value j = initial.getJ();
-        test(j != null && j.ice_id().equals(J.ice_staticId()));
-        com.zeroc.Ice.Value h = initial.getH();
-        test(h != null && ((H)h) != null);
-        out.println("ok");
-
         out.print("getting K... ");
         out.flush();
         {
@@ -216,14 +205,14 @@ public class AllTests
         out.print("testing Value as parameter... ");
         {
             com.zeroc.Ice.Value v1 = new L("l");
-            OpValueResult result = initial.opValue(v1);
+            OpClassResult result = initial.opClass(v1);
             test(((L)result.returnValue).data.equals("l"));
             test(((L)result.v2).data.equals("l"));
         }
         {
             L l = new L("l");
             com.zeroc.Ice.Value[] v1 = { l };
-            OpValueSeqResult result = initial.opValueSeq(v1);
+            OpClassSeqResult result = initial.opClassSeq(v1);
             test(((L)result.returnValue[0]).data.equals("l"));
             test(((L)result.v2[0]).data.equals("l"));
         }
@@ -231,7 +220,7 @@ public class AllTests
             L l = new L("l");
             java.util.Map<String, com.zeroc.Ice.Value> v1 = new java.util.HashMap<String, com.zeroc.Ice.Value>();
             v1.put("l", l);
-            OpValueMapResult result = initial.opValueMap(v1);
+            OpClassMapResult result = initial.opClassMap(v1);
             test(((L)result.returnValue.get("l")).data.equals("l"));
             test(((L)result.v2.get("l")).data.equals("l"));
         }
@@ -272,13 +261,6 @@ public class AllTests
         catch(com.zeroc.Ice.OperationNotExistException ex)
         {
         }
-        out.println("ok");
-
-        out.print("setting I... ");
-        out.flush();
-        initial.setI(i);
-        initial.setI(j);
-        initial.setI(h);
         out.println("ok");
 
         out.print("testing sequences...");

@@ -1,59 +1,44 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using Test;
+
+namespace ZeroC.Ice.Test.Operations
 {
-    namespace operations
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static IMyClassPrx Run(TestHelper helper)
         {
-            public static Test.MyClassPrx allTests(global::Test.TestHelper helper)
-            {
-                Ice.Communicator communicator = helper.communicator();
-                var output = helper.getWriter();
-                output.Flush();
-                string rf = "test:" + helper.getTestEndpoint(0);
-                Ice.ObjectPrx baseProxy = communicator.stringToProxy(rf);
-                var cl = Test.MyClassPrxHelper.checkedCast(baseProxy);
-                var derivedProxy = Test.MyDerivedClassPrxHelper.checkedCast(cl);
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            System.IO.TextWriter output = helper.Output;
 
-                output.Write("testing twoway operations... ");
-                output.Flush();
-                Twoways.twoways(helper, cl);
-                Twoways.twoways(helper, derivedProxy);
-                derivedProxy.opDerived();
-                output.WriteLine("ok");
+            var cl = IMyClassPrx.Parse(helper.GetTestProxy("test", 0), communicator);
+            var derivedProxy = IMyDerivedClassPrx.Parse(helper.GetTestProxy("test", 0), communicator);
 
-                output.Write("testing oneway operations... ");
-                output.Flush();
-                Oneways.oneways(helper, cl);
-                output.WriteLine("ok");
+            output.Write("testing twoway operations... ");
+            output.Flush();
+            Twoways.Run(helper, cl);
+            Twoways.Run(helper, derivedProxy);
+            derivedProxy.OpDerived();
+            output.WriteLine("ok");
 
-                output.Write("testing twoway operations with AMI... ");
-                output.Flush();
-                TwowaysAMI.twowaysAMI(helper, cl);
-                TwowaysAMI.twowaysAMI(helper, derivedProxy);
-                output.WriteLine("ok");
+            output.Write("testing oneway operations... ");
+            output.Flush();
+            Oneways.Run(cl);
+            output.WriteLine("ok");
 
-                output.Write("testing oneway operations with AMI... ");
-                output.Flush();
-                OnewaysAMI.onewaysAMI(helper, cl);
-                output.WriteLine("ok");
+            output.Write("testing twoway operations with AMI... ");
+            output.Flush();
+            TwowaysAMI.Run(helper, cl);
+            TwowaysAMI.Run(helper, derivedProxy);
+            output.WriteLine("ok");
 
-                output.Write("testing batch oneway operations... ");
-                output.Flush();
-                BatchOneways.batchOneways(helper, cl);
-                BatchOneways.batchOneways(helper, derivedProxy);
-                output.WriteLine("ok");
+            output.Write("testing oneway operations with AMI... ");
+            output.Flush();
+            OnewaysAMI.Run(helper, cl);
+            output.WriteLine("ok");
 
-                output.Write("testing batch AMI oneway operations... ");
-                output.Flush();
-                BatchOnewaysAMI.batchOneways(cl);
-                BatchOnewaysAMI.batchOneways(derivedProxy);
-                output.WriteLine("ok");
-                return cl;
-            }
+            return cl;
         }
     }
 }

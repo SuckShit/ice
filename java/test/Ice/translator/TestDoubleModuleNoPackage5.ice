@@ -6,9 +6,7 @@
 
 #include <DoubleModuleNoPackage.ice>
 
-module T1
-{
-module T2
+module T1::T2
 {
 
 const ::M1::M2::dmnpEnum dmnpTest5Constant = ::M1::M2::dmnpE1;
@@ -27,9 +25,9 @@ sequence<::M1::M2::dmnpStruct> dmnpTest5StructSeq;
 
 dictionary<::M1::M2::dmnpStruct, ::M1::M2::dmnpBaseClass> dmnpTest5StructClassSeq;
 
-interface dmnpTest5Interface extends ::M1::M2::dmnpInterface {}
+interface dmnpTest5Interface : ::M1::M2::dmnpInterface {}
 
-exception dmnpTest5Exception extends ::M1::M2::dmnpException
+exception dmnpTest5Exception : ::M1::M2::dmnpException
 {
     ::M1::M2::dmnpEnum e1;
     ::M1::M2::dmnpStruct s1;
@@ -39,7 +37,7 @@ exception dmnpTest5Exception extends ::M1::M2::dmnpException
     ::M1::M2::dmnpInterface i1;
 }
 
-class dmnpTest5Class extends ::M1::M2::dmnpBaseClass implements ::M1::M2::dmnpBaseInterface
+class dmnpTest5Class : ::M1::M2::dmnpBaseClass implements ::M1::M2::dmnpBaseInterface
 {
     ::M1::M2::dmnpStruct
     dmnpTest5Op1(::M1::M2::dmnpEnum i1,
@@ -56,7 +54,7 @@ class dmnpTest5Class extends ::M1::M2::dmnpBaseClass implements ::M1::M2::dmnpBa
                  out ::M1::M2::dmnpClass o6)
         throws ::M1::M2::dmnpException;
 
-    ["amd"]
+    [amd]
     ::M1::M2::dmnpStruct
     dmnpTest5Op3(::M1::M2::dmnpEnum i1,
                  ::M1::M2::dmnpStruct i2,
@@ -73,5 +71,4 @@ class dmnpTest5Class extends ::M1::M2::dmnpBaseClass implements ::M1::M2::dmnpBa
         throws ::M1::M2::dmnpException;
 }
 
-}
 }

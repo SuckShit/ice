@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["swift:class-resolver-prefix:IceServantLocator"]]
+[[swift:class-resolver-prefix(IceServantLocator)]]
 
 module Test
 {
@@ -40,11 +40,6 @@ interface TestIntf
 interface TestActivation
 {
     void activateServantLocator(bool activate);
-}
-
-local class Cookie
-{
-    ["cpp:const"] string message();
 }
 
 }

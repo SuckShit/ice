@@ -25,9 +25,9 @@ sequence<smwpStruct> smwpTest5StructSeq;
 
 dictionary<smwpStruct, smwpBaseClass> smwpTest5StructClassSeq;
 
-interface smwpTest5Interface extends smwpInterface {}
+interface smwpTest5Interface : smwpInterface {}
 
-exception smwpTest5Exception extends smwpException
+exception smwpTest5Exception : smwpException
 {
     smwpEnum e1;
     smwpStruct s1;
@@ -37,7 +37,7 @@ exception smwpTest5Exception extends smwpException
     smwpInterface i1;
 }
 
-class smwpTest5Class extends smwpBaseClass implements smwpBaseInterface
+class smwpTest5Class : smwpBaseClass implements smwpBaseInterface
 {
     smwpStruct
     smwpTest5Op1(smwpEnum i1,
@@ -54,7 +54,7 @@ class smwpTest5Class extends smwpBaseClass implements smwpBaseInterface
                  out smwpClass o6)
         throws smwpException;
 
-    ["amd"]
+    [amd]
     smwpStruct
     smwpTest5Op3(smwpEnum i1,
                  smwpStruct i2,

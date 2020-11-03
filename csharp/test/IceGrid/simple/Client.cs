@@ -1,36 +1,28 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using Test;
+using ZeroC.Ice;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.IceGrid.Test.Simple
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            if(args.Any(v => v.Equals("--with-deploy")))
+            await using Communicator communicator = Initialize(ref args);
+            if (args.Any(v => v.Equals("--with-deploy")))
             {
-                AllTests.allTestsWithDeploy(this);
+                AllTests.RunWithDeploy(this);
             }
             else
             {
-                AllTests.allTests(this);
+                AllTests.Run(this);
             }
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

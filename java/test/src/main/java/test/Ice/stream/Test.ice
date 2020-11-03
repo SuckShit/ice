@@ -4,9 +4,11 @@
 
 #pragma once
 
+[[3.7]]
+
 #include <Ice/BuiltinSequences.ice>
 
-[["java:package:test.Ice.stream"]]
+[[java:package(test.Ice.stream)]]
 module Test
 {
 
@@ -20,7 +22,7 @@ enum MyEnum
 class MyClass;
 interface MyInterface;
 
-["java:serializable:test.Ice.stream.Serialize.Small"] sequence<byte> SerialSmall;
+[java:serializable:test.Ice.stream.Serialize.Small] sequence<byte> SerialSmall;
 
 struct SmallStruct
 {
@@ -38,40 +40,16 @@ struct SmallStruct
     SerialSmall ss;
 }
 
-struct Point
-{
-    int x;
-    int y;
-}
-
-sequence<MyEnum> MyEnumS;
-sequence<MyClass> MyClassS;
-dictionary<byte, bool> ByteBoolD;
-dictionary<short, int> ShortIntD;
-dictionary<string, MyClass> StringMyClassD;
-
 class OptionalClass
 {
     bool bo;
     byte by;
-    optional(1) short sh;
-    optional(2) int i;
-    optional(3) SmallStruct sm;
-
-    optional(4) MyEnumS enumS4;
-    optional(5) MyClassS myClassS5;
-
-    optional(6) ByteBoolD byteBoolD6;
-    optional(7) ShortIntD shortIntD7;
-
-    optional(8) MyEnum enum8;
-    optional(9) MyClass class9;
-    optional(10) StringMyClassD stringMyClassD10;
-    optional(12) Ice::IntSeq intSeq12;
-    optional(13) Ice::ByteSeq byteSeq13;
-    optional(14) Ice::StringSeq stringSeq14;
-    optional(15) Point p15;
+    tag(1) short? sh;
+    tag(2) int? i;
 }
+
+sequence<MyEnum> MyEnumS;
+sequence<MyClass> MyClassS;
 
 sequence<Ice::BoolSeq> BoolSS;
 sequence<Ice::ByteSeq> ByteSS;
@@ -84,10 +62,11 @@ sequence<Ice::StringSeq> StringSS;
 sequence<MyEnumS> MyEnumSS;
 sequence<MyClassS> MyClassSS;
 
+dictionary<byte, bool> ByteBoolD;
+dictionary<short, int> ShortIntD;
 dictionary<long, float> LongFloatD;
 dictionary<string, string> StringStringD;
-
-class Bar;
+dictionary<string, MyClass> StringMyClassD;
 
 class MyClass
 {
@@ -115,6 +94,6 @@ exception MyException
 
 interface MyInterface
 {
-};
+}
 
 }

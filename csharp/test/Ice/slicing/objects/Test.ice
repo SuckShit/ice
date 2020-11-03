@@ -4,28 +4,31 @@
 
 #pragma once
 
-module Test
+[[3.7]]
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Slicing::Objects
 {
 
 class SBase
 {
-    string sb;
+    string sb = "";
 }
 
-class SBSKnownDerived extends SBase
+class SBSKnownDerived : SBase
 {
-    string sbskd;
+    string sbskd = "";
 }
 
 class B
 {
-    string sb;
+    string sb = "";
     B pb;
 }
 
-class D1 extends B
+class D1 : B
 {
-    string sd1;
+    string sd1 = "";
     B pd1;
 }
 
@@ -55,7 +58,7 @@ exception BaseException
     B pb;
 }
 
-exception DerivedException extends BaseException
+exception DerivedException : BaseException
 {
     string sde;
     D1 pd1;
@@ -70,34 +73,33 @@ class PBase
 
 sequence<PBase> PBaseSeq;
 
-["preserve-slice"]
-class Preserved extends PBase
+[preserve-slice]
+class Preserved : PBase
 {
-    string ps;
+    string ps = "";
 }
 
-class PDerived extends Preserved
-{
-    PBase pb;
-}
-
-class CompactPDerived(56) extends Preserved
+class PDerived : Preserved
 {
     PBase pb;
 }
 
-["preserve-slice"]
+class CompactPDerived(56) : Preserved
+{
+    PBase pb;
+}
+
+[preserve-slice]
 class PNode
 {
     PNode next;
 }
 
-["preserve-slice"]
 exception PreservedException
 {
 }
 
-["format:sliced"]
+[format(sliced)]
 interface TestIntf
 {
     Object SBaseAsObject();
@@ -106,8 +108,9 @@ interface TestIntf
     SBSKnownDerived SBSKnownDerivedAsSBSKnownDerived();
 
     SBase SBSUnknownDerivedAsSBase();
+    void CUnknownAsSBase(SBase cUnknown);
 
-    ["format:compact"] SBase SBSUnknownDerivedAsSBaseCompact();
+    [format(compact)] SBase SBSUnknownDerivedAsSBaseCompact();
 
     Object SUnknownAsObject();
     void checkSUnknown(Object o);
@@ -118,39 +121,39 @@ interface TestIntf
     D1 D1AsD1();
     B D2AsB();
 
-    void paramTest1(out B p1, out B p2);
-    void paramTest2(out B p2, out B p1);
-    B paramTest3(out B p1, out B p2);
-    B paramTest4(out B p);
+    (B r1, B r2) paramTest1();
+    (B r1, B r2) paramTest2();
+    (B r1, B r2, B r3) paramTest3();
+    (B r1, B r2) paramTest4();
 
-    B returnTest1(out B p1, out B p2);
-    B returnTest2(out B p2, out B p1);
+    (B r1, B r2, B r3) returnTest1();
+    (B r1, B r2, B r3) returnTest2();
     B returnTest3(B p1, B p2);
 
     SS3 sequenceTest(SS1 p1, SS2 p2);
 
-    BDict dictionaryTest(BDict bin, out BDict bout);
+    (BDict r1, BDict r2) dictionaryTest(BDict bin);
 
     PBase exchangePBase(PBase pb);
 
     Preserved PBSUnknownAsPreserved();
     void checkPBSUnknown(Preserved p);
 
-    ["amd"] Preserved PBSUnknownAsPreservedWithGraph();
+    [amd] Preserved PBSUnknownAsPreservedWithGraph();
     void checkPBSUnknownWithGraph(Preserved p);
 
-    ["amd"] Preserved PBSUnknown2AsPreservedWithGraph();
+    [amd] Preserved PBSUnknown2AsPreservedWithGraph();
     void checkPBSUnknown2WithGraph(Preserved p);
 
     PNode exchangePNode(PNode pn);
 
-    void throwBaseAsBase() throws BaseException;
-    void throwDerivedAsBase() throws BaseException;
-    void throwDerivedAsDerived() throws DerivedException;
-    void throwUnknownDerivedAsBase() throws BaseException;
-    ["amd"] void throwPreservedException() throws PreservedException;
+    void throwBaseAsBase();
+    void throwDerivedAsBase();
+    void throwDerivedAsDerived();
+    void throwUnknownDerivedAsBase();
+    [amd] void throwPreservedException();
 
-    void useForward(out Forward f); /* Use of forward-declared class to verify that code is generated correctly. */
+    Forward useForward(); /* Use of forward-declared class to verify that code is generated correctly. */
 
     void shutdown();
 }

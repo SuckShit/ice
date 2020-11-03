@@ -4,13 +4,12 @@
 
 #pragma once
 
-["cs:namespace:Ice.defaultServant"]
-module Test
-{
+[[suppress-warning(reserved-identifier)]]
 
-interface MyObject
+module ZeroC::Ice::Test::DefaultServant
 {
-    string getName();
-}
-
+    interface MyObject
+    {
+        string getName();
+    }
 }

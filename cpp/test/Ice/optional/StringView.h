@@ -11,7 +11,7 @@
 // COMPILERFIX: G++ false positive "maybe-uninitialized" warnings when using
 // string_view with Ice::optional in C++17 mode.
 //
-#if defined(__GNUC__) && ICE_CPLUSPLUS >= 201703L
+#if defined(__GNUC__) && !defined(__clang__) && ICE_CPLUSPLUS >= 201703L
 #   pragma GCC diagnostic push
 #   pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
@@ -156,14 +156,7 @@ struct StreamHelper<Util::string_view, StreamHelperCategoryBuiltin>
     template<class S> static inline void
     write(S* stream, const Util::string_view& v)
     {
-#ifdef ICE_CPP11_MAPPING
         stream->write(v.data(), v.size());
-#else
-        //
-        // In C++98, for consistency with the read, we don't string-convert
-        //
-        stream->write(v.data(), v.size(), false);
-#endif
     }
 
     template<class S> static inline void
@@ -190,7 +183,7 @@ struct StreamHelper<Util::string_view, StreamHelperCategoryBuiltin>
 
 }
 
-#if defined(__GNUC__) && ICE_CPLUSPLUS >= 201703L
+#if defined(__GNUC__) && !defined(__clang__) && ICE_CPLUSPLUS >= 201703L
 #   pragma GCC diagnostic pop
 #endif
 

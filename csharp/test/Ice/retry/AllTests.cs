@@ -1,278 +1,299 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Retry
 {
-    namespace retry
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static IRetryPrx Run(TestHelper helper, Communicator communicator, bool colocated)
         {
-            private class Callback
+            bool ice1 = helper.Protocol == Protocol.Ice1;
+
+            TextWriter output = helper.Output;
+
+            var retry1 = IRetryPrx.Parse(helper.GetTestProxy("retry"), communicator);
+
+            output.Write("calling regular operation with first proxy... ");
+            output.Flush();
+            Instrumentation.TestInvocationReset();
+            retry1.Op(false);
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(0);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
+
+            output.Write("calling operation to kill connection with second proxy... ");
+            output.Flush();
+            Instrumentation.TestInvocationReset();
+            try
             {
-                internal Callback()
-                {
-                    _called = false;
-                }
+                retry1.Op(true);
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException)
+            {
+                // Expected with collocation
+            }
+            catch (ConnectionLostException)
+            {
+            }
+            Instrumentation.TestInvocationCount(1);
+            // Instrumentation.TestFailureCount(1);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
 
-                public void check()
-                {
-                    lock(this)
-                    {
-                        while(!_called)
-                        {
-                            Monitor.Wait(this);
-                        }
+            output.Write("calling regular operation with first proxy again... ");
+            output.Flush();
+            Instrumentation.TestInvocationReset();
+            retry1.Op(false);
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(0);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
 
-                        _called = false;
-                    }
-                }
+            output.Write("calling regular AMI operation with first proxy... ");
+            Instrumentation.TestInvocationReset();
+            retry1.OpAsync(false).Wait();
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(0);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
 
-                public void called()
-                {
-                    lock(this)
-                    {
-                        Debug.Assert(!_called);
-                        _called = true;
-                        Monitor.Pulse(this);
-                    }
-                }
-
-                private bool _called;
+            output.Write("calling AMI operation to kill connection with second proxy... ");
+            Instrumentation.TestInvocationReset();
+            try
+            {
+                retry1.OpAsync(true).Wait();
+                TestHelper.Assert(false);
+            }
+            catch (AggregateException ex)
+            {
+                TestHelper.Assert(ex.InnerException is ConnectionLostException ||
+                                  ex.InnerException is UnhandledException);
             }
 
-            static public Test.RetryPrx
-            allTests(global::Test.TestHelper helper,
-                     Ice.Communicator communicator,
-                     Ice.Communicator communicator2,
-                     string rf)
+            Instrumentation.TestInvocationCount(1);
+            // Instrumentation.TestFailureCount(1);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
+
+            output.Write("calling regular AMI operation with first proxy again... ");
+            Instrumentation.TestInvocationReset();
+            retry1.OpAsync(false).Wait();
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(0);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
+
+            output.Write("testing non-idempotent operation... ");
+            Instrumentation.TestInvocationReset();
+            try
             {
-                Instrumentation.testInvocationReset();
+                retry1.OpNotIdempotent();
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException)
+            {
+            }
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(1);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
 
-                var output = helper.getWriter();
-                output.Write("testing stringToProxy... ");
+            output.Write("testing system exception... "); // it's just a regular remote exception
+            Instrumentation.TestInvocationReset();
+            try
+            {
+                retry1.OpSystemException();
+                TestHelper.Assert(false);
+            }
+            catch (SystemFailure)
+            {
+            }
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(1);
+            Instrumentation.TestRetryCount(0);
+
+            try
+            {
+                retry1.OpSystemExceptionAsync().Wait();
+                TestHelper.Assert(false);
+            }
+            catch (AggregateException ex)
+            {
+                TestHelper.Assert(ex.InnerException is SystemFailure);
+            }
+            Instrumentation.TestInvocationCount(1);
+            Instrumentation.TestFailureCount(1);
+            Instrumentation.TestRetryCount(0);
+            output.WriteLine("ok");
+
+            if (!ice1)
+            {
+                output.Write("testing cancellation and retries... ");
                 output.Flush();
-                var base1 = communicator.stringToProxy(rf);
-                test(base1 != null);
-                var base2 = communicator.stringToProxy(rf);
-                test(base2 != null);
-                output.WriteLine("ok");
-
-                output.Write("testing checked cast... ");
-                output.Flush();
-                Test.RetryPrx retry1 = Test.RetryPrxHelper.checkedCast(base1);
-                test(retry1 != null);
-                test(retry1.Equals(base1));
-                Test.RetryPrx retry2 = Test.RetryPrxHelper.checkedCast(base2);
-                test(retry2 != null);
-                test(retry2.Equals(base2));
-                output.WriteLine("ok");
-
-                output.Write("calling regular operation with first proxy... ");
-                output.Flush();
-                retry1.op(false);
-                output.WriteLine("ok");
-
-                Instrumentation.testInvocationCount(3);
-
-                output.Write("calling operation to kill connection with second proxy... ");
-                output.Flush();
+                Instrumentation.TestInvocationReset();
                 try
                 {
-                    retry2.op(true);
-                    test(false);
+                    // No more than 2 retries before timeout kicks-in
+                    retry1.Clone(invocationTimeout: TimeSpan.FromMilliseconds(500)).OpIdempotent(4);
+                    TestHelper.Assert(false);
                 }
-                catch(Ice.UnknownLocalException)
+                catch (OperationCanceledException)
                 {
-                    // Expected with collocation
+                    Instrumentation.TestRetryCount(2);
+                    retry1.OpIdempotent(-1);
                 }
-                catch(Ice.ConnectionLostException)
-                {
-                }
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(1);
-                Instrumentation.testRetryCount(0);
                 output.WriteLine("ok");
 
-                output.Write("calling regular operation with first proxy again... ");
+                output.Write("testing retry after delay... ");
                 output.Flush();
-                retry1.op(false);
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(0);
-                Instrumentation.testRetryCount(0);
-                output.WriteLine("ok");
-
-                Callback cb = new Callback();
-
-                output.Write("calling regular AMI operation with first proxy... ");
-                retry1.begin_op(false).whenCompleted(
-                   () =>
-                    {
-                        cb.called();
-                    },
-                   (Ice.Exception ex) =>
-                    {
-                        test(false);
-                    });
-                cb.check();
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(0);
-                Instrumentation.testRetryCount(0);
-                output.WriteLine("ok");
-
-                output.Write("calling AMI operation to kill connection with second proxy... ");
-                retry2.begin_op(true).whenCompleted(
-                   () =>
-                    {
-                        test(false);
-                    },
-                   (Ice.Exception ex) =>
-                    {
-                        test(ex is Ice.ConnectionLostException || ex is Ice.UnknownLocalException);
-                        cb.called();
-                    });
-                cb.check();
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(1);
-                Instrumentation.testRetryCount(0);
-                output.WriteLine("ok");
-
-                output.Write("calling regular AMI operation with first proxy again... ");
-                retry1.begin_op(false).whenCompleted(
-                   () =>
-                    {
-                        cb.called();
-                    },
-                   (Ice.Exception ex) =>
-                    {
-                        test(false);
-                    });
-                cb.check();
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(0);
-                Instrumentation.testRetryCount(0);
-                output.WriteLine("ok");
-
-                output.Write("testing idempotent operation... ");
-                test(retry1.opIdempotent(4) == 4);
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(0);
-                Instrumentation.testRetryCount(4);
-                test(retry1.end_opIdempotent(retry1.begin_opIdempotent(4)) == 4);
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(0);
-                Instrumentation.testRetryCount(4);
-                output.WriteLine("ok");
-
-                output.Write("testing non-idempotent operation... ");
+                Instrumentation.TestInvocationReset();
                 try
                 {
-                    retry1.opNotIdempotent();
-                    test(false);
+                    // No retries before timeout kicks-in
+                    retry1.Clone(invocationTimeout: TimeSpan.FromMilliseconds(500)).OpAfterDelay(2, 600);
+                    TestHelper.Assert(false);
                 }
-                catch(Ice.LocalException)
+                catch (OperationCanceledException)
                 {
+                    Instrumentation.TestRetryCount(0);
+                    retry1.OpAfterDelay(-1, 0);
                 }
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(1);
-                Instrumentation.testRetryCount(0);
-                try
-                {
-                    retry1.end_opNotIdempotent(retry1.begin_opNotIdempotent());
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                Instrumentation.testInvocationCount(1);
-                Instrumentation.testFailureCount(1);
-                Instrumentation.testRetryCount(0);
-                output.WriteLine("ok");
 
-                if(retry1.ice_getConnection() == null)
                 {
-                    Instrumentation.testInvocationCount(1);
+                    Instrumentation.TestInvocationReset();
+                    // No retries before timeout kicks-in
+                    int n = retry1.Clone(invocationTimeout: TimeSpan.FromMilliseconds(500)).OpAfterDelay(4, 50);
+                    Instrumentation.TestRetryCount(4);
+                    retry1.OpAfterDelay(-1, 0);
+                    TestHelper.Assert(n == 4);
+                }
 
-                    output.Write("testing system exception... ");
+                {
+                    // No more than 5 invocation attempts with the default settings
+                    Instrumentation.TestInvocationReset();
+                    // No retries before timeout kicks-in
                     try
                     {
-                        retry1.opSystemException();
-                        test(false);
+                        retry1.Clone(invocationTimeout: TimeSpan.FromMilliseconds(500)).OpAfterDelay(5, 50);
+                        TestHelper.Assert(false);
                     }
-                    catch(SystemFailure)
+                    catch (SystemFailure)
                     {
+                        Instrumentation.TestRetryCount(4);
+                        retry1.OpAfterDelay(-1, 0);
                     }
-                    Instrumentation.testInvocationCount(1);
-                    Instrumentation.testFailureCount(1);
-                    Instrumentation.testRetryCount(0);
-                    try
-                    {
-                        retry1.end_opSystemException(retry1.begin_opSystemException());
-                        test(false);
-                    }
-                    catch(SystemFailure)
-                    {
-                    }
-                    Instrumentation.testInvocationCount(1);
-                    Instrumentation.testFailureCount(1);
-                    Instrumentation.testRetryCount(0);
-                    output.WriteLine("ok");
                 }
+                output.WriteLine("ok");
 
+                if (!colocated)
                 {
-                    output.Write("testing invocation timeout and retries... ");
+                    output.Write("testing retry other replica... ");
                     output.Flush();
+                    // Build a multi-endpoint proxy by hand.
+                    // TODO: should the TestHelper help with that?
+                    var sb = new StringBuilder(helper.GetTestProxy("replicated"));
+                    sb.Append("?alt-endpoint=");
+                    sb.Append(helper.Host.Contains(":") ? $"[{helper.Host}]" : helper.Host);
+                    sb.Append(':');
+                    sb.Append(helper.BasePort + 1);
 
-                    retry2 = Test.RetryPrxHelper.checkedCast(communicator2.stringToProxy(retry1.ToString()));
+                    IReplicatedPrx? replicated = IReplicatedPrx.Parse(sb.ToString(), communicator);
+
+                    replicated.IcePing();
+                    TestHelper.Assert(((IPConnection)replicated.GetCachedConnection()!).RemoteEndpoint!.Port ==
+                                      helper.BasePort);
+
+                    Instrumentation.TestInvocationReset();
+                    replicated.OtherReplica();
+                    Instrumentation.TestRetryCount(1);
+                    TestHelper.Assert(((IPConnection)replicated.GetCachedConnection()!).RemoteEndpoint!.Port ==
+                                      helper.BasePort + 1);
+
                     try
                     {
-                        // No more than 2 retries before timeout kicks-in
-                       ((Test.RetryPrx)retry2.ice_invocationTimeout(500)).opIdempotent(4);
-                        test(false);
+                        var nonreplicated = INonReplicatedPrx.Parse(helper.GetTestProxy("replicated"), communicator);
+
+                        nonreplicated.IcePing();
+                        TestHelper.Assert(((IPConnection)nonreplicated.GetCachedConnection()!).RemoteEndpoint!.Port ==
+                                          helper.BasePort);
+                        nonreplicated.OtherReplica();
+                        TestHelper.Assert(false);
                     }
-                    catch(Ice.InvocationTimeoutException)
+                    catch (SystemFailure)
                     {
-                        Instrumentation.testRetryCount(2);
-                        retry2.opIdempotent(-1); // Reset the counter
-                        Instrumentation.testRetryCount(-1);
                     }
-                    try
+                    output.WriteLine("ok");
+
+                    output.Write("testing retry request size max... ");
+                    output.Flush();
                     {
-                        // No more than 2 retries before timeout kicks-in
-                        Test.RetryPrx prx =(Test.RetryPrx)retry2.ice_invocationTimeout(500);
-                        prx.end_opIdempotent(prx.begin_opIdempotent(4));
-                        test(false);
-                    }
-                    catch(Ice.InvocationTimeoutException)
-                    {
-                        Instrumentation.testRetryCount(2);
-                        retry2.opIdempotent(-1); // Reset the counter
-                        Instrumentation.testRetryCount(-1);
-                    }
-                    if(retry1.ice_getConnection() != null)
-                    {
-                        // The timeout might occur on connection establishment or because of the sleep. What's
-                        // important here is to make sure there are 4 retries and that no calls succeed to
-                        // ensure retries with the old connection timeout semantics work.
-                        Test.RetryPrx retryWithTimeout =
-                            (Test.RetryPrx)retry1.ice_invocationTimeout(-2).ice_timeout(200);
+                        Dictionary<string, string>? properties = communicator.GetProperties();
+                        properties["Ice.RetryRequestSizeMax"] = "1024";
+                        using var communicator2 = new Communicator(properties);
+                        var retry2 = IRetryPrx.Parse(helper.GetTestProxy("retry"), communicator2);
+
+                        byte[] data = Enumerable.Range(0, 1024).Select(i => (byte)i).ToArray();
+
+                        retry1.OpWithData(1, 0, data); // Succeed no retry request size limit
+
                         try
                         {
-                            retryWithTimeout.sleep(500);
-                            test(false);
+                            retry2.OpWithData(1, 0, data); // Fails because retry request size limit
+                            TestHelper.Assert(false);
                         }
-                        catch(Ice.TimeoutException)
+                        catch (SystemFailure)
                         {
+                            // Expected
+                            retry2.OpWithData(0, 0, Array.Empty<byte>()); // Reset the counter
                         }
-                        Instrumentation.testRetryCount(4);
+                    }
+                    output.WriteLine("ok");
+
+                    output.Write("testing retry buffer size max... ");
+                    output.Flush();
+                    {
+                        Dictionary<string, string>? properties = communicator.GetProperties();
+                        properties["Ice.RetryBufferSizeMax"] = "2048";
+                        using var communicator2 = new Communicator(properties);
+                        var retry2 = IRetryPrx.Parse(helper.GetTestProxy("retry"), communicator2);
+
+                        byte[] data = Enumerable.Range(0, 1024).Select(i => (byte)i).ToArray();
+
+                        // Use two connections to simulate two concurrent retries, the first should succeed
+                        // and the second should fail because the buffer size max.
+                        Task t1 = retry2.Clone(connectionId: "conn-1").OpWithDataAsync(2, 1000, data);
+                        Thread.Sleep(100); // Ensure the first request it is send before the second request
+                        Task t2 = retry2.Clone(connectionId: "conn-2").OpWithDataAsync(2, 0, data);
+
+                        // T1 succeed, T2 Fail because buffer size max
+                        t1.Wait();
+                        try
+                        {
+                            t2.Wait();
+                            TestHelper.Assert(false);
+                        }
+                        catch (AggregateException ex)
+                        {
+                            // expected
+                            TestHelper.Assert(ex.InnerException is SystemFailure);
+                            retry2.OpWithData(0, 0, Array.Empty<byte>()); // Reset the counter
+                        }
+                        retry2.Clone(connectionId: "conn-1").OpWithData(2, 100, data);
                     }
                     output.WriteLine("ok");
                 }
-                return retry1;
             }
+            return retry1;
         }
     }
 }

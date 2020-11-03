@@ -1,99 +1,83 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System.Net;
+
+namespace ZeroC.Ice
 {
-    using System.Net;
-
-    sealed class UdpConnector : Connector
+    internal sealed class UdpConnector : IConnector
     {
-        public Transceiver connect()
+        private readonly UdpEndpoint _endpoint;
+        private readonly EndPoint _addr;
+        private readonly int _hashCode;
+
+        public Connection Connect(string connectionId)
         {
-            return new UdpTransceiver(_instance, _addr, _sourceAddr, _mcastInterface, _mcastTtl);
+            var transceiver = new UdpTransceiver(_endpoint.Communicator,
+                                                 this,
+                                                 _addr,
+                                                 _endpoint.SourceAddress,
+                                                 _endpoint.MulticastInterface,
+                                                 _endpoint.MulticastTtl);
+
+            return new UdpConnection(_endpoint.Communicator.OutgoingConnectionFactory,
+                                     _endpoint,
+                                     new LegacyTransceiver(transceiver, _endpoint, null),
+                                     this,
+                                     connectionId,
+                                     null);
         }
 
-        public short type()
-        {
-            return _instance.type();
-        }
-
-        //
         // Only for use by UdpEndpointI
-        //
-        internal UdpConnector(ProtocolInstance instance, EndPoint addr, EndPoint sourceAddr, string mcastInterface,
-                              int mcastTtl, string connectionId)
+        internal UdpConnector(UdpEndpoint endpoint, EndPoint addr)
         {
-            _instance = instance;
+            _endpoint = endpoint;
             _addr = addr;
-            _sourceAddr = sourceAddr;
-            _mcastInterface = mcastInterface;
-            _mcastTtl = mcastTtl;
-            _connectionId = connectionId;
 
-            _hashCode = 5381;
-            HashUtil.hashAdd(ref _hashCode, _addr);
-            if(sourceAddr != null)
+            var hash = new System.HashCode();
+            hash.Add(_addr);
+            if (_endpoint.SourceAddress != null)
             {
-                HashUtil.hashAdd(ref _hashCode, _sourceAddr);
+                hash.Add(_endpoint.SourceAddress);
             }
-            HashUtil.hashAdd(ref _hashCode, _mcastInterface);
-            HashUtil.hashAdd(ref _hashCode, _mcastTtl);
-            HashUtil.hashAdd(ref _hashCode, _connectionId);
+            hash.Add(_endpoint.MulticastInterface);
+            hash.Add(_endpoint.MulticastTtl);
+            _hashCode = hash.ToHashCode();
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
-            if(!(obj is UdpConnector))
-            {
-                return false;
-            }
-
-            if(this == obj)
+            if (ReferenceEquals(this, obj))
             {
                 return true;
             }
 
-            UdpConnector p = (UdpConnector)obj;
-            if(!_connectionId.Equals(p._connectionId))
+            if (obj is UdpConnector udpConnector)
+            {
+                if (_endpoint.MulticastInterface != udpConnector._endpoint.MulticastInterface)
+                {
+                    return false;
+                }
+
+                if (_endpoint.MulticastTtl != udpConnector._endpoint.MulticastTtl)
+                {
+                    return false;
+                }
+
+                if (!Equals(_endpoint.SourceAddress, udpConnector._endpoint.SourceAddress))
+                {
+                    return false;
+                }
+
+                return _addr.Equals(udpConnector._addr);
+            }
+            else
             {
                 return false;
             }
-
-            if(!_mcastInterface.Equals(p._mcastInterface))
-            {
-                return false;
-            }
-
-            if(_mcastTtl != p._mcastTtl)
-            {
-                return false;
-            }
-
-            if(!Network.addressEquals(_sourceAddr, p._sourceAddr))
-            {
-                return false;
-            }
-
-            return _addr.Equals(p._addr);
         }
 
-        public override string ToString()
-        {
-            return Network.addrToString(_addr);
-        }
+        public override string ToString() => _addr.ToString()!;
 
-        public override int GetHashCode()
-        {
-            return _hashCode;
-        }
-
-        private ProtocolInstance _instance;
-        private EndPoint _addr;
-        private EndPoint _sourceAddr;
-        private string _mcastInterface;
-        private int _mcastTtl;
-        private string _connectionId;
-        private int _hashCode;
+        public override int GetHashCode() => _hashCode;
     }
 }

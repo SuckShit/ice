@@ -11,7 +11,6 @@
 #include <Ice/LoggerUtil.h>
 #include <Ice/EndpointI.h>
 #include <Ice/Reference.h>
-#include <Ice/Functional.h>
 #include <Ice/Properties.h>
 #include <Ice/Comparable.h>
 #include <iterator>
@@ -40,7 +39,6 @@ public:
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             LocatorInfo::RequestPtr request = this;
             _locatorInfo->getLocator()->findObjectByIdAsync(
                 _reference->getIdentity(),
@@ -59,13 +57,6 @@ public:
                         request->exception(ex);
                     }
                 });
-#else
-            _locatorInfo->getLocator()->begin_findObjectById(
-                _reference->getIdentity(),
-                newCallback_Locator_findObjectById(static_cast<LocatorInfo::Request*>(this),
-                                                   &LocatorInfo::Request::response,
-                                                   &LocatorInfo::Request::exception));
-#endif
         }
         catch(const Ice::Exception& ex)
         {
@@ -87,7 +78,6 @@ public:
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             LocatorInfo::RequestPtr request = this;
             _locatorInfo->getLocator()->findAdapterByIdAsync(_reference->getAdapterId(),
                 [request](const shared_ptr<Ice::ObjectPrx>& object)
@@ -105,13 +95,6 @@ public:
                         request->exception(ex);
                     }
                 });
-#else
-            _locatorInfo->getLocator()->begin_findAdapterById(
-                _reference->getAdapterId(),
-                newCallback_Locator_findAdapterById(static_cast<LocatorInfo::Request*>(this),
-                                                    &LocatorInfo::Request::response,
-                                                    &LocatorInfo::Request::exception));
-#endif
         }
         catch(const Ice::Exception& ex)
         {
@@ -133,11 +116,7 @@ IceInternal::LocatorManager::destroy()
 {
     IceUtil::Mutex::Lock sync(*this);
 
-#ifdef ICE_CPP11_MAPPING
     for_each(_table.begin(), _table.end(), [](pair<shared_ptr<Ice::LocatorPrx>, LocatorInfoPtr> it){ it.second->destroy(); });
-#else
-    for_each(_table.begin(), _table.end(), Ice::secondVoidMemFun<const LocatorPrx, LocatorInfo>(&LocatorInfo::destroy));
-#endif
     _table.clear();
     _tableHint = _table.end();
 
@@ -474,7 +453,7 @@ IceInternal::LocatorInfo::Request::exception(const Ice::Exception& ex)
         IceUtil::Monitor<IceUtil::Mutex>::Lock sync(_monitor);
         _locatorInfo->finishRequest(_reference, _wellKnownRefs, 0, dynamic_cast<const Ice::UserException*>(&ex));
 
-        ICE_SET_EXCEPTION_FROM_CLONE(_exception, ex.ice_clone());
+        _exception = ex.ice_clone();
         _monitor.notifyAll();
     }
     for(vector<RequestCallbackPtr>::const_iterator p = _callbacks.begin(); p != _callbacks.end(); ++p)
@@ -541,7 +520,7 @@ IceInternal::LocatorInfo::getLocatorRegistry()
         // endpoint selection in case the locator returned a proxy
         // with some endpoints which are prefered to be tried first.
         //
-        _locatorRegistry = locatorRegistry->ice_locator(0)->ice_endpointSelection(Ice::ICE_ENUM(EndpointSelectionType, Ordered));
+        _locatorRegistry = locatorRegistry->ice_locator(0)->ice_endpointSelection(Ice::EndpointSelectionType::Ordered);
         return _locatorRegistry;
     }
 }
@@ -773,16 +752,11 @@ IceInternal::LocatorInfo::trace(const string& msg, const ReferencePtr& ref, cons
 
     const char* sep = endpoints.size() > 1 ? ":" : "";
     ostringstream o;
-#ifdef ICE_CPP11_MAPPING
     transform(endpoints.begin(), endpoints.end(), ostream_iterator<string>(o, sep),
               [](const EndpointPtr& endpoint)
               {
                   return endpoint->toString();
               });
-#else
-    transform(endpoints.begin(), endpoints.end(), ostream_iterator<string>(o, sep),
-              Ice::constMemFun(&Endpoint::toString));
-#endif
     out << "endpoints = " << o.str();
 }
 

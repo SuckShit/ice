@@ -21,6 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{90EC26E8-AFFA-4E44-B068-AB5849A96FDD}</ProjectGuid>
     <RootNamespace>IceXML</RootNamespace>
+    <ProjectName>icexml</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -44,7 +45,7 @@
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(MSBuildThisFileDirectory)\..\..\..\msbuild\ice.cpp98.props" />
+  <Import Project="$(MSBuildThisFileDirectory)\..\..\..\msbuild\ice.source.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -96,8 +97,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\..\..\msbuild\packages\expat.v120.2.2.9\build\native\expat.v120.targets" Condition="Exists('..\..\..\msbuild\packages\expat.v120.2.2.9\build\native\expat.v120.targets')" />
-    <Import Project="..\..\..\msbuild\packages\expat.v140.2.2.9\build\native\expat.v140.targets" Condition="Exists('..\..\..\msbuild\packages\expat.v140.2.2.9\build\native\expat.v140.targets')" />
     <Import Project="..\..\..\msbuild\packages\expat.v141.2.2.9\build\native\expat.v141.targets" Condition="Exists('..\..\..\msbuild\packages\expat.v141.2.2.9\build\native\expat.v141.targets')" />
     <Import Project="..\..\..\msbuild\packages\expat.v142.2.2.9\build\native\expat.v142.targets" Condition="Exists('..\..\..\msbuild\packages\expat.v142.2.2.9\build\native\expat.v142.targets')" />
   </ImportGroup>
@@ -106,8 +105,6 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\..\..\msbuild\packages\expat.v120.2.2.9\build\native\expat.v120.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\msbuild\packages\expat.v120.2.2.9\build\native\expat.v120.targets'))" />
-    <Error Condition="!Exists('..\..\..\msbuild\packages\expat.v140.2.2.9\build\native\expat.v140.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\msbuild\packages\expat.v140.2.2.9\build\native\expat.v140.targets'))" />
     <Error Condition="!Exists('..\..\..\msbuild\packages\expat.v141.2.2.9\build\native\expat.v141.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\msbuild\packages\expat.v141.2.2.9\build\native\expat.v141.targets'))" />
     <Error Condition="!Exists('..\..\..\msbuild\packages\expat.v142.2.2.9\build\native\expat.v142.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\msbuild\packages\expat.v142.2.2.9\build\native\expat.v142.targets'))" />
   </Target>

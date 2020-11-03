@@ -4,8 +4,6 @@
 
 #pragma once
 
-[["suppress-warning:deprecated"]] // For classes with operations
-
 module Test
 {
 
@@ -17,29 +15,19 @@ interface IA
     IA* iaop(IA* p);
 }
 
-class CA
-{
-    CA* caop(CA* p);
-}
-
 }
 
 module MB
 {
 
-interface IB1 extends MA::IA
+interface IB1 : MA::IA
 {
     IB1* ib1op(IB1* p);
 }
 
-interface IB2 extends MA::IA
+interface IB2 : MA::IA
 {
     IB2* ib2op(IB2* p);
-}
-
-class CB extends MA::CA
-{
-    CB* cbop(CB* p);
 }
 
 }
@@ -47,19 +35,9 @@ class CB extends MA::CA
 module MA
 {
 
-interface IC extends MB::IB1, MB::IB2
+interface IC : MB::IB1, MB::IB2
 {
     IC* icop(IC* p);
-}
-
-class CC extends MB::CB
-{
-    CC* ccop(CC* p);
-}
-
-class CD extends CC implements MB::IB1, MB::IB2
-{
-    CD* cdop(CD* p);
 }
 
 }
@@ -67,10 +45,6 @@ class CD extends CC implements MB::IB1, MB::IB2
 interface Initial
 {
     void shutdown();
-    MA::CA* caop();
-    MB::CB* cbop();
-    MA::CC* ccop();
-    MA::CD* cdop();
     MA::IA* iaop();
     MB::IB1* ib1op();
     MB::IB2* ib2op();
@@ -85,17 +59,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }
@@ -110,17 +84,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }
@@ -135,17 +109,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }
@@ -160,17 +134,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }
@@ -185,17 +159,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }
@@ -210,17 +184,17 @@ class A
     int aA;
 }
 
-class B extends A
+class B : A
 {
     int bB;
 }
 
-class C extends B
+class C : B
 {
     int cC;
 }
 
-class D extends C
+class D : C
 {
     int dD;
 }

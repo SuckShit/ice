@@ -1,1380 +1,1051 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Diagnostics;
-using System.Threading;
+using System.IO;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Exceptions
 {
-    namespace exceptions
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static IThrowerPrx Run(TestHelper helper)
         {
-            private class Callback
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            bool ice1 = helper.Protocol == Protocol.Ice1;
+            TextWriter output = helper.Output;
             {
-                internal Callback()
+                output.Write("testing object adapter registration exceptions... ");
+                ObjectAdapter first;
+                try
                 {
-                    _called = false;
+                    first = communicator.CreateObjectAdapter("TestAdapter0");
+                }
+                catch (InvalidConfigurationException)
+                {
+                    // Expected
                 }
 
-                public virtual void check()
+                communicator.SetProperty("TestAdapter0.Endpoints", "tcp -h *");
+                first = communicator.CreateObjectAdapter("TestAdapter0");
+                try
                 {
-                    lock(this)
-                    {
-                        while(!_called)
-                        {
-                            Monitor.Wait(this);
-                        }
-
-                        _called = false;
-                    }
+                    communicator.CreateObjectAdapter("TestAdapter0");
+                    TestHelper.Assert(false);
+                }
+                catch (ArgumentException)
+                {
+                    // Expected.
                 }
 
-                public virtual void called()
+                try
                 {
-                    lock(this)
-                    {
-                        Debug.Assert(!_called);
-                        _called = true;
-                        Monitor.Pulse(this);
-                    }
+                    _ = communicator.CreateObjectAdapterWithEndpoints("TestAdapter0", "ssl -h foo -p 12011");
+                    TestHelper.Assert(false);
                 }
-
-                private bool _called;
+                catch (ArgumentException)
+                {
+                    // Expected
+                }
+                first.Dispose();
+                output.WriteLine("ok");
             }
 
-            public static Test.ThrowerPrx allTests(global::Test.TestHelper helper)
             {
-                Ice.Communicator communicator = helper.communicator();
-                var output = helper.getWriter();
-                {
-                    output.Write("testing object adapter registration exceptions... ");
-                    Ice.ObjectAdapter first;
-                    try
-                    {
-                        first = communicator.createObjectAdapter("TestAdapter0");
-                    }
-                    catch(Ice.InitializationException)
-                    {
-                        // Expected
-                    }
-
-                    communicator.getProperties().setProperty("TestAdapter0.Endpoints", "tcp -h *");
-                    first = communicator.createObjectAdapter("TestAdapter0");
-                    try
-                    {
-                        communicator.createObjectAdapter("TestAdapter0");
-                        test(false);
-                    }
-                    catch(Ice.AlreadyRegisteredException)
-                    {
-                        // Expected.
-                    }
-
-                    try
-                    {
-                        Ice.ObjectAdapter second =
-                            communicator.createObjectAdapterWithEndpoints("TestAdapter0", "ssl -h foo -p 12011");
-                        test(false);
-
-                        //
-                        // Quell mono error that variable second isn't used.
-                        //
-                        second.deactivate();
-                    }
-                    catch(Ice.AlreadyRegisteredException)
-                    {
-                        // Expected
-                    }
-                    first.deactivate();
-                    output.WriteLine("ok");
-                }
-
-                {
-                    output.Write("testing servant registration exceptions... ");
-                    communicator.getProperties().setProperty("TestAdapter1.Endpoints", "tcp -h *");
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter1");
-                    Ice.Object obj = new EmptyI();
-                    adapter.add(obj, Ice.Util.stringToIdentity("x"));
-                    try
-                    {
-                        adapter.add(obj, Ice.Util.stringToIdentity("x"));
-                        test(false);
-                    }
-                    catch(Ice.AlreadyRegisteredException)
-                    {
-                    }
-
-                    try
-                    {
-                        adapter.add(obj, Ice.Util.stringToIdentity(""));
-                        test(false);
-                    }
-                    catch(Ice.IllegalIdentityException e)
-                    {
-                        test(e.id.name.Equals(""));
-                    }
-
-                    try
-                    {
-                        adapter.add(null, Ice.Util.stringToIdentity("x"));
-                        test(false);
-                    }
-                    catch(Ice.IllegalServantException)
-                    {
-                    }
-
-                    adapter.remove(Ice.Util.stringToIdentity("x"));
-                    try
-                    {
-                        adapter.remove(Ice.Util.stringToIdentity("x"));
-                        test(false);
-                    }
-                    catch(Ice.NotRegisteredException)
-                    {
-                    }
-                    adapter.deactivate();
-                    output.WriteLine("ok");
-                }
-
-                {
-                    output.Write("testing servant locator registration exceptions... ");
-                    communicator.getProperties().setProperty("TestAdapter2.Endpoints", "tcp -h *");
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter2");
-                    Ice.ServantLocator loc = new ServantLocatorI();
-                    adapter.addServantLocator(loc, "x");
-                    try
-                    {
-                        adapter.addServantLocator(loc, "x");
-                        test(false);
-                    }
-                    catch(Ice.AlreadyRegisteredException)
-                    {
-                    }
-
-                    adapter.deactivate();
-                    output.WriteLine("ok");
-                }
-
-                {
-                    output.Write("testing object factory registration exception... ");
-                    communicator.getValueFactoryManager().add(_ => { return null; }, "::x");
-                    try
-                    {
-                        communicator.getValueFactoryManager().add(_ => { return null; }, "::x");
-                        test(false);
-                    }
-                    catch(Ice.AlreadyRegisteredException)
-                    {
-                    }
-                    output.WriteLine("ok");
-                }
-
-                output.Write("testing stringToProxy... ");
-                output.Flush();
-                String @ref = "thrower:" + helper.getTestEndpoint(0);
-                Ice.ObjectPrx @base = communicator.stringToProxy(@ref);
-                test(@base != null);
-                output.WriteLine("ok");
-
-                output.Write("testing checked cast... ");
-                output.Flush();
-                var thrower = Test.ThrowerPrxHelper.checkedCast(@base);
-
-                test(thrower != null);
-                test(thrower.Equals(@base));
-                output.WriteLine("ok");
-
-                output.Write("catching exact types... ");
-                output.Flush();
-
+                output.Write("testing servant registration exceptions... ");
+                communicator.SetProperty("TestAdapter1.Endpoints", "tcp -h *");
+                ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter1");
+                var obj = new Empty();
+                adapter.Add("x", obj);
                 try
                 {
-                    thrower.throwAasA(1);
-                    test(false);
+                    adapter.Add("x", obj);
+                    TestHelper.Assert(false);
                 }
-                catch(Test.A ex)
+                catch (ArgumentException)
                 {
-                    test(ex.aMem == 1);
-                }
-                catch(Exception ex)
-                {
-                    Console.WriteLine(ex);
-                    test(false);
                 }
 
                 try
                 {
-                    thrower.throwAorDasAorD(1);
-                    test(false);
+                    adapter.Add("", obj);
+                    TestHelper.Assert(false);
                 }
-                catch(Test.A ex)
+                catch (FormatException)
                 {
-                    test(ex.aMem == 1);
-                }
-                catch(Exception)
-                {
-                    test(false);
                 }
 
-                try
-                {
-                    thrower.throwAorDasAorD(-1);
-                    test(false);
-                }
-                catch(Test.D ex)
-                {
-                    test(ex.dMem == -1);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwBasB(1, 2);
-                    test(false);
-                }
-                catch(Test.B ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwCasC(1, 2, 3);
-                    test(false);
-                }
-                catch(Test.C ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                    test(ex.cMem == 3);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
+                adapter.Remove("x");
+                adapter.Remove("x"); // as of Ice 4.0, Remove succeeds with multiple removals
+                adapter.Dispose();
                 output.WriteLine("ok");
-
-                output.Write("catching base types... ");
-                output.Flush();
-
-                try
-                {
-                    thrower.throwBasB(1, 2);
-                    test(false);
-                }
-                catch(Test.A ex)
-                {
-                    test(ex.aMem == 1);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwCasC(1, 2, 3);
-                    test(false);
-                }
-                catch(Test.B ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching derived types... ");
-                output.Flush();
-
-                try
-                {
-                    thrower.throwBasA(1, 2);
-                    test(false);
-                }
-                catch(Test.B ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwCasA(1, 2, 3);
-                    test(false);
-                }
-                catch(Test.C ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                    test(ex.cMem == 3);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwCasB(1, 2, 3);
-                    test(false);
-                }
-                catch(Test.C ex)
-                {
-                    test(ex.aMem == 1);
-                    test(ex.bMem == 2);
-                    test(ex.cMem == 3);
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                if(thrower.supportsUndeclaredExceptions())
-                {
-                    output.Write("catching unknown user exception... ");
-                    output.Flush();
-
-                    try
-                    {
-                        thrower.throwUndeclaredA(1);
-                        test(false);
-                    }
-                    catch(Ice.UnknownUserException)
-                    {
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-
-                    try
-                    {
-                        thrower.throwUndeclaredB(1, 2);
-                        test(false);
-                    }
-                    catch(Ice.UnknownUserException)
-                    {
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-
-                    try
-                    {
-                        thrower.throwUndeclaredC(1, 2, 3);
-                        test(false);
-                    }
-                    catch(Ice.UnknownUserException)
-                    {
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-
-                    output.WriteLine("ok");
-                }
-
-                if(thrower.ice_getConnection() != null)
-                {
-                    output.Write("testing memory limit marshal exception...");
-                    output.Flush();
-                    try
-                    {
-                        thrower.throwMemoryLimitException(null);
-                        test(false);
-                    }
-                    catch(Ice.MemoryLimitException)
-                    {
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-
-                    try
-                    {
-                        thrower.throwMemoryLimitException(new byte[20 * 1024]); // 20KB
-                        test(false);
-                    }
-                    catch(Ice.ConnectionLostException)
-                    {
-                    }
-                    catch(Ice.UnknownLocalException)
-                    {
-                        // Expected with JS bidir server
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-
-                    try
-                    {
-                        var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(
-                            communicator.stringToProxy("thrower:" + helper.getTestEndpoint(1)));
-                        try
-                        {
-                            thrower2.throwMemoryLimitException(new byte[2 * 1024 * 1024]); // 2MB(no limits)
-                        }
-                        catch(Ice.MemoryLimitException)
-                        {
-                        }
-                        var thrower3 = Test.ThrowerPrxHelper.uncheckedCast(
-                            communicator.stringToProxy("thrower:" + helper.getTestEndpoint(2)));
-                        try
-                        {
-                            thrower3.throwMemoryLimitException(new byte[1024]); // 1KB limit
-                            test(false);
-                        }
-                        catch(Ice.ConnectionLostException)
-                        {
-                        }
-                    }
-                    catch(Ice.ConnectionRefusedException)
-                    {
-                        // Expected with JS bidir server
-                    }
-
-                    output.WriteLine("ok");
-                }
-
-                output.Write("catching object not exist exception... ");
-                output.Flush();
-
-                {
-                    Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
-                    try
-                    {
-                        var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
-                        thrower2.ice_ping();
-                        test(false);
-                    }
-                    catch(Ice.ObjectNotExistException ex)
-                    {
-                        test(ex.id.Equals(id));
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching facet not exist exception... ");
-                output.Flush();
-
-                try
-                {
-                    var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower, "no such facet");
-                    try
-                    {
-                        thrower2.ice_ping();
-                        test(false);
-                    }
-                    catch(Ice.FacetNotExistException ex)
-                    {
-                        test(ex.facet.Equals("no such facet"));
-                    }
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching operation not exist exception... ");
-                output.Flush();
-
-                try
-                {
-                    var thrower2 = Test.WrongOperationPrxHelper.uncheckedCast(thrower);
-                    thrower2.noSuchOperation();
-                    test(false);
-                }
-                catch(Ice.OperationNotExistException ex)
-                {
-                    test(ex.operation.Equals("noSuchOperation"));
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown local exception... ");
-                output.Flush();
-
-                try
-                {
-                    thrower.throwLocalException();
-                    test(false);
-                }
-                catch(Ice.UnknownLocalException)
-                {
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-                try
-                {
-                    thrower.throwLocalExceptionIdempotent();
-                    test(false);
-                }
-                catch(Ice.UnknownLocalException)
-                {
-                }
-                catch(Ice.OperationNotExistException)
-                {
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown non-Ice exception... ");
-                output.Flush();
-
-                try
-                {
-                    thrower.throwNonIceException();
-                    test(false);
-                }
-                catch(Ice.UnknownException)
-                {
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("testing asynchronous exceptions... ");
-                output.Flush();
-
-                try
-                {
-                    thrower.throwAfterResponse();
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    thrower.throwAfterException();
-                    test(false);
-                }
-                catch(Test.A)
-                {
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching exact types with AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwAasA(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            test(exc is Test.A);
-                            var ex = exc as Test.A;
-                            test(ex.aMem == 1);
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwAorDasAorD(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.A ex)
-                            {
-                                test(ex.aMem == 1);
-                            }
-                            catch(Test.D ex)
-                            {
-                                test(ex.dMem == -1);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwAorDasAorD(-1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.A ex)
-                            {
-                                test(ex.aMem == 1);
-                            }
-                            catch(Test.D ex)
-                            {
-                                test(ex.dMem == -1);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwBasB(1, 2).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.B ex)
-                            {
-                                test(ex.aMem == 1);
-                                test(ex.bMem == 2);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwCasC(1, 2, 3).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.C ex)
-                            {
-                                test(ex.aMem == 1);
-                                test(ex.bMem == 2);
-                                test(ex.cMem == 3);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching derived types with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwBasA(1, 2).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.B ex)
-                            {
-                                test(ex.aMem == 1);
-                                test(ex.bMem == 2);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwCasA(1, 2, 3).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.C ex)
-                            {
-                                test(ex.aMem == 1);
-                                test(ex.bMem == 2);
-                                test(ex.cMem == 3);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwCasB(1, 2, 3).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Test.C ex)
-                            {
-                                test(ex.aMem == 1);
-                                test(ex.bMem == 2);
-                                test(ex.cMem == 3);
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                if(thrower.supportsUndeclaredExceptions())
-                {
-                    output.Write("catching unknown user exception with new AMI mapping... ");
-                    output.Flush();
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredA(1).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredB(1, 2).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredC(1, 2, 3).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    output.WriteLine("ok");
-                }
-
-                output.Write("catching object not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
-                    var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
-                    Callback cb = new Callback();
-                    thrower2.begin_throwAasA(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.ObjectNotExistException ex)
-                            {
-                                test(ex.id.Equals(id));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching facet not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower, "no such facet");
-                    Callback cb = new Callback();
-                    thrower2.begin_throwAasA(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.FacetNotExistException ex)
-                            {
-                                test(ex.facet.Equals("no such facet"));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching operation not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    var thrower4 = Test.WrongOperationPrxHelper.uncheckedCast(thrower);
-                    thrower4.begin_noSuchOperation().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.OperationNotExistException ex)
-                            {
-                                test(ex.operation.Equals("noSuchOperation"));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown local exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwLocalException().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownLocalException)
-                            {
-                            }
-                            catch(Ice.OperationNotExistException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwLocalExceptionIdempotent().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownLocalException)
-                            {
-                            }
-                            catch(Ice.OperationNotExistException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown non-Ice exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwNonIceException().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                if(thrower.supportsUndeclaredExceptions())
-                {
-                    output.Write("catching unknown user exception with new AMI mapping... ");
-                    output.Flush();
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredA(1).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredB(1, 2).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    {
-                        Callback cb = new Callback();
-                        thrower.begin_throwUndeclaredC(1, 2, 3).whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception exc) =>
-                            {
-                                try
-                                {
-                                    throw exc;
-                                }
-                                catch(Ice.UnknownUserException)
-                                {
-                                }
-                                catch(Exception)
-                                {
-                                    test(false);
-                                }
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    output.WriteLine("ok");
-                }
-
-                output.Write("catching object not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
-                    var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
-                    Callback cb = new Callback();
-                    thrower2.begin_throwAasA(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.ObjectNotExistException ex)
-                            {
-                                test(ex.id.Equals(id));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching facet not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    var thrower2 = Test.ThrowerPrxHelper.uncheckedCast(thrower, "no such facet");
-                    Callback cb = new Callback();
-                    thrower2.begin_throwAasA(1).whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.FacetNotExistException ex)
-                            {
-                                test(ex.facet.Equals("no such facet"));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching operation not exist exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    var thrower4 = Test.WrongOperationPrxHelper.uncheckedCast(thrower);
-                    thrower4.begin_noSuchOperation().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.OperationNotExistException ex)
-                            {
-                                test(ex.operation.Equals("noSuchOperation"));
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown local exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwLocalException().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownLocalException)
-                            {
-                            }
-                            catch(Ice.OperationNotExistException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwLocalExceptionIdempotent().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownLocalException)
-                            {
-                            }
-                            catch(Ice.OperationNotExistException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("catching unknown non-Ice exception with new AMI mapping... ");
-                output.Flush();
-
-                {
-                    Callback cb = new Callback();
-                    thrower.begin_throwNonIceException().whenCompleted(
-                       () =>
-                        {
-                            test(false);
-                        },
-                       (Ice.Exception exc) =>
-                        {
-                            try
-                            {
-                                throw exc;
-                            }
-                            catch(Ice.UnknownException)
-                            {
-                            }
-                            catch(Exception)
-                            {
-                                test(false);
-                            }
-                            cb.called();
-                        });
-                    cb.check();
-                }
-
-                output.WriteLine("ok");
-                return thrower;
             }
+
+            var thrower = IThrowerPrx.Parse(helper.GetTestProxy("thrower", 0), communicator);
+            TestHelper.Assert(thrower != null);
+            output.Write("catching exact types... ");
+            output.Flush();
+
+            try
+            {
+                thrower.ThrowAasA(1);
+                TestHelper.Assert(false);
+            }
+            catch (A ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowAorDasAorD(1);
+                TestHelper.Assert(false);
+            }
+            catch (A ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowAorDasAorD(-1);
+                TestHelper.Assert(false);
+            }
+            catch (D ex)
+            {
+                TestHelper.Assert(ex.DMem == -1);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowBasB(1, 2);
+                TestHelper.Assert(false);
+            }
+            catch (B ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowCasC(1, 2, 3);
+                TestHelper.Assert(false);
+            }
+            catch (C ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+                TestHelper.Assert(ex.CMem == 3);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching base types... ");
+            output.Flush();
+
+            try
+            {
+                thrower.ThrowBasB(1, 2);
+                TestHelper.Assert(false);
+            }
+            catch (A ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowCasC(1, 2, 3);
+                TestHelper.Assert(false);
+            }
+            catch (B ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching derived types... ");
+            output.Flush();
+
+            try
+            {
+                thrower.ThrowBasA(1, 2);
+                TestHelper.Assert(false);
+            }
+            catch (B ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowCasA(1, 2, 3);
+                TestHelper.Assert(false);
+            }
+            catch (C ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+                TestHelper.Assert(ex.CMem == 3);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowCasB(1, 2, 3);
+                TestHelper.Assert(false);
+            }
+            catch (C ex)
+            {
+                TestHelper.Assert(ex.AMem == 1);
+                TestHelper.Assert(ex.BMem == 2);
+                TestHelper.Assert(ex.CMem == 3);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            if (thrower.GetConnection() is not ColocatedConnection)
+            {
+                output.Write("testing memory limit marshal exception...");
+                output.Flush();
+                try
+                {
+                    thrower.ThrowMemoryLimitException(Array.Empty<byte>());
+                    TestHelper.Assert(false);
+                }
+                catch (InvalidDataException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    thrower.ThrowMemoryLimitException(new byte[20 * 1024]); // 20KB
+                    TestHelper.Assert(false);
+                }
+                catch (ConnectionLostException)
+                {
+                }
+                catch (UnhandledException)
+                {
+                    // Expected with JS bidir server
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    var thrower2 = IThrowerPrx.Parse(helper.GetTestProxy("thrower", 1), communicator);
+                    try
+                    {
+                        thrower2.ThrowMemoryLimitException(new byte[2 * 1024 * 1024]); // 2MB(no limits)
+                    }
+                    catch (InvalidDataException)
+                    {
+                    }
+
+                    var thrower3 = IThrowerPrx.Parse(helper.GetTestProxy("thrower", 2), communicator);
+                    try
+                    {
+                        thrower3.ThrowMemoryLimitException(new byte[1024]); // 1KB limit
+                        TestHelper.Assert(false);
+                    }
+                    catch (ConnectionLostException)
+                    {
+                    }
+                }
+                catch (ConnectionRefusedException)
+                {
+                    // Expected with JS bidir server
+                }
+
+                output.WriteLine("ok");
+            }
+
+            output.Write("catching object not exist exception... ");
+            output.Flush();
+
+            {
+                var identity = Identity.Parse("does not exist");
+                try
+                {
+                    IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, identity: identity);
+                    thrower2.IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch (ObjectNotExistException ex)
+                {
+                    TestHelper.Assert(ex.Origin!.Value.Identity == identity);
+                    TestHelper.Assert(ex.Message.Contains("servant")); // verify we don't get system message
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching object not exist exception... ");
+            output.Flush();
+
+            try
+            {
+                IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, facet: "no such facet");
+                try
+                {
+                    thrower2.IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch (ObjectNotExistException ex)
+                {
+                    TestHelper.Assert(ex.Origin!.Value.Facet == "no such facet");
+                    TestHelper.Assert(ex.Message.Contains("with facet")); // verify we don't get system message
+                }
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching operation not exist exception... ");
+            output.Flush();
+
+            try
+            {
+                var thrower2 = thrower.Clone(IWrongOperationPrx.Factory);
+                thrower2.NoSuchOperation();
+                TestHelper.Assert(false);
+            }
+            catch (OperationNotExistException ex)
+            {
+                TestHelper.Assert(ex.Origin!.Value.Operation == "noSuchOperation");
+                TestHelper.Assert(ex.Message.Contains("could not find operation")); // verify we don't get system message
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled local exception... ");
+            output.Flush();
+
+            try
+            {
+                thrower.ThrowLocalException();
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException ex)
+            {
+                TestHelper.Assert(ex.Message.Contains("unhandled exception")); // verify we get custom message
+
+                // With ice1, the origin is not set; with ice2, it is.
+                if (ice1)
+                {
+                    TestHelper.Assert(ex.Origin == null);
+                }
+                else
+                {
+                    TestHelper.Assert(ex.Origin!.Value.Identity == thrower.Identity &&
+                                      ex.Origin!.Value.Operation == "throwLocalException");
+                }
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            try
+            {
+                thrower.ThrowLocalExceptionIdempotent();
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException)
+            {
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled non-Ice exception... ");
+            output.Flush();
+            try
+            {
+                thrower.ThrowNonIceException();
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException)
+            {
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled remote exception... ");
+            output.Flush();
+            try
+            {
+                thrower.ThrowAConvertedToUnhandled();
+                TestHelper.Assert(false);
+            }
+            catch (UnhandledException)
+            {
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing asynchronous exceptions... ");
+            output.Flush();
+
+            try
+            {
+                thrower.ThrowAfterResponse();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                thrower.ThrowAfterException();
+                TestHelper.Assert(false);
+            }
+            catch (A)
+            {
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
+
+            output.Write("catching exact types with AMI... ");
+            output.Flush();
+            {
+                try
+                {
+                    thrower.ThrowAasAAsync(1).Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    TestHelper.Assert(ex.InnerException != null);
+                    TestHelper.Assert(((A)ex.InnerException).AMem == 1);
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowAorDasAorDAsync(1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (A ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                    }
+                    catch (D ex)
+                    {
+                        TestHelper.Assert(ex.DMem == -1);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowAorDasAorDAsync(-1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (A ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                    }
+                    catch (D ex)
+                    {
+                        TestHelper.Assert(ex.DMem == -1);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowBasBAsync(1, 2).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (B ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                        TestHelper.Assert(ex.BMem == 2);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowCasCAsync(1, 2, 3).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (C ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                        TestHelper.Assert(ex.BMem == 2);
+                        TestHelper.Assert(ex.CMem == 3);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching derived types with AMI... ");
+            output.Flush();
+
+            {
+                try
+                {
+                    thrower.ThrowBasAAsync(1, 2).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (B ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                        TestHelper.Assert(ex.BMem == 2);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowCasAAsync(1, 2, 3).Wait();
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (C ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                        TestHelper.Assert(ex.BMem == 2);
+                        TestHelper.Assert(ex.CMem == 3);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowCasBAsync(1, 2, 3).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (C ex)
+                    {
+                        TestHelper.Assert(ex.AMem == 1);
+                        TestHelper.Assert(ex.BMem == 2);
+                        TestHelper.Assert(ex.CMem == 3);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching object not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                var identity = Identity.Parse("does not exist");
+                IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, identity: identity);
+                try
+                {
+                    thrower2.ThrowAasAAsync(1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (ObjectNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Identity == identity);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching object not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, facet: "no such facet");
+                try
+                {
+                    thrower2.ThrowAasAAsync(1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (ObjectNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Facet.Equals("no such facet"));
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching operation not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                try
+                {
+                    var thrower4 = thrower.Clone(IWrongOperationPrx.Factory);
+                    thrower4.NoSuchOperationAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (OperationNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Operation.Equals("noSuchOperation"));
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled local exception with AMI... ");
+            output.Flush();
+
+            {
+                try
+                {
+                    thrower.ThrowLocalExceptionAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowLocalExceptionIdempotentAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled non-Ice exception with AMI... ");
+            output.Flush();
+            {
+                try
+                {
+                    thrower.ThrowNonIceExceptionAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("catching object not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                var identity = Identity.Parse("does not exist");
+                IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, identity: identity);
+                try
+                {
+                    thrower2.ThrowAasAAsync(1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    TestHelper.Assert(exc.InnerException != null);
+                    try
+                    {
+                        throw exc.InnerException;
+                    }
+                    catch (ObjectNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Identity == identity);
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching object not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                IThrowerPrx thrower2 = thrower.Clone(IThrowerPrx.Factory, facet: "no such facet");
+                try
+                {
+                    thrower2.ThrowAasAAsync(1).Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (ObjectNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Facet == "no such facet");
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching operation not exist exception with AMI... ");
+            output.Flush();
+
+            {
+                var thrower4 = thrower.Clone(IWrongOperationPrx.Factory);
+                try
+                {
+                    thrower4.NoSuchOperationAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (OperationNotExistException ex)
+                    {
+                        TestHelper.Assert(ex.Origin!.Value.Operation == "noSuchOperation");
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled local exception with AMI... ");
+            output.Flush();
+
+            {
+                try
+                {
+                    thrower.ThrowLocalExceptionAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            {
+                try
+                {
+                    thrower.ThrowLocalExceptionIdempotentAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled non-Ice exception with AMI... ");
+            output.Flush();
+            {
+                try
+                {
+                    thrower.ThrowNonIceExceptionAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("catching unhandled remote exception with AMI... ");
+            output.Flush();
+            {
+                try
+                {
+                    thrower.ThrowAConvertedToUnhandledAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException exc)
+                {
+                    try
+                    {
+                        TestHelper.Assert(exc.InnerException != null);
+                        throw exc.InnerException;
+                    }
+                    catch (UnhandledException)
+                    {
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            return thrower;
         }
     }
 }

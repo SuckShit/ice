@@ -5,11 +5,11 @@
 #pragma once
 
 #include <Ice/BuiltinSequences.ice>
+#include <Ice/Exceptions.ice>
 
-[["cs:typeid-namespace:Ice.exceptions.TypeId"]]
+[[suppress-warning(reserved-identifier)]]
 
-["cs:namespace:Ice.exceptions"]
-module Test
+module ZeroC::Ice::Test::Exceptions
 {
 
 interface Empty
@@ -23,12 +23,12 @@ exception A
     int aMem;
 }
 
-exception B extends A
+exception B : A
 {
     int bMem;
 }
 
-exception C extends B
+exception C : B
 {
     int cMem;
 }
@@ -41,19 +41,15 @@ exception D
 interface Thrower
 {
     void shutdown();
-    bool supportsUndeclaredExceptions();
     bool supportsAssertException();
 
-    void throwAasA(int a) throws A;
-    void throwAorDasAorD(int a) throws A, D;
-    void throwBasA(int a, int b) throws A;
-    void throwCasA(int a, int b, int c) throws A;
-    void throwBasB(int a, int b) throws B;
-    void throwCasB(int a, int b, int c) throws B;
-    void throwCasC(int a, int b, int c) throws C;
-    void throwUndeclaredA(int a);
-    void throwUndeclaredB(int a, int b);
-    void throwUndeclaredC(int a, int b, int c);
+    void throwAasA(int a);
+    void throwAorDasAorD(int a);
+    void throwBasA(int a, int b);
+    void throwCasA(int a, int b, int c);
+    void throwBasB(int a, int b);
+    void throwCasB(int a, int b, int c);
+    void throwCasC(int a, int b, int c);
     void throwLocalException();
     void throwNonIceException();
     void throwAssertException();
@@ -62,7 +58,9 @@ interface Thrower
     idempotent void throwLocalExceptionIdempotent();
 
     void throwAfterResponse();
-    void throwAfterException() throws A;
+    void throwAfterException();
+
+    void throwAConvertedToUnhandled();
 }
 
 interface WrongOperation

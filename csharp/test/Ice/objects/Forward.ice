@@ -4,10 +4,9 @@
 
 #pragma once
 
-[["cs:typeid-namespace:Ice.objects.TypeId"]]
-["cs:namespace:Ice.objects"]
+[[suppress-warning(reserved-identifier)]]
 
-module Test
+module ZeroC::Ice::Test::Objects
 {
 
 class F1
@@ -20,4 +19,4 @@ interface F2
     void op();
 }
 
-};
+}

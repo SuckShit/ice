@@ -1,359 +1,165 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice
 {
-    using System.Collections.Generic;
-    using System.Diagnostics;
-
-    public sealed class RouterInfo
+    /// <summary>The router info class caches information specific to a given router. The communicator holds a router
+    /// info instance per router proxy set either with Ice.Default.Router or the proxy's Router property. It caches
+    /// the router's server and client proxies as well as proxies that were added to the router's routing table (when
+    /// a routed proxy obtains a new connection request handler (in Reference.GetConnectionRequestHandlerAsync). If an
+    /// object adapter is created with the router, this class also keeps track of this object adapter. This is used to
+    /// associate connections established from routed proxies to the object adapter to allow bi-dir communications.
+    /// TODO: review how we handled routers. The communicator holds a per-proxy router info table right now, should
+    /// it be per-router identity instead? Also fix #228.</summary>
+    internal sealed class RouterInfo
     {
-        public interface GetClientEndpointsCallback
+        public IRouterPrx Router { get; }
+        public ObjectAdapter? Adapter
         {
-            void setEndpoints(EndpointI[] endpoints);
-            void setException(Ice.LocalException ex);
+            get => _adapter;
+            set => _adapter = value;
         }
+        private volatile ObjectAdapter? _adapter;
+        private IReadOnlyList<Endpoint>? _clientEndpoints;
+        private readonly List<Identity> _evictedIdentities = new List<Identity>();
+        private bool _hasRoutingTable;
+        private readonly HashSet<Identity> _identities = new HashSet<Identity>();
+        private readonly object _mutex = new object();
 
-        public interface AddProxyCallback
-        {
-            void addedProxy();
-            void setException(Ice.LocalException ex);
-        }
+        internal RouterInfo(IRouterPrx router) => Router = router;
 
-        internal RouterInfo(Ice.RouterPrx router)
-        {
-            _router = router;
-
-            Debug.Assert(_router != null);
-        }
-
-        public void destroy()
-        {
-            lock(this)
-            {
-                _clientEndpoints = new EndpointI[0];
-                _adapter = null;
-                _identities.Clear();
-            }
-        }
-
-        public override bool Equals(object obj)
-        {
-            if(ReferenceEquals(this, obj))
-            {
-                return true;
-            }
-
-            RouterInfo rhs = obj as RouterInfo;
-            return rhs == null ? false : _router.Equals(rhs._router);
-        }
-
-        public override int GetHashCode()
-        {
-            return _router.GetHashCode();
-        }
-
-        public Ice.RouterPrx getRouter()
-        {
-            //
-            // No mutex lock necessary, _router is immutable.
-            //
-            return _router;
-        }
-
-        public EndpointI[] getClientEndpoints()
-        {
-            lock(this)
-            {
-                if(_clientEndpoints != null) // Lazy initialization.
-                {
-                    return _clientEndpoints;
-                }
-            }
-
-            Ice.Optional<bool> hasRoutingTable;
-            var proxy = _router.getClientProxy(out hasRoutingTable);
-            return setClientEndpoints(proxy, hasRoutingTable.HasValue ? hasRoutingTable.Value : true);
-        }
-
-        public void getClientEndpoints(GetClientEndpointsCallback callback)
-        {
-            EndpointI[] clientEndpoints = null;
-            lock(this)
-            {
-                clientEndpoints = _clientEndpoints;
-            }
-
-            if(clientEndpoints != null) // Lazy initialization.
-            {
-                callback.setEndpoints(clientEndpoints);
-                return;
-            }
-
-            _router.getClientProxyAsync().ContinueWith(
-                (t) =>
-                {
-                    try
-                    {
-                        var r = t.Result;
-                        callback.setEndpoints(setClientEndpoints(r.returnValue,
-                                                    r.hasRoutingTable.HasValue ? r.hasRoutingTable.Value : true));
-                    }
-                    catch(System.AggregateException ae)
-                    {
-                        Debug.Assert(ae.InnerException is Ice.LocalException);
-                        callback.setException((Ice.LocalException)ae.InnerException);
-                    }
-                });
-        }
-
-        public EndpointI[] getServerEndpoints()
-        {
-            Ice.ObjectPrx serverProxy = _router.getServerProxy();
-            if(serverProxy == null)
-            {
-                throw new Ice.NoEndpointException();
-            }
-
-            serverProxy = serverProxy.ice_router(null); // The server proxy cannot be routed.
-            return ((Ice.ObjectPrxHelperBase)serverProxy).iceReference().getEndpoints();
-        }
-
-        public void addProxy(Ice.ObjectPrx proxy)
+        internal async ValueTask AddProxyAsync(IObjectPrx proxy)
         {
             Debug.Assert(proxy != null);
-            lock(this)
+            lock (_mutex)
             {
-                if(_identities.Contains(proxy.ice_getIdentity()))
+                if (!_hasRoutingTable)
                 {
-                    //
+                    // The router implementation doesn't maintain a routing table.
+                    return;
+                }
+                if (_identities.Contains(proxy.Identity))
+                {
                     // Only add the proxy to the router if it's not already in our local map.
-                    //
                     return;
                 }
             }
 
-            addAndEvictProxies(proxy, _router.addProxies(new Ice.ObjectPrx[] { proxy }));
-        }
+            // TODO: fix the Slice method addProxies to return non-nullable proxies.
+            IObjectPrx?[] evictedProxies =
+                await Router.AddProxiesAsync(new IObjectPrx[] { proxy }).ConfigureAwait(false);
 
-        public bool addProxy(Ice.ObjectPrx proxy, AddProxyCallback callback)
-        {
-            Debug.Assert(proxy != null);
-            lock(this)
+            lock (_mutex)
             {
-                if(!_hasRoutingTable)
-                {
-                    return true; // The router implementation doesn't maintain a routing table.
-                }
-                if(_identities.Contains(proxy.ice_getIdentity()))
-                {
-                    //
-                    // Only add the proxy to the router if it's not already in our local map.
-                    //
-                    return true;
-                }
-            }
-
-            _router.addProxiesAsync(new Ice.ObjectPrx[] { proxy }).ContinueWith(
-                (t) =>
-                {
-                    try
-                    {
-                        addAndEvictProxies(proxy, t.Result);
-                        callback.addedProxy();
-                    }
-                    catch(System.AggregateException ae)
-                    {
-                        Debug.Assert(ae.InnerException is Ice.LocalException);
-                        callback.setException((Ice.LocalException)ae.InnerException);
-                    }
-                });
-            return false;
-        }
-
-        public void setAdapter(Ice.ObjectAdapter adapter)
-        {
-            lock(this)
-            {
-                _adapter = adapter;
-            }
-        }
-
-        public Ice.ObjectAdapter getAdapter()
-        {
-            lock(this)
-            {
-                return _adapter;
-            }
-        }
-
-        public void clearCache(Reference @ref)
-        {
-            lock(this)
-            {
-                _identities.Remove(@ref.getIdentity());
-            }
-        }
-
-        private EndpointI[] setClientEndpoints(Ice.ObjectPrx clientProxy, bool hasRoutingTable)
-        {
-            lock(this)
-            {
-                if(_clientEndpoints == null)
-                {
-                    _hasRoutingTable = hasRoutingTable;
-                    if(clientProxy == null)
-                    {
-                        //
-                        // If getClientProxy() return nil, use router endpoints.
-                        //
-                        _clientEndpoints = ((Ice.ObjectPrxHelperBase)_router).iceReference().getEndpoints();
-                    }
-                    else
-                    {
-                        clientProxy = clientProxy.ice_router(null); // The client proxy cannot be routed.
-
-                        //
-                        // In order to avoid creating a new connection to the
-                        // router, we must use the same timeout as the already
-                        // existing connection.
-                        //
-                        if(_router.ice_getConnection() != null)
-                        {
-                            clientProxy = clientProxy.ice_timeout(_router.ice_getConnection().timeout());
-                        }
-
-                        _clientEndpoints = ((Ice.ObjectPrxHelperBase)clientProxy).iceReference().getEndpoints();
-                    }
-                }
-                return _clientEndpoints;
-            }
-        }
-
-        private void addAndEvictProxies(Ice.ObjectPrx proxy, Ice.ObjectPrx[] evictedProxies)
-        {
-            lock(this)
-            {
-                //
-                // Check if the proxy hasn't already been evicted by a
-                // concurrent addProxies call. If it's the case, don't
-                // add it to our local map.
-                //
-                int index = _evictedIdentities.IndexOf(proxy.ice_getIdentity());
-                if(index >= 0)
+                // Check if the proxy hasn't already been evicted by a concurrent addProxies call. If it's the case,
+                // don't add it to our local map.
+                int index = _evictedIdentities.IndexOf(proxy.Identity);
+                if (index >= 0)
                 {
                     _evictedIdentities.RemoveAt(index);
                 }
                 else
                 {
-                    //
-                    // If we successfully added the proxy to the router,
-                    // we add it to our local map.
-                    //
-                    _identities.Add(proxy.ice_getIdentity());
+                    // If we successfully added the proxy to the router, we add it to our local map.
+                    _identities.Add(proxy.Identity);
                 }
 
-                //
                 // We also must remove whatever proxies the router evicted.
-                //
-                for(int i = 0; i < evictedProxies.Length; ++i)
+                for (int i = 0; i < evictedProxies.Length; ++i)
                 {
-                    if(!_identities.Remove(evictedProxies[i].ice_getIdentity()))
+                    if (evictedProxies[i] != null)
                     {
-                        //
-                        // It's possible for the proxy to not have been
-                        // added yet in the local map if two threads
-                        // concurrently call addProxies.
-                        //
-                        _evictedIdentities.Add(evictedProxies[i].ice_getIdentity());
+                        if (!_identities.Remove(evictedProxies[i]!.Identity))
+                        {
+                            // It's possible for the proxy to not have been added yet in the local map if two threads
+                            // concurrently call addProxies.
+                            _evictedIdentities.Add(evictedProxies[i]!.Identity);
+                        }
                     }
                 }
             }
         }
 
-        private readonly Ice.RouterPrx _router;
-        private EndpointI[] _clientEndpoints;
-        private Ice.ObjectAdapter _adapter;
-        private HashSet<Ice.Identity> _identities = new HashSet<Ice.Identity>();
-        private List<Ice.Identity> _evictedIdentities = new List<Ice.Identity>();
-        private bool _hasRoutingTable;
+        internal void ClearCache(Reference reference)
+        {
+            lock (_mutex)
+            {
+                _identities.Remove(reference.Identity);
+            }
+        }
+
+        internal IReadOnlyList<Endpoint> GetClientEndpoints(CancellationToken cancel = default)
+        {
+            try
+            {
+                ValueTask<IReadOnlyList<Endpoint>> task = GetClientEndpointsAsync(cancel);
+                return task.IsCompleted ? task.Result : task.AsTask().Result;
+            }
+            catch (AggregateException ex)
+            {
+                Debug.Assert(ex.InnerException != null);
+                throw ExceptionUtil.Throw(ex.InnerException);
+            }
+        }
+
+        internal async ValueTask<IReadOnlyList<Endpoint>> GetClientEndpointsAsync(CancellationToken cancel = default)
+        {
+            lock (_mutex)
+            {
+                if (_clientEndpoints != null) // Lazy initialization.
+                {
+                    return _clientEndpoints;
+                }
+            }
+
+            (IObjectPrx? clientProxy, bool? hasRoutingTable) =
+                await Router.GetClientProxyAsync(cancel: cancel).ConfigureAwait(false);
+
+            lock (_mutex)
+            {
+                if (_clientEndpoints == null)
+                {
+                    // If GetClientProxy() returns null, use router endpoints.
+                    _clientEndpoints = (clientProxy ?? Router).Endpoints;
+                    _hasRoutingTable = hasRoutingTable ?? true;
+                }
+                return _clientEndpoints;
+            }
+        }
     }
 
-    public sealed class RouterManager
+    internal static class RouterExtensions
     {
-        internal RouterManager()
+        internal static IReadOnlyList<Endpoint> GetServerEndpoints(
+            this IRouterPrx router,
+            CancellationToken cancel = default)
         {
-            _table = new Dictionary<Ice.RouterPrx, RouterInfo>();
-        }
-
-        internal void destroy()
-        {
-            lock(this)
+            try
             {
-                foreach(RouterInfo i in _table.Values)
-                {
-                    i.destroy();
-                }
-                _table.Clear();
+                return router.GetServerEndpointsAsync(cancel).Result;
+            }
+            catch (AggregateException ex)
+            {
+                Debug.Assert(ex.InnerException != null);
+                throw ExceptionUtil.Throw(ex.InnerException);
             }
         }
 
-        //
-        // Returns router info for a given router. Automatically creates
-        // the router info if it doesn't exist yet.
-        //
-        public RouterInfo get(Ice.RouterPrx rtr)
+        internal static async Task<IReadOnlyList<Endpoint>> GetServerEndpointsAsync(
+            this IRouterPrx router,
+            CancellationToken cancel = default)
         {
-            if(rtr == null)
+            IObjectPrx? serverProxy = await router.GetServerProxyAsync(cancel: cancel).ConfigureAwait(false);
+            if (serverProxy == null || serverProxy.Endpoints.Count == 0)
             {
-                return null;
+                throw new InvalidConfigurationException($"router `{router}' has no server endpoints");
             }
-
-            //
-            // The router cannot be routed.
-            //
-            Ice.RouterPrx router = Ice.RouterPrxHelper.uncheckedCast(rtr.ice_router(null));
-
-            lock(this)
-            {
-                RouterInfo info = null;
-                if(!_table.TryGetValue(router, out info))
-                {
-                    info = new RouterInfo(router);
-                    _table.Add(router, info);
-                }
-
-                return info;
-            }
+            return serverProxy.Endpoints;
         }
-
-        //
-        // Returns router info for a given router. Automatically creates
-        // the router info if it doesn't exist yet.
-        //
-        public RouterInfo erase(Ice.RouterPrx rtr)
-        {
-            RouterInfo info = null;
-            if(rtr != null)
-            {
-                //
-                // The router cannot be routed.
-                //
-                Ice.RouterPrx router = Ice.RouterPrxHelper.uncheckedCast(rtr.ice_router(null));
-
-                lock(this)
-                {
-                    if(_table.TryGetValue(router, out info))
-                    {
-                        _table.Remove(router);
-                    }
-                }
-            }
-            return info;
-        }
-
-        private Dictionary<Ice.RouterPrx, RouterInfo> _table;
     }
-
 }

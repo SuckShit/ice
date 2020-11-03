@@ -5,12 +5,6 @@
 module Test
 {
 
-class Foo
-{
-    void Foo();
-    long l;
-}
-
 interface IFoo
 {
     void IFoo();
@@ -18,18 +12,27 @@ interface IFoo
 
 class Bar
 {
-    string Bar; // Valid as Ice-3.6 (member names has its own scope)
+    string Bar;
     long l;
 }
 
 exception EBar
 {
-    string EBar; // Valid as Ice-3.6 (member names has its own scope)
+    string EBar;
+    long l;
 }
 
 struct SBar
 {
-    string SBar; // Valid as Ice-3.6 (member names has its own scope)
+    string SBar;
+    long l;
+}
+
+interface IBar
+{
+    void op1(out int returnValue); // ok
+    long op2(out int returnValue); // error. Unnamed return values are implicitely named 'returnValue'.
+    byte op3(out byte RETURNvalue); // error. Unnamed return values are implicitely named 'returnValue'.
 }
 
 }

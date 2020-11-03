@@ -4,24 +4,25 @@
 
 #pragma once
 
-[["java:package:test.IceDiscovery.simple"]]
-module Test
+// TODO: move this test to Ice/discovery
+
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Discovery
 {
+    interface TestIntf
+    {
+        string getAdapterId();
+    }
 
-interface TestIntf
-{
-    string getAdapterId();
-}
+    interface Controller
+    {
+        void activateObjectAdapter(string name, string adapterId, string replicaGroupId);
+        void deactivateObjectAdapter(string name);
 
-interface Controller
-{
-    void activateObjectAdapter(string name, string adapterId, string replicaGroupId);
-    void deactivateObjectAdapter(string name);
+        void addObject(string oaName, string identityAndFacet);
+        void removeObject(string oaName, string identityAndFacet);
 
-    void addObject(string oaName, string id);
-    void removeObject(string oaName, string id);
-
-    void shutdown();
-}
-
+        void shutdown();
+    }
 }

@@ -257,9 +257,7 @@ public class SessionHelper
             {
                 com.zeroc.Ice.Connection connection = _router.ice_getCachedConnection();
                 assert(connection != null);
-                connection.setACM(java.util.OptionalInt.of(acmTimeout),
-                                  null,
-                                  java.util.Optional.of(ACMHeartbeat.HeartbeatAlways));
+                connection.setACM(acmTimeout, null, ACMHeartbeat.HeartbeatAlways);
                 connection.setCloseCallback(con -> destroy());
             }
 
@@ -391,10 +389,11 @@ public class SessionHelper
                        }
                        if(_communicator.getDefaultRouter() == null)
                        {
-                           final com.zeroc.Ice.RouterFinderPrx finder =
-                               com.zeroc.Ice.RouterFinderPrx.uncheckedCast(_communicator.stringToProxy(_finderStr));
+                           com.zeroc.Ice.RouterFinderPrx finder = null;
                            try
                            {
+                               finder = com.zeroc.Ice.RouterFinderPrx.uncheckedCast(
+                                   _communicator.stringToProxy(_finderStr));
                                _communicator.setDefaultRouter(finder.getRouter());
                            }
                            catch(final com.zeroc.Ice.CommunicatorDestroyedException ex)

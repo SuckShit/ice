@@ -83,9 +83,7 @@ private:
 
     class ConnectCallback : public Ice::ConnectionI::StartCallback,
                             public IceInternal::EndpointI_connectors
-#ifdef ICE_CPP11_MAPPING
                           , public std::enable_shared_from_this<ConnectCallback>
-#endif
 
     {
     public:
@@ -158,11 +156,7 @@ private:
     std::multimap<ConnectorPtr, Ice::ConnectionIPtr> _connections;
     std::map<ConnectorPtr, std::set<ConnectCallbackPtr> > _pending;
 
-#ifdef ICE_CPP11_MAPPING
     std::multimap<EndpointIPtr, Ice::ConnectionIPtr, Ice::TargetCompare<EndpointIPtr, std::less>> _connectionsByEndpoint;
-#else
-    std::multimap<EndpointIPtr, Ice::ConnectionIPtr> _connectionsByEndpoint;
-#endif
     int _pendingConnectCount;
 };
 
@@ -193,7 +187,7 @@ public:
     // Operations from EventHandler
     //
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
     virtual bool startAsync(SocketOperation);
     virtual bool finishAsync(SocketOperation);
 #endif
@@ -214,12 +208,10 @@ public:
     void initialize();
     virtual ~IncomingConnectionFactory();
 
-#ifdef ICE_CPP11_MAPPING
     std::shared_ptr<IncomingConnectionFactory> shared_from_this()
     {
         return std::static_pointer_cast<IncomingConnectionFactory>(EventHandler::shared_from_this());
     }
-#endif
 
 private:
 
@@ -254,7 +246,7 @@ private:
     std::set<Ice::ConnectionIPtr> _connections;
     State _state;
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
     IceInternal::UniquePtr<Ice::LocalException> _acceptorException;
 #endif
 };

@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["java:package:test.Ice.adapterDeactivation"]]
+[[java:package(test.Ice.adapterDeactivation)]]
 module Test
 {
 
@@ -13,11 +13,6 @@ interface TestIntf
     void transient();
 
     void deactivate();
-}
-
-local class Cookie
-{
-    idempotent string message();
 }
 
 }

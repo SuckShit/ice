@@ -1,58 +1,40 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.AMI
 {
-    namespace ami
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                Ice.Properties properties = createTestProperties(ref args);
+            System.Collections.Generic.Dictionary<string, string> properties = CreateTestProperties(ref args);
 
-                //
-                // Disable collocation optimization to test async/await dispatch.
-                //
-                properties.setProperty("Ice.Default.CollocationOptimized", "0");
+            // This test kills connections, so we don't want warnings.
+            properties["Ice.Warn.Connections"] = "0";
 
-                //
-                // This test kills connections, so we don't want warnings.
-                //
-                properties.setProperty("Ice.Warn.Connections", "0");
+            // Limit the recv buffer size, this test relies on the socket send() blocking after sending a given amount
+            // of data.
+            properties["Ice.TCP.RcvSize"] = "50K";
 
-                //
-                // Limit the recv buffer size, this test relies on the socket
-                // send() blocking after sending a given amount of data.
-                //
-                properties.setProperty("Ice.TCP.RcvSize", "50000");
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            communicator.SetProperty("TestAdapter2.Endpoints", GetTestEndpoint(1));
 
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    communicator.getProperties().setProperty("ControllerAdapter.Endpoints", getTestEndpoint(1));
-                    communicator.getProperties().setProperty("ControllerAdapter.ThreadPool.Size", "1");
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new TestIntf());
+            adapter.Add("test2", new TestIntf2());
+            await adapter.ActivateAsync();
 
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("ControllerAdapter");
+            ObjectAdapter adapter2 = communicator.CreateObjectAdapter("TestAdapter2", serializeDispatch: true);
+            adapter2.Add("serialized", new TestIntf());
+            await adapter2.ActivateAsync();
 
-                    adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
-                    adapter.add(new TestII(), Ice.Util.stringToIdentity("test2"));
-                    adapter.activate();
-                    adapter2.add(new TestControllerI(adapter), Ice.Util.stringToIdentity("testController"));
-                    adapter2.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

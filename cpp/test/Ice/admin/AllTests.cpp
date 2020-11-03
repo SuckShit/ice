@@ -21,9 +21,9 @@ testFacets(const Ice::CommunicatorPtr& com, bool builtInFacets = true)
         test(com->findAdminFacet("Metrics"));
     }
 
-    TestFacetPtr f1 = ICE_MAKE_SHARED(TestFacetI);
-    TestFacetPtr f2 = ICE_MAKE_SHARED(TestFacetI);
-    TestFacetPtr f3 = ICE_MAKE_SHARED(TestFacetI);
+    TestFacetPtr f1 = std::make_shared<TestFacetI>();
+    TestFacetPtr f2 = std::make_shared<TestFacetI>();
+    TestFacetPtr f3 = std::make_shared<TestFacetI>();
 
     com->addAdminFacet(f1, "Facet1");
     com->addAdminFacet(f2, "Facet2");
@@ -93,8 +93,8 @@ public:
 
     RemoteLoggerI();
 
-    virtual void init(ICE_IN(string), ICE_IN(Ice::LogMessageSeq), const Ice::Current&);
-    virtual void log(ICE_IN(Ice::LogMessage), const Ice::Current&);
+    virtual void init(string, Ice::LogMessageSeq, const Ice::Current&);
+    virtual void log(Ice::LogMessage, const Ice::Current&);
 
     void checkNextInit(const string&, Ice::LogMessageType, const string&, const string& = "");
     void checkNextLog(Ice::LogMessageType, const string&, const string& = "");
@@ -117,7 +117,7 @@ RemoteLoggerI::RemoteLoggerI() : _receivedCalls(0)
 }
 
 void
-RemoteLoggerI::init(ICE_IN(string) prefix, ICE_IN(Ice::LogMessageSeq) logMessages, const Ice::Current&)
+RemoteLoggerI::init(string prefix, Ice::LogMessageSeq logMessages, const Ice::Current&)
 {
     IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_monitor);
     _prefix = prefix;
@@ -127,7 +127,7 @@ RemoteLoggerI::init(ICE_IN(string) prefix, ICE_IN(Ice::LogMessageSeq) logMessage
 }
 
 void
-RemoteLoggerI::log(ICE_IN(Ice::LogMessage) logMessage, const Ice::Current&)
+RemoteLoggerI::log(Ice::LogMessage logMessage, const Ice::Current&)
 {
     IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_monitor);
     _logMessages.push_back(logMessage);
@@ -197,7 +197,6 @@ allTests(Test::TestHelper* helper)
         Ice::CommunicatorHolder ich(init);
         testFacets(ich.communicator());
 
-#ifdef ICE_CPP11_MAPPING
         // Test move assignment on CommunicatorHolder
         Ice::CommunicatorHolder ich2;
         test(!ich2.communicator());
@@ -211,13 +210,6 @@ allTests(Test::TestHelper* helper)
         ich3 = ich2.release();
         test(ich3.communicator());
         test(!ich2.communicator());
-#else
-        Ice::CommunicatorHolder ich2;
-        test(!ich2.communicator());
-        ich2 = ich.release();
-        test(ich2.communicator());
-        test(!ich.communicator());
-#endif
     }
     {
         //
@@ -300,11 +292,7 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.InstanceName"] = "Test";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::ProcessPrx> proc = Ice::checkedCast<Ice::ProcessPrx>(obj, "Process");
-#else
-        Ice::ProcessPrx proc = Ice::ProcessPrx::checkedCast(obj, "Process");
-#endif
         proc->shutdown();
         com->waitForShutdown();
         com->destroy();
@@ -321,11 +309,7 @@ allTests(Test::TestHelper* helper)
         props["Prop3"] = "3";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::PropertiesAdminPrx> pa = Ice::checkedCast<Ice::PropertiesAdminPrx>(obj, "Properties");
-#else
-        Ice::PropertiesAdminPrx pa = Ice::PropertiesAdminPrx::checkedCast(obj, "Properties");
-#endif
         //
         // Test: PropertiesAdmin::getProperty()
         //
@@ -393,11 +377,6 @@ allTests(Test::TestHelper* helper)
     }
     cout << "ok" << endl;
 
-#ifndef ICE_OS_UWP
-    //
-    // This doesn't work well with UWP because connection to localhost are
-    // restricted to the same process.
-    //
     cout << "testing logger facet... " << flush;
     {
         Ice::PropertyDict props;
@@ -412,11 +391,7 @@ allTests(Test::TestHelper* helper)
         com->print("print");
 
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::LoggerAdminPrx> logger = Ice::checkedCast<Ice::LoggerAdminPrx>(obj, "Logger");
-#else
-        Ice::LoggerAdminPrx logger = Ice::LoggerAdminPrx::checkedCast(obj, "Logger");
-#endif
         test(logger);
 
         string prefix;
@@ -444,8 +419,8 @@ allTests(Test::TestHelper* helper)
         com->warning("warning2");
 
         Ice::LogMessageTypeSeq messageTypes;
-        messageTypes.push_back(ICE_ENUM(LogMessageType, ErrorMessage));
-        messageTypes.push_back(ICE_ENUM(LogMessageType, WarningMessage));
+        messageTypes.push_back(LogMessageType::ErrorMessage);
+        messageTypes.push_back(LogMessageType::WarningMessage);
 
         logMessages =
             logger->getLog(messageTypes, Ice::StringSeq(), -1, prefix);
@@ -455,7 +430,7 @@ allTests(Test::TestHelper* helper)
         p = logMessages.begin();
         while(p != logMessages.end())
         {
-            test(p->type == ICE_ENUM(LogMessageType, ErrorMessage) || p->type == ICE_ENUM(LogMessageType, WarningMessage));
+            test(p->type == LogMessageType::ErrorMessage || p->type == LogMessageType::WarningMessage);
             ++p;
         }
 
@@ -467,8 +442,8 @@ allTests(Test::TestHelper* helper)
         com->trace("testCat2", "B");
 
         messageTypes.clear();
-        messageTypes.push_back(ICE_ENUM(LogMessageType, ErrorMessage));
-        messageTypes.push_back(ICE_ENUM(LogMessageType, TraceMessage));
+        messageTypes.push_back(LogMessageType::ErrorMessage);
+        messageTypes.push_back(LogMessageType::TraceMessage);
 
         Ice::StringSeq categories;
         categories.push_back("testCat");
@@ -481,8 +456,8 @@ allTests(Test::TestHelper* helper)
         p = logMessages.begin();
         while(p != logMessages.end())
         {
-            test(p->type == ICE_ENUM(LogMessageType, ErrorMessage) ||
-                (p->type == ICE_ENUM(LogMessageType, TraceMessage) && p->traceCategory == "testCat"));
+            test(p->type == LogMessageType::ErrorMessage ||
+                (p->type == LogMessageType::TraceMessage && p->traceCategory == "testCat"));
             ++p;
         }
 
@@ -507,7 +482,7 @@ allTests(Test::TestHelper* helper)
         Ice::ObjectAdapterPtr adapter =
             communicator->createObjectAdapterWithEndpoints("RemoteLoggerAdapter", "tcp -h localhost");
 
-        RemoteLoggerIPtr remoteLogger = ICE_MAKE_SHARED(RemoteLoggerI);
+        RemoteLoggerIPtr remoteLogger = std::make_shared<RemoteLoggerI>();
 
         Ice::RemoteLoggerPrxPtr myProxy =
             ICE_UNCHECKED_CAST(Ice::RemoteLoggerPrx, adapter->addWithUUID(remoteLogger));
@@ -532,10 +507,10 @@ allTests(Test::TestHelper* helper)
         com->print("rprint");
         remoteLogger->wait(4);
 
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, TraceMessage), "rtrace", "testCat");
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, WarningMessage), "rwarning");
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, ErrorMessage), "rerror");
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, PrintMessage), "rprint");
+        remoteLogger->checkNextLog(LogMessageType::TraceMessage, "rtrace", "testCat");
+        remoteLogger->checkNextLog(LogMessageType::WarningMessage, "rwarning");
+        remoteLogger->checkNextLog(LogMessageType::ErrorMessage, "rerror");
+        remoteLogger->checkNextLog(LogMessageType::PrintMessage, "rprint");
 
         test(logger->detachRemoteLogger(myProxy));
         test(!logger->detachRemoteLogger(myProxy));
@@ -560,8 +535,8 @@ allTests(Test::TestHelper* helper)
         com->print("rprint2");
         remoteLogger->wait(2);
 
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, TraceMessage), "rtrace2", "testCat");
-        remoteLogger->checkNextLog(ICE_ENUM(LogMessageType, ErrorMessage), "rerror2");
+        remoteLogger->checkNextLog(LogMessageType::TraceMessage, "rtrace2", "testCat");
+        remoteLogger->checkNextLog(LogMessageType::ErrorMessage, "rerror2");
 
         //
         // Attempt reconnection with slightly different proxy
@@ -579,7 +554,6 @@ allTests(Test::TestHelper* helper)
         com->destroy();
     }
     cout << "ok" << endl;
-#endif
 
     cout << "testing custom facet... " << flush;
     {
@@ -591,11 +565,7 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.InstanceName"] = "Test";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Test::TestFacetPrx> tf = Ice::checkedCast<Test::TestFacetPrx>(obj, "TestFacet");
-#else
-        Test::TestFacetPrx tf = Test::TestFacetPrx::checkedCast(obj, "TestFacet");
-#endif
         tf->op();
         com->destroy();
     }
@@ -613,17 +583,10 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.Facets"] = "Properties";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::ProcessPrx> proc = Ice::checkedCast<Ice::ProcessPrx>(obj, "Process");
         test(!proc);
         shared_ptr<Test::TestFacetPrx> tf = Ice::checkedCast<Test::TestFacetPrx>(obj, "TestFacet");
         test(!tf);
-#else
-        Ice::ProcessPrx proc = Ice::ProcessPrx::checkedCast(obj, "Process");
-        test(!proc);
-        Test::TestFacetPrx tf = Test::TestFacetPrx::checkedCast(obj, "TestFacet");
-        test(!tf);
-#endif
         com->destroy();
     }
     {
@@ -637,17 +600,10 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.Facets"] = "Process";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::PropertiesAdminPrx> pa = Ice::checkedCast<Ice::PropertiesAdminPrx>(obj, "Properties");
         test(!pa);
         shared_ptr<Test::TestFacetPrx> tf = Ice::checkedCast<Test::TestFacetPrx>(obj, "TestFacet");
         test(!tf);
-#else
-        Ice::PropertiesAdminPrx pa = Ice::PropertiesAdminPrx::checkedCast(obj, "Properties");
-        test(!pa);
-        Test::TestFacetPrx tf = Test::TestFacetPrx::checkedCast(obj, "TestFacet");
-        test(!tf);
-#endif
         com->destroy();
     }
     {
@@ -661,17 +617,10 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.Facets"] = "TestFacet";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::PropertiesAdminPrx> pa = Ice::checkedCast<Ice::PropertiesAdminPrx>(obj, "Properties");
         test(!pa);
         shared_ptr<Ice::ProcessPrx> proc = Ice::checkedCast<Ice::ProcessPrx>(obj, "Process");
         test(!proc);
-#else
-        Ice::PropertiesAdminPrx pa = Ice::PropertiesAdminPrx::checkedCast(obj, "Properties");
-        test(!pa);
-        Ice::ProcessPrx proc = Ice::ProcessPrx::checkedCast(obj, "Process");
-        test(!proc);
-#endif
         com->destroy();
     }
     {
@@ -685,21 +634,12 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.Facets"] = "Properties TestFacet";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::PropertiesAdminPrx> pa = Ice::checkedCast<Ice::PropertiesAdminPrx>(obj, "Properties");
         test(pa->getProperty("Ice.Admin.InstanceName") == "Test");
         shared_ptr<Test::TestFacetPrx> tf = Ice::checkedCast<Test::TestFacetPrx>(obj, "TestFacet");
         tf->op();
         shared_ptr<Ice::ProcessPrx> proc = Ice::checkedCast<Ice::ProcessPrx>(obj, "Process");
         test(!proc);
-#else
-        Ice::PropertiesAdminPrx pa = Ice::PropertiesAdminPrx::checkedCast(obj, "Properties");
-        test(pa->getProperty("Ice.Admin.InstanceName") == "Test");
-        Test::TestFacetPrx tf = Test::TestFacetPrx::checkedCast(obj, "TestFacet");
-        tf->op();
-        Ice::ProcessPrx proc = Ice::ProcessPrx::checkedCast(obj, "Process");
-        test(!proc);
-#endif
         com->destroy();
     }
     {
@@ -713,19 +653,11 @@ allTests(Test::TestHelper* helper)
         props["Ice.Admin.Facets"] = "TestFacet, Process";
         RemoteCommunicatorPrxPtr com = factory->createCommunicator(props);
         Ice::ObjectPrxPtr obj = com->getAdmin();
-#ifdef ICE_CPP11_MAPPING
         shared_ptr<Ice::PropertiesAdminPrx> pa = Ice::checkedCast<Ice::PropertiesAdminPrx>(obj, "Properties");
         test(!pa);
         shared_ptr<Test::TestFacetPrx> tf = Ice::checkedCast<Test::TestFacetPrx>(obj, "TestFacet");
         tf->op();
         shared_ptr<Ice::ProcessPrx> proc = Ice::checkedCast<Ice::ProcessPrx>(obj, "Process");
-#else
-        Ice::PropertiesAdminPrx pa = Ice::PropertiesAdminPrx::checkedCast(obj, "Properties");
-        test(!pa);
-        Test::TestFacetPrx tf = Test::TestFacetPrx::checkedCast(obj, "TestFacet");
-        tf->op();
-        Ice::ProcessPrx proc = Ice::ProcessPrx::checkedCast(obj, "Process");
-#endif
         proc->shutdown();
         com->waitForShutdown();
         com->destroy();

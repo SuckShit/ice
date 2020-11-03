@@ -5,7 +5,7 @@
 #include <Slice.h>
 #include <Util.h>
 #include <Slice/Preprocessor.h>
-#include <Slice/PythonUtil.h>
+#include <slice2py/PythonUtil.h>
 #include <Slice/Util.h>
 #include <IceUtil/Options.h>
 #include <IceUtil/ConsoleUtil.h>
@@ -62,9 +62,6 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
     opts.addOpt("U", "", IceUtilInternal::Options::NeedArg, "", IceUtilInternal::Options::Repeat);
     opts.addOpt("I", "", IceUtilInternal::Options::NeedArg, "", IceUtilInternal::Options::Repeat);
     opts.addOpt("d", "debug");
-    opts.addOpt("", "ice");
-    opts.addOpt("", "underscore");
-    opts.addOpt("", "checksum");
     opts.addOpt("", "all");
 
     vector<string> files;
@@ -92,10 +89,7 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
     vector<string> cppArgs;
     Ice::StringSeq includePaths;
     bool debug = false;
-    bool ice = true; // This must be true so that we can create Ice::Identity when necessary.
-    bool underscore = opts.isSet("underscore");
     bool all = false;
-    bool checksum = false;
     if(opts.isSet("D"))
     {
         vector<string> optargs = opts.argVec("D");
@@ -122,9 +116,7 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
     }
     debug = opts.isSet("d") || opts.isSet("debug");
     all = opts.isSet("all");
-    checksum = opts.isSet("checksum");
 
-    bool ignoreRedefs = false;
     bool keepComments = true;
 
     for(vector<string>::const_iterator p = files.begin(); p != files.end(); ++p)
@@ -139,7 +131,7 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
             return 0;
         }
 
-        UnitPtr u = Slice::Unit::createUnit(ignoreRedefs, all, ice, underscore);
+        UnitPtr u = Slice::Unit::createUnit(all);
         int parseStatus = u->parse(file, cppHandle, debug);
 
         if(!icecpp->close() || parseStatus == EXIT_FAILURE)
@@ -161,7 +153,7 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
         // It must be the first or second line.
         //
         out << "# -*- coding: utf-8 -*-\n";
-        generate(u, all, checksum, includePaths, out);
+        generate(u, all, includePaths, out);
         u->destroy();
 
         string code = codeStream.str();

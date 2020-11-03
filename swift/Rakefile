@@ -2,9 +2,10 @@
 
 require 'xcodeproj'
 
-$projectVersion = "3.7.3"
-$macOSDeploymentTarget = "10.14"
-$iOSDeploymentTarget = "11.3"
+$projectVersion = "4.0.0-alpha.0"
+$dylibVersion = "4.0.0"
+$macOSDeploymentTarget = "10.15"
+$iOSDeploymentTarget = "12.0"
 
 $tests = [
     "Ice/acm",
@@ -97,6 +98,12 @@ end
 def create_project(name, bindist)
     project = Xcodeproj::Project.new(name)
 
+    project.build_configurations.each do |conf|
+        conf.build_settings["CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER"] = "YES"
+        # Disable header maps as they cause problems with parallel builds on Xcode 12
+        conf.build_settings["USE_HEADERMAP"] = "NO"
+    end
+
     [:osx, :ios].each do |platform|
         create_platform_targets(project, platform, bindist)
     end
@@ -125,7 +132,7 @@ def create_platform_targets(project, platform, bindist)
 
     unless bindist
         #
-        # Ice for C++11 static libraries
+        # Ice for C++ static libraries
         #
         cpp_components = ["Ice", "IceSSL", "IceDiscovery", "IceLocatorDiscovery"]
         cpp_source_dirs = { "Ice" => ["IceUtil", "Ice"] }
@@ -136,15 +143,11 @@ def create_platform_targets(project, platform, bindist)
 
         excludes = {
             "Ice" => ["Application.cpp",
-                      "AsyncResult.cpp",
-                      "AsyncResult.cpp",
                       "ConvertUTF.cpp",
                       "DLLMain.cpp",
-                      "GCObject.cpp",
-                      "ResponseHandler.cpp",
                       "SystemdJournal.cpp",
                       "Unicode.cpp"],
-            "IceSSL" => ["OpenSSL*", "SChannel*", "UWP*"]
+            "IceSSL" => ["OpenSSL*", "SChannel*"]
         }
 
         if platform == :ios then
@@ -155,12 +158,14 @@ def create_platform_targets(project, platform, bindist)
         ice_cpp_target = nil
 
         cpp_components.each do | component |
-            target = project.new_target(:static_library, "#{component} C++11 #{platform_name}", platform)
+            target = project.new_target(:static_library, "#{component} C++ #{platform_name}", platform)
             cpp_targets << target
 
-            group = project_group(project, "slice/#{component}")
-            target_add_files(target, group, "../slice/#{component}", ["*.ice"])
-            target_add_slice2cpp_build_rule(project, target, component)
+            if ["Ice", "IceDiscovery", "IceLocatorDiscovery"].include? component then
+                group = project_group(project, "slice/#{component}")
+                target_add_files(target, group, "../slice/#{component}", ["*.ice"])
+                target_add_slice2cpp_build_rule(project, target, component)
+            end
 
             target.build_configurations.each { |config|
                 config.build_settings["HEADER_SEARCH_PATHS"] = [
@@ -169,7 +174,6 @@ def create_platform_targets(project, platform, bindist)
                     "$(SRCROOT)/../cpp/src/"
                 ]
                 config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] = [
-                    "ICE_CPP11_MAPPING",
                     "ICE_BUILDING_SRC",
                     "ICE_STATIC_LIBS",
                     "ICE_SWIFT"
@@ -184,7 +188,7 @@ def create_platform_targets(project, platform, bindist)
                     target.add_dependency(ice_cpp_target)
                 end
             }
-            target_set_common_build_settings(target, "#{component}++11#{platform_name}", platform)
+            target_set_common_build_settings(target, "#{component}#{platform_name}", platform)
 
             source_dirs = cpp_source_dirs[component] || [component]
             source_dirs.each do |d|
@@ -232,7 +236,6 @@ def create_platform_targets(project, platform, bindist)
                 "-liconv"
             ]
             config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] = [
-                "ICE_CPP11_MAPPING",
                 "ICE_STATIC_LIBS",
                 "ICE_SWIFT"
             ]
@@ -273,16 +276,9 @@ def create_platform_targets(project, platform, bindist)
         target_add_headers(target, group, "src/Ice", ["*.h"])
         target_add_files(target, group, "src/Ice", ["*.swift"])
 
-        slices = ["Ice", "IceSSL"]
-        if platform == :ios then
-            slices << "IceIAP"
-        end
-
-        slices.each do |item|
-            group = project_group(project, "slice/#{item}")
-            target_add_files(target, group, "../slice/#{item}", ["*.ice"], excludes[item] || [])
-            target_add_slice2swift_build_rule(project, target, item)
-        end
+        group = project_group(project, "slice/Ice")
+        target_add_files(target, group, "../slice/Ice", ["*.ice"])
+        target_add_slice2swift_build_rule(project, target, "Ice")
 
         target_add_swiftlint_build_phase(target, "src/Ice")
 
@@ -547,8 +543,6 @@ def create_platform_targets(project, platform, bindist)
     #
     unless bindist
         scheme = Xcodeproj::XCScheme.new
-        scheme.add_build_target(iceimpl_target)
-        scheme.add_build_target(ice_target)
         scheme.add_build_target(glacier2_target)
         scheme.add_build_target(icestorm_target)
         scheme.add_build_target(icegrid_target)
@@ -573,11 +567,16 @@ def target_name(basename, suffix = nil)
     suffix ? "#{name} #{suffix}" : name
 end
 
+# This class can be removed once https://github.com/CocoaPods/Xcodeproj/issues/724 is fixed
+class PBXBuildRule < Xcodeproj::Project::PBXBuildRule
+    attribute :dependency_file, String
+end
+
 def target_add_slice2swift_build_rule(project, target, prefix = nil)
     #
     # Add Slice Compiler build rule to the target
     #
-    rule = project.new(Xcodeproj::Project::PBXBuildRule)
+    rule = project.new(PBXBuildRule)
     rule.compiler_spec = "com.apple.compilers.proxy.script"
     rule.file_type = "pattern.proxy"
 
@@ -596,7 +595,7 @@ def target_add_slice2swift_build_rule(project, target, prefix = nil)
 
     if prefix then
         rule.name = "Slice Compiler for #{prefix}/*.ice"
-        rule.file_patterns = "*/#{prefix}/*.ice"
+        rule.file_patterns = "*.ice"
         rule.script = <<~EOF
             #{slic2swift}
             BASENAME=$(basename -- "$INPUT_FILE_PATH")
@@ -604,15 +603,23 @@ def target_add_slice2swift_build_rule(project, target, prefix = nil)
             mkdir -p "$DERIVED_FILE_DIR/#{prefix}"
             "$SLICE2SWIFT" -I"$SRCROOT/../slice" -I"$INPUT_FILE_DIR" --output-dir "$DERIVED_FILE_DIR/#{prefix}" "$INPUT_FILE_PATH"
             mv "$DERIVED_FILE_DIR/#{prefix}/$BASENAME.swift" "$DERIVED_FILE_DIR/#{prefix}_$BASENAME.swift"
+
+            "$SLICE2SWIFT" --depend --depend-file "$DERIVED_FILES_DIR/#{prefix}_$INPUT_FILE_NAME.d" -I"$SRCROOT/../slice" -I"$INPUT_FILE_DIR" "$INPUT_FILE_PATH"
+            echo "$INPUT_FILE_PATH: $SLICE2SWIFT" >> "$DERIVED_FILES_DIR/#{prefix}_$INPUT_FILE_NAME.d"
         EOF
+        rule.dependency_file = "$(DERIVED_FILE_DIR)/#{prefix}_$(INPUT_FILE_NAME).d"
         rule.output_files = ["$(DERIVED_FILE_DIR)/#{prefix}_$(INPUT_FILE_BASE).swift"]
+        rule.input_files = find_files("../slice/#{prefix}", ["*.ice"]).map { |p| "$SRCROOT/../slice/#{prefix}/#{p}" }
     else
         rule.name = "Slice Compiler"
         rule.file_patterns = "*.ice"
         rule.script = <<~EOF
             #{slic2swift}
             "$SLICE2SWIFT" -I"$SRCROOT/../slice" -I"$INPUT_FILE_DIR" --output-dir "$DERIVED_FILE_DIR" "$INPUT_FILE_PATH"
+            "$SLICE2SWIFT" --depend --depend-file "$DERIVED_FILES_DIR/$INPUT_FILE_NAME.d" -I"$SRCROOT/../slice" -I"$INPUT_FILE_DIR" "$INPUT_FILE_PATH"
+            echo "$INPUT_FILE_PATH: $SLICE2SWIFT" >> "$DERIVED_FILES_DIR/$INPUT_FILE_NAME.d"
         EOF
+        rule.dependency_file = "$(DERIVED_FILE_DIR)/$(INPUT_FILE_NAME).d"
         rule.output_files = ["$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).swift"]
     end
     target.build_rules << rule
@@ -622,18 +629,18 @@ def target_add_slice2cpp_build_rule(project, target, prefix)
     #
     # Add Slice Compiler build rule to the target
     #
-    rule = project.new(Xcodeproj::Project::PBXBuildRule)
+    rule = project.new(PBXBuildRule)
     rule.compiler_spec = "com.apple.compilers.proxy.script"
     rule.file_type = "pattern.proxy"
     rule.name = "Slice2Cpp Compiler for #{prefix}/*.ice"
-    rule.file_patterns = "*/#{prefix}/*.ice"
+    rule.file_patterns = "*.ice"
+    rule.dependency_file = "$(DERIVED_FILES_DIR)/#{prefix}/$(INPUT_FILE_NAME).d"
+
     rule.script = <<~EOF
         if [ -f "$ICE_HOME/cpp/bin/slice2cpp" ]; then
             SLICE2CPP="$ICE_HOME/cpp/bin/slice2cpp"
         elif [ -f "$SRCROOT/../cpp/bin/slice2cpp" ]; then
             SLICE2CPP="$SRCROOT/../cpp/bin/slice2cpp"
-        elif [ -f /usr/local/opt/slice2swift/libexec/bin/slice2cpp ]; then
-            SLICE2CPP=/usr/local/opt/slice2swift/libexec/bin/slice2cpp
         elif [ -f /usr/local/bin/slice2cpp ]; then
             SLICE2CPP=/usr/local/bin/slice2cpp
         else
@@ -644,12 +651,20 @@ def target_add_slice2cpp_build_rule(project, target, prefix)
         BASENAME=$(basename -- "$INPUT_FILE_PATH")
         BASENAME="${BASENAME%.*}"
         mkdir -p "$DERIVED_FILE_DIR/#{prefix}"
-        $SLICE2CPP -I"$SRCROOT/../slice" -D ICE_SWIFT --include-dir #{prefix} --output-dir "$DERIVED_FILE_DIR/#{prefix}" "$INPUT_FILE_PATH"
+        "$SLICE2CPP" -I"$SRCROOT/../slice" -D ICE_SWIFT --include-dir #{prefix} --output-dir "$DERIVED_FILE_DIR/#{prefix}" "$INPUT_FILE_PATH"
         mkdir -p "$SYMROOT/$PLATFORM_NAME/include/#{prefix}"
         mv "$DERIVED_FILE_DIR/#{prefix}/$BASENAME.h" "$SYMROOT/$PLATFORM_NAME/include/#{prefix}/$BASENAME.h"
+
+        "$SLICE2CPP" --depend --depend-file "$DERIVED_FILES_DIR/#{prefix}/$INPUT_FILE_NAME.d" -I"$SRCROOT/../slice" --include-dir #{prefix} "$INPUT_FILE_PATH"
+        echo "$INPUT_FILE_PATH: $SLICE2CPP" >> "$DERIVED_FILES_DIR/#{prefix}/$INPUT_FILE_NAME.d"
     EOF
     rule.output_files = ["$(DERIVED_FILE_DIR)/#{prefix}/$(INPUT_FILE_BASE).cpp",
                          "$(SYMROOT)/$(PLATFORM_NAME)/include/#{prefix}/$(INPUT_FILE_BASE).h"]
+
+    inputs = find_files("../slice/#{prefix}", ["*.ice"]).map { |p| File.basename(p, ".ice") }
+    rule.input_files = inputs.map { |p|
+        "$SRCROOT/../slice/#{prefix}/#{p}.ice"
+    }
     target.build_rules << rule
 end
 
@@ -664,7 +679,7 @@ def target_add_swiftlint_build_phase(target, basedir)
     EOF
 end
 
-def group_add_files(group, basedir, patterns, exclude = [])
+def find_files(basedir, patterns, exclude = [])
     files = []
     Dir.chdir(basedir) do
         patterns.each do |p|
@@ -673,9 +688,12 @@ def group_add_files(group, basedir, patterns, exclude = [])
             end
         end
     end
-    files = files.reject { |item| exclude.any? { |pattern| item.match(pattern) } }
-    files = files.uniq
-    files.map { |file|  group.find_subpath(File.basename(file)) ||  group.new_file("#{basedir}/#{file}") }
+    return files.reject { |item| exclude.any? { |pattern| item.match(pattern) } }
+end
+
+def group_add_files(group, basedir, patterns, exclude = [])
+    find_files(basedir, patterns, exclude).map { |file|
+        group.find_subpath(File.basename(file)) ||  group.new_file("#{basedir}/#{file}") }
 end
 
 def target_add_files(target, group, basedir, patterns, excludes = [])
@@ -696,7 +714,7 @@ def target_set_common_build_settings(target, product, platform, plist: nil, swif
         config.build_settings["ENABLE_TESTABILITY"] = "NO"
         config.build_settings["CODE_SIGN_STYLE"] = "Automatic"
         config.build_settings["CURRENT_PROJECT_VERSION"] = $projectVersion
-        config.build_settings["DYLIB_CURRENT_VERSION"] = $projectVersion
+        config.build_settings["DYLIB_CURRENT_VERSION"] = $dylibVersion
         config.build_settings["DYLIB_COMPATIBILITY_VERSION"] = "0"
 
         if plist then

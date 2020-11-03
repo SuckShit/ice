@@ -1,131 +1,115 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using Test;
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Test;
+using ZeroC.Ice;
 
-internal sealed class ServerI : ServerDisp_
+namespace ZeroC.IceSSL.Test.Configuration
 {
-    internal ServerI(Ice.Communicator communicator)
+    internal sealed class SSLServer : IServer
     {
-        _communicator = communicator;
-    }
+        internal SSLServer(Communicator communicator) => _communicator = communicator;
 
-    public override void
-    noCert(Ice.Current current)
-    {
-        try
+        public void NoCert(Current current, CancellationToken cancel)
         {
-            IceSSL.ConnectionInfo info = (IceSSL.ConnectionInfo)current.con.getInfo();
-            test(info.certs == null);
+            try
+            {
+                var tcpConnection = (TcpConnection)current.Connection;
+                TestHelper.Assert(tcpConnection.Endpoint.IsSecure);
+                TestHelper.Assert(tcpConnection.RemoteCertificate == null);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
         }
-        catch(Ice.LocalException)
+
+        public void CheckCert(string subjectDN, string issuerDN, Current current, CancellationToken cancel)
         {
-            test(false);
+            try
+            {
+                var tcpConnection = (TcpConnection)current.Connection;
+                TestHelper.Assert(tcpConnection.Endpoint.IsSecure);
+                TestHelper.Assert(tcpConnection.RemoteCertificate != null);
+                TestHelper.Assert(tcpConnection.RemoteCertificate.Subject.Equals(subjectDN));
+                TestHelper.Assert(tcpConnection.RemoteCertificate.Issuer.Equals(issuerDN));
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
         }
-    }
 
-    public override void
-    checkCert(string subjectDN, string issuerDN, Ice.Current current)
-    {
-        try
+        public void CheckCipher(string cipher, Current current, CancellationToken cancel)
         {
-            IceSSL.ConnectionInfo info = (IceSSL.ConnectionInfo)current.con.getInfo();
-            test(info.verified);
-            test(info.certs.Length == 2 &&
-                 info.certs[0].Subject.Equals(subjectDN) &&
-                 info.certs[0].Issuer.Equals(issuerDN));
+            try
+            {
+                var tcpConnection = (TcpConnection)current.Connection;
+                TestHelper.Assert(tcpConnection.Endpoint.IsSecure);
+                TestHelper.Assert(tcpConnection.NegotiatedCipherSuite!.ToString()!.Equals(cipher));
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
         }
-        catch(Ice.LocalException)
+
+        internal void Destroy() => _communicator.Dispose();
+
+        private readonly Communicator _communicator;
+    }
+
+    internal sealed class ServerFactory : IServerFactory
+    {
+        public ServerFactory(string defaultDir) => _defaultDir = defaultDir;
+
+        public IServerPrx CreateServer(
+            Dictionary<string, string> properties,
+            bool requireClientCertificate,
+            Current current, CancellationToken cancel)
         {
-            test(false);
-        }
-    }
+            properties["IceSSL.DefaultDir"] = _defaultDir;
+            var communicator = new Communicator(
+                properties,
+                tlsServerOptions: new TlsServerOptions()
+                {
+                    RequireClientCertificate = requireClientCertificate
+                });
 
-    public override void
-    checkCipher(string cipher, Ice.Current current)
-    {
-        try
+            bool ice1 = TestHelper.GetTestProtocol(communicator.GetProperties()) == Protocol.Ice1;
+            string host = TestHelper.GetTestHost(communicator.GetProperties());
+
+            string serverEndpoint = TestHelper.GetTestEndpoint(
+                properties: communicator.GetProperties(),
+                num: 1,
+                transport: "ssl",
+                ephemeral: host != "localhost");
+
+            ObjectAdapter adapter = communicator.CreateObjectAdapterWithEndpoints("ServerAdapter", serverEndpoint);
+            var server = new SSLServer(communicator);
+            IServerPrx prx = adapter.AddWithUUID(server, IServerPrx.Factory);
+            _servers[prx.Identity] = server;
+            adapter.Activate();
+            return prx;
+        }
+
+        public void DestroyServer(IServerPrx? srv, Current current, CancellationToken cancel)
         {
-            IceSSL.ConnectionInfo info = (IceSSL.ConnectionInfo)current.con.getInfo();
-            test(info.cipher.Equals(cipher));
+            if (_servers.TryGetValue(srv!.Identity, out SSLServer? server))
+            {
+                server.Destroy();
+                _servers.Remove(srv.Identity);
+            }
         }
-        catch(Ice.LocalException)
+
+        public void Shutdown(Current current, CancellationToken cancel)
         {
-            test(false);
+            TestHelper.Assert(_servers.Count == 0);
+            current.Adapter.Communicator.ShutdownAsync();
         }
+
+        private readonly string _defaultDir;
+        private readonly Dictionary<Identity, SSLServer> _servers = new Dictionary<Identity, SSLServer>();
     }
-
-    internal void destroy()
-    {
-        _communicator.destroy();
-    }
-
-    private static void test(bool b)
-    {
-        if (!b)
-        {
-            throw new Exception();
-        }
-    }
-
-    private Ice.Communicator _communicator;
-}
-
-internal sealed class ServerFactoryI : ServerFactoryDisp_
-{
-    private static void test(bool b)
-    {
-        if (!b)
-        {
-            throw new Exception();
-        }
-    }
-
-    public ServerFactoryI(string defaultDir)
-    {
-        _defaultDir = defaultDir;
-    }
-
-    public override ServerPrx createServer(Dictionary<string, string> props, Ice.Current current)
-    {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-        foreach(string key in props.Keys)
-        {
-            initData.properties.setProperty(key, props[key]);
-        }
-        initData.properties.setProperty("IceSSL.DefaultDir", _defaultDir);
-        string[] args = new string[0];
-        Ice.Communicator communicator = Ice.Util.initialize(ref args, initData);
-        Ice.ObjectAdapter adapter = communicator.createObjectAdapterWithEndpoints("ServerAdapter", "ssl");
-        ServerI server = new ServerI(communicator);
-        Ice.ObjectPrx obj = adapter.addWithUUID(server);
-        _servers[obj.ice_getIdentity()] = server;
-        adapter.activate();
-        return ServerPrxHelper.uncheckedCast(obj);
-    }
-
-    public override void destroyServer(ServerPrx srv, Ice.Current current)
-    {
-        Ice.Identity key = srv.ice_getIdentity();
-        if(_servers.Contains(key))
-        {
-            ServerI server = _servers[key] as ServerI;
-            server.destroy();
-            _servers.Remove(key);
-        }
-    }
-
-    public override void shutdown(Ice.Current current)
-    {
-        test(_servers.Count == 0);
-        current.adapter.getCommunicator().shutdown();
-    }
-
-    private string _defaultDir;
-    private Hashtable _servers = new Hashtable();
 }

@@ -4,10 +4,12 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/BuiltinSequences.ice>
+#include <Ice/Context.ice>
 
-["cs:namespace:Ice.proxy"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Proxy
 {
 
 interface MyClass
@@ -17,9 +19,12 @@ interface MyClass
     Ice::Context getContext();
 }
 
-interface MyDerivedClass extends MyClass
+interface MyDerivedClass : MyClass
 {
     Object* echo(Object* obj);
+
+    // Gets the location carried by this ice2 request.
+    Ice::StringSeq getLocation();
 }
 
 }

@@ -6,7 +6,6 @@
 #include <Ice/Router.h>
 #include <Ice/LocalException.h>
 #include <Ice/Connection.h> // For ice_connection()->timeout().
-#include <Ice/Functional.h>
 #include <Ice/Reference.h>
 
 using namespace std;
@@ -25,11 +24,7 @@ void
 IceInternal::RouterManager::destroy()
 {
     IceUtil::Mutex::Lock sync(*this);
-#ifdef ICE_CPP11_MAPPING
     for_each(_table.begin(), _table.end(), [](const pair<shared_ptr<RouterPrx>, RouterInfoPtr> it){ it.second->destroy(); });
-#else
-    for_each(_table.begin(), _table.end(), Ice::secondVoidMemFun<const RouterPrx, RouterInfo>(&RouterInfo::destroy));
-#endif
     _table.clear();
     _tableHint = _table.end();
 }
@@ -79,7 +74,7 @@ IceInternal::RouterManager::erase(const RouterPrxPtr& rtr)
     RouterInfoPtr info;
     if(rtr)
     {
-        RouterPrxPtr router = ICE_UNCHECKED_CAST(RouterPrx, rtr->ice_router(ICE_NULLPTR)); // The router cannot be routed.
+        RouterPrxPtr router = ICE_UNCHECKED_CAST(RouterPrx, rtr->ice_router(nullptr)); // The router cannot be routed.
         IceUtil::Mutex::Lock sync(*this);
 
         RouterInfoTable::iterator p = _table.end();
@@ -177,7 +172,6 @@ IceInternal::RouterInfo::getClientEndpoints(const GetClientEndpointsCallbackPtr&
         return;
     }
 
-#ifdef ICE_CPP11_MAPPING
     RouterInfoPtr self = this;
     _router->getClientProxyAsync(
         [self, callback](const Ice::ObjectPrxPtr& proxy, Ice::optional<bool> hasRoutingTable)
@@ -195,12 +189,6 @@ IceInternal::RouterInfo::getClientEndpoints(const GetClientEndpointsCallbackPtr&
                 self->getClientProxyException(ex, callback);
             }
         });
-#else
-    _router->begin_getClientProxy(newCallback_Router_getClientProxy(this,
-                                                                    &RouterInfo::getClientProxyResponse,
-                                                                    &RouterInfo::getClientProxyException),
-                                  callback);
-#endif
 }
 
 vector<EndpointIPtr>
@@ -251,7 +239,6 @@ IceInternal::RouterInfo::addProxy(const Ice::ObjectPrxPtr& proxy, const AddProxy
     proxies.push_back(proxy);
     AddProxyCookiePtr cookie = new AddProxyCookie(callback, proxy);
 
-#ifdef ICE_CPP11_MAPPING
     RouterInfoPtr self = this;
     _router->addProxiesAsync(proxies,
         [self, cookie](const Ice::ObjectProxySeq& p)
@@ -269,13 +256,6 @@ IceInternal::RouterInfo::addProxy(const Ice::ObjectPrxPtr& proxy, const AddProxy
                 self->addProxyException(ex, cookie);
             }
         });
-#else
-    _router->begin_addProxies(proxies,
-                              newCallback_Router_addProxies(this,
-                                                            &RouterInfo::addProxyResponse,
-                                                            &RouterInfo::addProxyException),
-                              cookie);
-#endif
     return false;
 }
 

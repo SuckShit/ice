@@ -1,74 +1,39 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Collections.Generic;
-using Test;
+using System.Threading;
 
-public sealed class ControllerI : ControllerDisp_
+namespace ZeroC.Ice.Test.Metrics
 {
-    public ControllerI(Ice.ObjectAdapter adapter)
+    public sealed class Metrics : IMetrics
     {
-        _adapter = adapter;
-    }
+        public void Op(Current current, CancellationToken cancel)
+        {
+        }
 
-    override public void hold(Ice.Current current)
-    {
-        _adapter.hold();
-        _adapter.waitForHold();
-    }
+        public void Fail(Current current, CancellationToken cancel) =>
+            current.Connection.AbortAsync();
 
-    override public void resume(Ice.Current current)
-    {
-        _adapter.activate();
-    }
+        public void OpWithUserException(Current current, CancellationToken cancel) =>
+            throw new UserEx("custom UserEx message");
 
-    readonly private Ice.ObjectAdapter _adapter;
-};
+        public void OpWithRequestFailedException(Current current, CancellationToken cancel) =>
+            throw new ObjectNotExistException();
 
-public sealed class MetricsI : MetricsDisp_
-{
-    override public void op(Ice.Current current)
-    {
-    }
+        public void OpWithLocalException(Current current, CancellationToken cancel) =>
+            throw new InvalidConfigurationException("fake");
 
-    override public void fail(Ice.Current current)
-    {
-        current.con.close(Ice.ConnectionClose.Forcefully);
-    }
+        public void OpWithUnknownException(Current current, CancellationToken cancel) =>
+            throw new ArgumentOutOfRangeException();
 
-    override public void opWithUserException(Ice.Current current)
-    {
-        throw new UserEx();
-    }
+        public void OpByteS(byte[] bs, Current current, CancellationToken cancel)
+        {
+        }
 
-    override public void opWithRequestFailedException(Ice.Current current)
-    {
-        throw new Ice.ObjectNotExistException();
-    }
+        public IObjectPrx? GetAdmin(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.GetAdmin();
 
-    override public void opWithLocalException(Ice.Current current)
-    {
-        throw new Ice.SyscallException();
-    }
-
-    override public void opWithUnknownException(Ice.Current current)
-    {
-        throw new ArgumentOutOfRangeException();
-    }
-
-    override public void opByteS(byte[] bs, Ice.Current current)
-    {
-    }
-
-    override public Ice.ObjectPrx getAdmin(Ice.Current current)
-    {
-        return current.adapter.getCommunicator().getAdmin();
-    }
-
-    override public void shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
     }
 }

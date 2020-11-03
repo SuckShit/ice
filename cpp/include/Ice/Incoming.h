@@ -7,7 +7,7 @@
 
 #include <Ice/InstanceF.h>
 #include <Ice/ConnectionIF.h>
-#include <Ice/ServantLocatorF.h>
+#include <Ice/ServantLocator.h>
 #include <Ice/ServantManagerF.h>
 #include <Ice/OutputStream.h>
 #include <Ice/InputStream.h>
@@ -18,8 +18,6 @@
 #include <Ice/ResponseHandlerF.h>
 
 #include <deque>
-
-#ifdef ICE_CPP11_MAPPING
 
 namespace Ice
 {
@@ -55,8 +53,6 @@ protected:
 
 }
 
-#endif
-
 namespace IceInternal
 {
 
@@ -69,23 +65,11 @@ public:
     void writeEmptyParams();
     void writeParamEncaps(const Ice::Byte*, Ice::Int, bool);
 
-#ifdef ICE_CPP11_MAPPING
     void setMarshaledResult(const Ice::MarshaledResult&);
-#endif
 
     void response(bool);
     void exception(const std::exception&, bool);
     void exception(const std::string&, bool);
-#if defined(_MSC_VER) && (_MSC_VER == 1500)
-    //
-    // COMPILERFIX v90 get confused with overloads above
-    // when passing a const char* as first argument.
-    //
-    void exception(const char* msg, bool amd)
-    {
-        exception(std::string(msg), amd);
-    }
-#endif
 
 protected:
 
@@ -100,25 +84,10 @@ protected:
     void handleException(const std::exception&, bool);
     void handleException(const std::string&, bool);
 
-#if defined(_MSC_VER) && (_MSC_VER == 1500)
-    //
-    // COMPILERFIX v90 get confused with overloads above
-    // when passing a const char* as first argument.
-    //
-    void handleException(const char* msg, bool amd)
-    {
-        handleException(std::string(msg), amd);
-    }
-#endif
-
     Ice::Current _current;
     Ice::ObjectPtr _servant;
     Ice::ServantLocatorPtr _locator;
-#ifdef ICE_CPP11_MAPPING
     ::std::shared_ptr<void> _cookie;
-#else
-    Ice::LocalObjectPtr _cookie;
-#endif
     DispatchObserver _observer;
     bool _response;
     Ice::Byte _compress;
@@ -131,17 +100,13 @@ protected:
     //
     ResponseHandler* _responseHandler;
 
-#ifdef ICE_CPP11_MAPPING
     using DispatchInterceptorCallbacks = std::deque<std::pair<std::function<bool()>,
                                                               std::function<bool(std::exception_ptr)>>>;
-#else
-    typedef std::deque<Ice::DispatchInterceptorAsyncCallbackPtr> DispatchInterceptorCallbacks;
-#endif
     DispatchInterceptorCallbacks _interceptorCBs;
 };
 
 // TODO: fix this warning
-#if defined(_MSC_VER) && (_MSC_VER >= 1900)
+#if defined(_MSC_VER)
 #   pragma warning(push)
 #   pragma warning(disable:4239)
 #endif
@@ -157,11 +122,7 @@ public:
         return _current;
     }
 
-#ifdef ICE_CPP11_MAPPING
     void push(std::function<bool()>, std::function<bool(std::exception_ptr)>);
-#else
-    void push(const Ice::DispatchInterceptorAsyncCallbackPtr&);
-#endif
     void pop();
 
     void setAsync(const IncomingAsyncPtr& in)
@@ -216,7 +177,7 @@ private:
     IncomingAsyncPtr _inAsync;
 };
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1900)
+#if defined(_MSC_VER)
 #   pragma warning(pop)
 #endif
 

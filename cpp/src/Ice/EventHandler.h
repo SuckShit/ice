@@ -16,15 +16,11 @@ namespace IceInternal
 {
 
 class ICE_API EventHandler :
-#ifdef ICE_CPP11_MAPPING
         public EnableSharedFromThis<EventHandler>
-#else
-        public virtual Ice::LocalObject
-#endif
 {
 public:
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
     //
     // Called to start a new asynchronous read or write operation.
     //
@@ -57,7 +53,7 @@ protected:
     EventHandler();
     virtual ~EventHandler();
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
     SocketOperation _pending;
     SocketOperation _started;
     SocketOperation _completed;

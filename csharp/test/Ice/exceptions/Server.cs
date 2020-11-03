@@ -1,77 +1,40 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Exceptions
 {
-    namespace exceptions
+    public class Server : TestHelper
     {
-        public sealed class DummyLogger : Ice.Logger
+        public override async Task RunAsync(string[] args)
         {
-            public void print(string message)
-            {
-            }
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Dispatch"] = "0";
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.IncomingFrameSizeMax"] = "10K";
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            communicator.SetProperty("TestAdapter2.Endpoints", GetTestEndpoint(1));
+            communicator.SetProperty("TestAdapter2.IncomingFrameSizeMax", "0");
+            communicator.SetProperty("TestAdapter3.Endpoints", GetTestEndpoint(2));
+            communicator.SetProperty("TestAdapter3.IncomingFrameSizeMax", "1K");
 
-            public void trace(string category, string message)
-            {
-            }
-
-            public void warning(string message)
-            {
-            }
-
-            public void error(string message)
-            {
-            }
-
-            public string getPrefix()
-            {
-                return "";
-            }
-
-            public Ice.Logger cloneWithPrefix(string prefix)
-            {
-                return new DummyLogger();
-            }
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            ObjectAdapter adapter2 = communicator.CreateObjectAdapter("TestAdapter2");
+            ObjectAdapter adapter3 = communicator.CreateObjectAdapter("TestAdapter3");
+            var obj = new Thrower();
+            adapter.Add("thrower", obj);
+            adapter2.Add("thrower", obj);
+            adapter3.Add("thrower", obj);
+            await adapter.ActivateAsync();
+            await adapter2.ActivateAsync();
+            await adapter3.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
 
-        public class Server : TestHelper
-        {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                properties.setProperty("Ice.Warn.Dispatch", "0");
-                properties.setProperty("Ice.Warn.Connections", "0");
-                properties.setProperty("Ice.MessageSizeMax", "10"); // 10KB max
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    communicator.getProperties().setProperty("TestAdapter2.Endpoints", getTestEndpoint(1));
-                    communicator.getProperties().setProperty("TestAdapter2.MessageSizeMax", "0");
-                    communicator.getProperties().setProperty("TestAdapter3.Endpoints", getTestEndpoint(2));
-                    communicator.getProperties().setProperty("TestAdapter3.MessageSizeMax", "1");
-
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("TestAdapter2");
-                    Ice.ObjectAdapter adapter3 = communicator.createObjectAdapter("TestAdapter3");
-                    Ice.Object obj = new ThrowerI();
-                    adapter.add(obj, Ice.Util.stringToIdentity("thrower"));
-                    adapter2.add(obj, Ice.Util.stringToIdentity("thrower"));
-                    adapter3.add(obj, Ice.Util.stringToIdentity("thrower"));
-                    adapter.activate();
-                    adapter2.activate();
-                    adapter3.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
-        }
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

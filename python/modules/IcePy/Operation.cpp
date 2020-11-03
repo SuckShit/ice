@@ -16,11 +16,10 @@
 #include <Ice/LocalException.h>
 #include <Ice/Logger.h>
 #include <Ice/ObjectAdapter.h>
-#include <Ice/AsyncResult.h>
 #include <Ice/Properties.h>
 #include <Ice/Proxy.h>
 #include <IceUtil/Time.h>
-#include <Slice/PythonUtil.h>
+#include <slice2py/PythonUtil.h>
 
 using namespace std;
 using namespace IcePy;
@@ -2177,9 +2176,6 @@ IcePy::Invocation::unmarshalException(const OperationPtr& op, const pair<const I
     //
     Ice::UnknownUserException uue(__FILE__, __LINE__, "unknown exception");
     return convertException(uue);
-#ifdef __SUNPRO_CC
-    return 0;
-#endif
 }
 
 bool

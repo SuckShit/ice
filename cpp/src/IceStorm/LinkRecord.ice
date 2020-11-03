@@ -4,24 +4,22 @@
 
 #pragma once
 
-[["ice-prefix", "cpp:header-ext:h"]]
+[[suppress-warning(reserved-identifier)]]
+[[cpp:header-ext(h)]]
 
 #include <Ice/Identity.ice>
 #include <IceStorm/IceStormInternal.ice>
 
 module IceStorm
 {
-
-/**
- *
- * Used to store persistent information for Topic federation.
- *
- **/
-struct LinkRecord
-{
-    TopicLink* obj; // The topic link object.
-    int cost; // The cost.
-    Topic* theTopic;  // The linked topic for getLinkInfoSeq
+    /// Used to store persistent information for Topic federation.
+    struct LinkRecord
+    {
+        /// The topic link object.
+        TopicLink* obj;
+        /// The cost.
+        int cost;
+        /// The linked topic for getLinkInfoSeq
+        Topic* theTopic;
+    }
 }
-
-} // End module IceStorm

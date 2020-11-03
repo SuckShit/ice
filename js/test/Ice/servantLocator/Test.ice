@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["java:package:test.Ice.servantLocator"]]
+[[java:package(test.Ice.servantLocator)]]
 module Test
 {
 
@@ -40,11 +40,6 @@ interface TestIntf
 interface TestActivation
 {
     void activateServantLocator(bool activate);
-}
-
-local class Cookie
-{
-    ["cpp:const"] string message();
 }
 
 interface Echo

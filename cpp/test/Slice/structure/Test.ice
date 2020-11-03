@@ -2,13 +2,13 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-[["cpp:include:list"]]
+[[cpp:include(list)]]
 
 module Test
 {
 
 sequence<string> StringSeq;
-["cpp:type:std::list< ::Ice::Int>"] sequence<int> IntList;
+[cpp:type(std::list< ::Ice::Int>)] sequence<int> IntList;
 dictionary<string, string> StringDict;
 
 class C
@@ -16,13 +16,6 @@ class C
     int i;
 }
 
-["cpp:class"]
-struct S1
-{
-    string name;
-}
-
-["cpp:comparable"]
 struct S2
 {
     bool bo;
@@ -36,7 +29,6 @@ struct S2
     StringSeq ss;
     IntList il;
     StringDict sd;
-    S1 s;
     C cls;
     Object* prx;
 }

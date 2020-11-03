@@ -1,38 +1,29 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Facets
 {
-    namespace facets
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                using(var communicator = initialize(ref args))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    Ice.Object d = new DI();
-                    adapter.add(d, Ice.Util.stringToIdentity("d"));
-                    adapter.addFacet(d, Ice.Util.stringToIdentity("d"), "facetABCD");
-                    Ice.Object f = new FI();
-                    adapter.addFacet(f, Ice.Util.stringToIdentity("d"), "facetEF");
-                    Ice.Object h = new HI(communicator);
-                    adapter.addFacet(h, Ice.Util.stringToIdentity("d"), "facetGH");
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            await using Communicator communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            var d = new D();
+            adapter.Add("d", d);
+            adapter.Add("d#facetABCD", d);
+            var f = new F();
+            adapter.Add("d#facetEF", f);
+            var h = new H(communicator);
+            adapter.Add("d#facetGH", h);
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

@@ -9,7 +9,7 @@
 #
 # Supported configurations
 #
-supported-configs = shared static cpp11-shared cpp11-static
+supported-configs = shared static
 
 -include        $(lang_srcdir)/config/Make.rules.$(os)
 ifeq ($(os),Darwin)
@@ -30,8 +30,7 @@ coreandstub_components  = IceUtil \
                           Glacier2 \
                           IceStorm \
                           IceGrid \
-                          IceBox \
-                          IcePatch2
+                          IceBox
 
 # Add the Bluetooth transport if Bluetooth system libraries are available
 ifneq ($(IceBT_system_libs),)
@@ -53,54 +52,23 @@ static_projects         = test/Common \
                           test/Ice/% \
                           test/IceSSL/% \
                           test/IceDiscovery/simple \
-                          test/Glacier2/application \
                           test/IceGrid/simple
 
 static_excludes         = test/Ice/library test/Ice/plugin
 
 #
-# Components and projects which are built with C++11
+# Components and projects
 #
-cpp11_components        = $(coreandstub_components) icebox
-
-cpp11_projects          = test/Common \
-                          test/IceUtil/% \
-                          test/Slice/% \
-                          test/Ice/% \
-                          test/IceSSL/% \
-                          test/IceDiscovery/% \
-                          test/IceBox/% \
-                          test/Glacier2/application \
-                          test/Glacier2/sessionHelper \
-                          test/IceGrid/simple
-
-cpp11_excludes          = IcePatch2 \
-                          test/Ice/gc
+cpp_projects          = %
 
 #
 # If building on a Linux multilib platform, we restrict what we build for
-# the 32-bits architecture. We basically, build the same set of components
-# as C++11 (libraries and icebox executable).
+# the 32-bits architecture.
 #
 ifeq ($(multilib-platform),yes)
 x86_components          = $(coreandstub_components) IceDB IceStormService icebox
 x86_projects            = test/%
 endif
-
-#
-# C++11 configuration to build the C++11 mapping.
-#
-# Appends cpp11 to the configuration directory name. If we are building the
-# target outside the component build directory, we also append the ++11
-# suffix to the targetname. This is for example how icebox is compiled as
-# icebox++11 when compiled with the C++11 configuration. We also don't add
-# the cpp11 name to the target directory if building outside the build
-# directory.
-#
-cpp11_cppflags          = -DICE_CPP11_MAPPING -std=c++11
-cpp11_ldflags           = $(cpp11_cppflags)
-cpp11_targetname        = $(if $(or $(filter-out $($1_target),program),$(filter $(bindir)%,$($4_targetdir))),++11)
-cpp11_targetdir         = $(if $(filter %/build,$5),cpp11)
 
 #
 # $(call make-cpp-src-project,$1=project)
@@ -141,8 +109,6 @@ $1[static]_dependencies := IceSSL $(if $(IceBT_system_libs),IceBT)
 $1[xcodesdk]_dependencies                       := IceSSL
 $1[iphoneos-xcodesdk]_targetdir                 := test/ios/bundles/Bundles-iphoneos/$(subst /,_,$1)
 $1[iphonesimulator-xcodesdk]_targetdir          := test/ios/bundles/Bundles-iphonesimulator/$(subst /,_,$1)
-$1[iphoneos-cpp11-xcodesdk]_targetdir           := test/ios/bundles/Bundles++11-iphoneos/$(subst /,_,$1)
-$1[iphonesimulator-cpp11-xcodesdk]_targetdir    := test/ios/bundles/Bundles++11-iphonesimulator/$(subst /,_,$1)
 
 $(create-test-project)
 endef

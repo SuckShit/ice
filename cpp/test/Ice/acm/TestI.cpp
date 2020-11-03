@@ -28,7 +28,7 @@ RemoteCommunicatorI::createObjectAdapter(int timeout, int close, int heartbeat, 
 {
     Ice::CommunicatorPtr com = current.adapter->getCommunicator();
     Ice::PropertiesPtr properties = com->getProperties();
-    string protocol = properties->getPropertyWithDefault("Ice.Default.Protocol", "tcp");
+    string protocol = properties->getPropertyWithDefault("Ice.Default.Transport", "tcp");
     string opts;
     if(protocol != "bt")
     {
@@ -52,7 +52,7 @@ RemoteCommunicatorI::createObjectAdapter(int timeout, int close, int heartbeat, 
     ObjectAdapterPtr adapter = com->createObjectAdapterWithEndpoints(name, protocol + opts);
 
     return ICE_UNCHECKED_CAST(RemoteObjectAdapterPrx, current.adapter->addWithUUID(
-                              ICE_MAKE_SHARED(RemoteObjectAdapterI, adapter)));
+                              std::make_shared<RemoteObjectAdapterI>(adapter)));
 }
 
 void
@@ -63,7 +63,7 @@ RemoteCommunicatorI::shutdown(const Ice::Current& current)
 
 RemoteObjectAdapterI::RemoteObjectAdapterI(const Ice::ObjectAdapterPtr& adapter) :
     _adapter(adapter),
-    _testIntf(ICE_UNCHECKED_CAST(TestIntfPrx, _adapter->add(ICE_MAKE_SHARED(TestI),
+    _testIntf(ICE_UNCHECKED_CAST(TestIntfPrx, _adapter->add(std::make_shared<TestI>(),
                                          stringToIdentity("test"))))
 {
     _adapter->activate();
@@ -124,16 +124,12 @@ TestI::interruptSleep(const Ice::Current&)
 void
 TestI::startHeartbeatCount(const Ice::Current& current)
 {
-    _callback = ICE_MAKE_SHARED(HeartbeatCallbackI);
-#ifdef ICE_CPP11_MAPPING
+    _callback = std::make_shared<HeartbeatCallbackI>();
     HeartbeatCallbackIPtr callback = _callback;
     current.con->setHeartbeatCallback([callback](Ice::ConnectionPtr connection)
     {
         callback->heartbeat(move(connection));
     });
-#else
-    current.con->setHeartbeatCallback(_callback);
-#endif
 }
 
 void

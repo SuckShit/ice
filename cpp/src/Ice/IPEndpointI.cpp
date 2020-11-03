@@ -42,9 +42,6 @@ Init init;
 
 }
 
-#ifndef ICE_CPP11_MAPPING
-IceUtil::Shared* IceInternal::upCast(IPEndpointI* p) { return p; }
-#endif
 IceUtil::Shared* IceInternal::upCast(EndpointHostResolver* p) { return p; }
 
 IceInternal::IPEndpointInfoI::IPEndpointInfoI(const EndpointIPtr& endpoint) : _endpoint(endpoint)
@@ -56,27 +53,27 @@ IceInternal::IPEndpointInfoI::~IPEndpointInfoI()
 }
 
 Ice::Short
-IceInternal::IPEndpointInfoI::type() const ICE_NOEXCEPT
+IceInternal::IPEndpointInfoI::type() const noexcept
 {
     return _endpoint->type();
 }
 
 bool
-IceInternal::IPEndpointInfoI::datagram() const ICE_NOEXCEPT
+IceInternal::IPEndpointInfoI::datagram() const noexcept
 {
     return _endpoint->datagram();
 }
 
 bool
-IceInternal::IPEndpointInfoI::secure() const ICE_NOEXCEPT
+IceInternal::IPEndpointInfoI::secure() const noexcept
 {
     return _endpoint->secure();
 }
 
 Ice::EndpointInfoPtr
-IceInternal::IPEndpointI::getInfo() const ICE_NOEXCEPT
+IceInternal::IPEndpointI::getInfo() const noexcept
 {
-    Ice::IPEndpointInfoPtr info = ICE_MAKE_SHARED(IPEndpointInfoI, ICE_SHARED_FROM_CONST_THIS(IPEndpointI));
+    Ice::IPEndpointInfoPtr info = std::make_shared<IPEndpointInfoI>(ICE_SHARED_FROM_CONST_THIS(IPEndpointI));
     fillEndpointInfo(info.get());
     return info;
 }
@@ -177,7 +174,7 @@ IceInternal::IPEndpointI::expandHost(EndpointIPtr& publish) const
     vector<Address> addrs = getAddresses(_host,
                                          _port,
                                          _instance->protocolSupport(),
-                                         Ice::ICE_ENUM(EndpointSelectionType, Ordered),
+                                         Ice::EndpointSelectionType::Ordered,
                                          _instance->preferIPv6(),
                                          true);
 
@@ -273,11 +270,7 @@ IceInternal::IPEndpointI::options() const
 }
 
 bool
-#ifdef ICE_CPP11_MAPPING
 IceInternal::IPEndpointI::operator==(const Endpoint& r) const
-#else
-IceInternal::IPEndpointI::operator==(const LocalObject& r) const
-#endif
 {
     const IPEndpointI* p = dynamic_cast<const IPEndpointI*>(&r);
     if(!p)
@@ -313,11 +306,7 @@ IceInternal::IPEndpointI::operator==(const LocalObject& r) const
 }
 
 bool
-#ifdef ICE_CPP11_MAPPING
 IceInternal::IPEndpointI::operator<(const Endpoint& r) const
-#else
-IceInternal::IPEndpointI::operator<(const LocalObject& r) const
-#endif
 {
     const IPEndpointI* p = dynamic_cast<const IPEndpointI*>(&r);
     if(!p)
@@ -491,7 +480,6 @@ IceInternal::IPEndpointI::checkOption(const string& option, const string& argume
                                               "no argument provided for --sourceAddress option in endpoint " +
                                               endpoint);
         }
-#ifndef ICE_OS_UWP
         const_cast<Address&>(_sourceAddr) = getNumericAddress(argument);
         if(!isAddressValid(_sourceAddr))
         {
@@ -499,7 +487,6 @@ IceInternal::IPEndpointI::checkOption(const string& option, const string& argume
                                               "invalid IP address provided for --sourceAddress option in endpoint " +
                                               endpoint);
         }
-#endif
     }
     else
     {
@@ -534,8 +521,6 @@ IceInternal::IPEndpointI::IPEndpointI(const ProtocolInstancePtr& instance, Input
     s->read(const_cast<string&>(_host), false);
     s->read(const_cast<Ice::Int&>(_port));
 }
-
-#ifndef ICE_OS_UWP
 
 IceInternal::EndpointHostResolver::EndpointHostResolver(const InstancePtr& instance) :
     IceUtil::Thread("Ice.HostResolver"),
@@ -633,7 +618,7 @@ IceInternal::EndpointHostResolver::run()
 
         if(threadObserver)
         {
-            threadObserver->stateChanged(ICE_ENUM(ThreadState, ThreadStateIdle), ICE_ENUM(ThreadState, ThreadStateInUseForOther));
+            threadObserver->stateChanged(ThreadState::ThreadStateIdle, ThreadState::ThreadStateInUseForOther);
         }
 
         try
@@ -660,8 +645,8 @@ IceInternal::EndpointHostResolver::run()
 
             if(threadObserver)
             {
-                threadObserver->stateChanged(ICE_ENUM(ThreadState, ThreadStateInUseForOther),
-                                             ICE_ENUM(ThreadState, ThreadStateIdle));
+                threadObserver->stateChanged(ThreadState::ThreadStateInUseForOther,
+                                             ThreadState::ThreadStateIdle);
             }
 
         }
@@ -669,8 +654,8 @@ IceInternal::EndpointHostResolver::run()
         {
             if(threadObserver)
             {
-                threadObserver->stateChanged(ICE_ENUM(ThreadState, ThreadStateInUseForOther),
-                                             ICE_ENUM(ThreadState, ThreadStateIdle));
+                threadObserver->stateChanged(ThreadState::ThreadStateInUseForOther,
+                                             ThreadState::ThreadStateIdle);
             }
             if(r.observer)
             {
@@ -708,49 +693,7 @@ IceInternal::EndpointHostResolver::updateObserver()
     {
         _observer.attach(obsv->getThreadObserver("Communicator",
                                                  name(),
-                                                 ICE_ENUM(ThreadState, ThreadStateIdle),
+                                                 ThreadState::ThreadStateIdle,
                                                  _observer.get()));
     }
 }
-
-#else
-
-IceInternal::EndpointHostResolver::EndpointHostResolver(const InstancePtr& instance) :
-    _instance(instance)
-{
-}
-
-void
-IceInternal::EndpointHostResolver::resolve(const string& host,
-                                           int port,
-                                           Ice::EndpointSelectionType selType,
-                                           const IPEndpointIPtr& endpoint,
-                                           const EndpointI_connectorsPtr& callback)
-{
-    //
-    // No DNS lookup support with UWP.
-    //
-    callback->connectors(endpoint->connectors(getAddresses(host, port,
-                                                           _instance->protocolSupport(),
-                                                           selType,
-                                                           _instance->preferIPv6(),
-                                                           false),
-                                              _instance->networkProxy()));
-}
-
-void
-IceInternal::EndpointHostResolver::destroy()
-{
-}
-
-void
-IceInternal::EndpointHostResolver::run()
-{
-}
-
-void
-IceInternal::EndpointHostResolver::updateObserver()
-{
-}
-
-#endif

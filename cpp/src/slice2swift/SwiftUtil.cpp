@@ -19,6 +19,27 @@ using namespace IceUtilInternal;
 namespace
 {
 
+const std::array<std::string, 17> builtinTable =
+{
+    "Swift.Bool",
+    "Swift.UInt8",
+    "Swift.Int16",
+    "Swift.UInt16",
+    "Swift.Int32",
+    "Swift.UInt32",
+    "Swift.Int32",
+    "Swift.UInt32",
+    "Swift.Int64",
+    "Swift.UInt64",
+    "Swift.Int64",
+    "Swift.UInt64",
+    "Swift.Float",
+    "Swift.Double",
+    "Swift.String",
+    "Ice.ObjectPrx",    // Object
+    "Ice.Value"         // Value
+};
+
 static string
 lookupKwd(const string& name)
 {
@@ -91,41 +112,6 @@ opFormatTypeToString(const OperationPtr& op )
 }
 
 //
-// Split a scoped name into its components and return the components as a list of (unscoped) identifiers.
-//
-StringList
-Slice::splitScopedName(const string& scoped)
-{
-    assert(scoped[0] == ':');
-    StringList ids;
-    string::size_type next = 0;
-    string::size_type pos;
-    while((pos = scoped.find("::", next)) != string::npos)
-    {
-        pos += 2;
-        if(pos != scoped.size())
-        {
-            string::size_type endpos = scoped.find("::", pos);
-            if(endpos != string::npos)
-            {
-                ids.push_back(scoped.substr(pos, endpos - pos));
-            }
-        }
-        next = pos;
-    }
-    if(next != scoped.size())
-    {
-        ids.push_back(scoped.substr(next));
-    }
-    else
-    {
-        ids.push_back("");
-    }
-
-    return ids;
-}
-
-//
 // Check the given identifier against Swift's list of reserved words. If it matches
 // a reserved word, then an escaped version is returned with a leading underscore.
 //
@@ -136,12 +122,12 @@ Slice::fixIdent(const string& ident)
     {
         return lookupKwd(ident);
     }
-    StringList ids = splitScopedName(ident);
-    transform(ids.begin(), ids.end(), ids.begin(), ptr_fun(lookupKwd));
+    auto ids = splitScopedName(ident);
+    transform(ids.begin(), ids.end(), ids.begin(), lookupKwd);
     ostringstream result;
-    for(StringList::const_iterator i = ids.begin(); i != ids.end(); ++i)
+    for(const auto& id : ids)
     {
-        result << "::" + *i;
+        result << "::" << id;
     }
     return result.str();
 }
@@ -153,7 +139,7 @@ Slice::getSwiftModule(const ModulePtr& module, string& swiftPrefix)
 
     string swiftModule;
 
-    if(module->findMetaData(modulePrefix, swiftModule))
+    if(module->findMetadata(modulePrefix, swiftModule))
     {
         swiftModule = swiftModule.substr(modulePrefix.size());
 
@@ -207,11 +193,9 @@ Slice::getTopLevelModule(const ContainedPtr& cont)
 ModulePtr
 Slice::getTopLevelModule(const TypePtr& type)
 {
-    assert(ProxyPtr::dynamicCast(type) || ContainedPtr::dynamicCast(type));
-
-    ProxyPtr proxy = ProxyPtr::dynamicCast(type);
-    return getTopLevelModule(proxy ? ContainedPtr::dynamicCast(proxy->_class()) :
-                                     ContainedPtr::dynamicCast(type));
+    auto contained = ContainedPtr::dynamicCast(unwrapIfOptional(type));
+    assert(contained);
+    return getTopLevelModule(contained);
 }
 
 void
@@ -374,7 +358,7 @@ SwiftGenerator::parseComment(const ContainedPtr& p)
     // First check metadata for a deprecated tag.
     //
     string deprecateMetadata;
-    if(p->findMetaData("deprecate", deprecateMetadata))
+    if(p->findMetadata("deprecate", deprecateMetadata))
     {
         doc.deprecated = true;
         if(deprecateMetadata.find("deprecate:") == 0 && deprecateMetadata.size() > 10)
@@ -641,8 +625,7 @@ void
 SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
                                   const OperationPtr& p,
                                   bool async,
-                                  bool dispatch,
-                                  bool local)
+                                  bool dispatch)
 {
     DocElements doc = parseComment(p);
     if(!doc.overview.empty())
@@ -660,13 +643,7 @@ SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
         }
     }
 
-    int typeCtx = TypeContextInParam;
-    if(local)
-    {
-        typeCtx |= TypeContextLocal;
-    }
-
-    const ParamInfoList allInParams = getAllInParams(p, typeCtx);
+    const ParamInfoList allInParams = getAllInParams(p);
     for(ParamInfoList::const_iterator q = allInParams.begin(); q != allInParams.end(); ++q)
     {
         out << nl << "///";
@@ -680,20 +657,15 @@ SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
         }
     }
 
-    if(!local)
+    out << nl << "///";
+    if(dispatch)
     {
-        out << nl << "///";
-        if(dispatch)
-        {
-            out << nl << "/// - parameter current: `Ice.Current` - The Current object for the dispatch.";
-        }
-        else
-        {
-            out << nl << "/// - parameter context: `Ice.Context` - Optional request context.";
-        }
+        out << nl << "/// - parameter current: `Ice.Current` - The Current object for the dispatch.";
     }
-
-    typeCtx = local ? TypeContextLocal : 0;
+    else
+    {
+        out << nl << "/// - parameter context: `Ice.Context` - Optional request context.";
+    }
 
     if(async)
     {
@@ -710,18 +682,18 @@ SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
         }
 
         out << nl << "///";
-        out << nl << "/// - returns: `PromiseKit.Promise<" << operationReturnType(p, typeCtx)
+        out << nl << "/// - returns: `PromiseKit.Promise<" << operationReturnType(p)
             << ">` - The result of the operation";
     }
     else
     {
-        const ParamInfoList allOutParams = getAllOutParams(p, typeCtx);
+        const ParamInfoList allOutParams = getAllOutParams(p);
         if(allOutParams.size() == 1)
         {
             ParamInfo ret = allOutParams.front();
             out << nl << "///";
             out << nl << "/// - returns: `" << ret.typeStr << "`";
-            if(p->returnType())
+            if(p->deprecatedReturnType())
             {
                 if(!doc.returns.empty())
                 {
@@ -742,8 +714,8 @@ SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
         else if(allOutParams.size() > 1)
         {
             out << nl << "///";
-            out << nl << "/// - returns: `" << operationReturnType(p, typeCtx) << "`:";
-            if(p->returnType())
+            out << nl << "/// - returns: `" << operationReturnType(p) << "`:";
+            if(p->deprecatedReturnType())
             {
                 ParamInfo ret = allOutParams.back();
                 out << nl << "///";
@@ -796,7 +768,7 @@ SwiftGenerator::writeOpDocSummary(IceUtilInternal::Output& out,
 }
 
 void
-SwiftGenerator::writeProxyDocSummary(IceUtilInternal::Output& out, const ClassDefPtr& p, const string& swiftModule)
+SwiftGenerator::writeProxyDocSummary(IceUtilInternal::Output& out, const InterfaceDefPtr& p, const string& swiftModule)
 {
     DocElements doc = parseComment(p);
 
@@ -844,7 +816,7 @@ SwiftGenerator::writeProxyDocSummary(IceUtilInternal::Output& out, const ClassDe
 }
 
 void
-SwiftGenerator::writeServantDocSummary(IceUtilInternal::Output& out, const ClassDefPtr& p, const string& swiftModule)
+SwiftGenerator::writeServantDocSummary(IceUtilInternal::Output& out, const InterfaceDefPtr& p, const string& swiftModule)
 {
     DocElements doc = parseComment(p);
 
@@ -884,7 +856,7 @@ SwiftGenerator::writeServantDocSummary(IceUtilInternal::Output& out, const Class
 }
 
 void
-SwiftGenerator::writeMemberDoc(IceUtilInternal::Output& out, const DataMemberPtr& p)
+SwiftGenerator::writeMemberDoc(IceUtilInternal::Output& out, const MemberPtr& p)
 {
     DocElements doc = parseComment(p);
 
@@ -922,9 +894,9 @@ SwiftGenerator::writeMemberDoc(IceUtilInternal::Output& out, const DataMemberPtr
 }
 
 void
-SwiftGenerator::validateMetaData(const UnitPtr& u)
+SwiftGenerator::validateMetadata(const UnitPtr& u)
 {
-    MetaDataVisitor visitor;
+    MetadataVisitor visitor;
     u->visit(&visitor, true);
 }
 
@@ -977,8 +949,15 @@ SwiftGenerator::getValue(const string& swiftModule, const TypePtr& type)
             }
             case Builtin::KindByte:
             case Builtin::KindShort:
+            case Builtin::KindUShort:
             case Builtin::KindInt:
+            case Builtin::KindUInt:
+            case Builtin::KindVarInt:
+            case Builtin::KindVarUInt:
             case Builtin::KindLong:
+            case Builtin::KindULong:
+            case Builtin::KindVarLong:
+            case Builtin::KindVarULong:
             {
                 return "0";
             }
@@ -1026,10 +1005,12 @@ SwiftGenerator::getValue(const string& swiftModule, const TypePtr& type)
 }
 
 void
-SwiftGenerator::writeConstantValue(IceUtilInternal::Output& out, const TypePtr& type,
+SwiftGenerator::writeConstantValue(IceUtilInternal::Output& out, const TypePtr& constType,
                                    const SyntaxTreeBasePtr& valueType, const string& value,
                                    const StringList&, const string& swiftModule, bool optional)
 {
+    TypePtr type = unwrapIfOptional(constType);
+
     ConstPtr constant = ConstPtr::dynamicCast(valueType);
     if(constant)
     {
@@ -1071,154 +1052,68 @@ SwiftGenerator::writeConstantValue(IceUtilInternal::Output& out, const TypePtr& 
 }
 
 string
-SwiftGenerator::typeToString(const TypePtr& type,
-                             const ContainedPtr& toplevel,
-                             const StringList& metadata,
-                             bool optional,
-                             int typeCtx)
+SwiftGenerator::typeToString(const TypePtr& type, const ContainedPtr& toplevel, const StringList& metadata)
 {
-    static const char* builtinTable[] =
-    {
-        "Swift.UInt8",
-        "Swift.Bool",
-        "Swift.Int16",
-        "Swift.Int32",
-        "Swift.Int64",
-        "Swift.Float",
-        "Swift.Double",
-        "Swift.String",
-        "Ice.Disp",         // Object
-        "Ice.ObjectPrx",    // ObjectPrx
-        "Swift.AnyObject",  // LocalObject
-        "Ice.Value"         // Value
-    };
-
     if(!type)
     {
         return "";
     }
 
-    bool local = (typeCtx & TypeContextLocal) != 0;
-    if(local)
+    if (auto optional = OptionalPtr::dynamicCast(type))
     {
-        for(StringList::const_iterator i = metadata.begin(); i != metadata.end(); ++i)
-        {
-            const string swiftType = "swift:type:";
-            const string meta = *i;
-            if(meta.find(swiftType) == 0)
-            {
-                return meta.substr(swiftType.size());
-            }
-        }
+        auto underlying = optional->underlying();
+        // For interface type, we currently always generate "?", so we don't want a double ?.
+        return typeToString(underlying, toplevel, metadata) + (underlying->isInterfaceType() ? "" : "?");
     }
 
-    string t = "";
     //
-    // The current module were the type is being used
+    // The current module where the type is being used
     //
     string currentModule = getSwiftModule(getTopLevelModule(toplevel));
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
-    bool nonnull = find(metadata.begin(), metadata.end(), "swift:nonnull") != metadata.end();
-    bool inparam = typeCtx & TypeContextInParam;
 
     if(builtin)
     {
-        if(builtin->kind() == Builtin::KindObject && !(typeCtx & TypeContextLocal))
+        if (builtin->isInterfaceType())
         {
-            t = getUnqualified(builtinTable[Builtin::KindValue], currentModule);
+            return getUnqualified(builtinTable[builtin->kind()], currentModule) + "?";
         }
         else
         {
-            t = getUnqualified(builtinTable[builtin->kind()], currentModule);
+            return getUnqualified(builtinTable[builtin->kind()], currentModule);
         }
     }
 
-    ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
-    ProxyPtr prx = ProxyPtr::dynamicCast(type);
+    InterfaceDeclPtr proxy = InterfaceDeclPtr::dynamicCast(type);
     ContainedPtr cont = ContainedPtr::dynamicCast(type);
 
-    if(cl)
+    if (proxy)
     {
-        if(cl->isInterface() && !cl->isLocal())
-        {
-            t = fixIdent(getUnqualified(builtinTable[Builtin::KindValue], currentModule));
-        }
-        else
-        {
-            //
-            // Annotate nonnull closure as @escaping, Swift optional closure parameters are always
-            // @escaping see https://www.jessesquires.com/blog/why-optional-swift-closures-are-escaping/
-            //
-            if(cl->isLocal() && cl->definition() && cl->definition()->isDelegate() && inparam && nonnull)
-            {
-                t = "@escaping ";
-            }
-            t += fixIdent(getUnqualified(getAbsoluteImpl(cl), currentModule));
-        }
-    }
-    else if(prx)
-    {
-        ClassDefPtr def = prx->_class()->definition();
-        if(!def || def->isAbstract())
-        {
-            t = getUnqualified(getAbsoluteImpl(prx->_class(), "", "Prx"), currentModule);
-        }
-        else
-        {
-            t = getUnqualified("Ice.ObjectPrx", currentModule);
-        }
-    }
-    else if(cont)
-    {
-        t = fixIdent(getUnqualified(getAbsoluteImpl(cont), currentModule));
+        return getUnqualified(getAbsoluteImpl(proxy, "", "Prx?"), currentModule);
     }
 
-    if(!nonnull && (optional || isNullableType(type)))
-    {
-        t += "?";
-    }
-    return t;
+    assert(cont);
+    return fixIdent(getUnqualified(getAbsoluteImpl(cont), currentModule));
 }
 
 string
 SwiftGenerator::getAbsolute(const TypePtr& type)
 {
-    static const char* builtinTable[] =
-    {
-        "Swift.UInt8",
-        "Swift.Bool",
-        "Swift.Int16",
-        "Swift.Int32",
-        "Swift.Int64",
-        "Swift.Float",
-        "Swift.Double",
-        "Swift.String",
-        "Ice.Disp",         // Object
-        "Ice.ObjectPrx",    // ObjectPrx
-        "Swift.AnyObject",  // LocalObject
-        "Ice.Value"         // Value
-    };
-
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
     if(builtin)
     {
         return builtinTable[builtin->kind()];
     }
 
-    ProxyPtr proxy = ProxyPtr::dynamicCast(type);
+    InterfaceDeclPtr proxy = InterfaceDeclPtr::dynamicCast(type);
     if(proxy)
     {
-        return getAbsoluteImpl(proxy->_class(), "", "Prx");
+        return getAbsoluteImpl(proxy, "", "Prx");
     }
 
     ContainedPtr cont = ContainedPtr::dynamicCast(type);
-    if(cont)
-    {
-        return getAbsoluteImpl(cont);
-    }
-
-    assert(false);
-    return "???";
+    assert(cont);
+    return getAbsoluteImpl(cont);
 }
 
 string
@@ -1234,9 +1129,15 @@ SwiftGenerator::getAbsolute(const ClassDefPtr& cl)
 }
 
 string
-SwiftGenerator::getAbsolute(const ProxyPtr& prx)
+SwiftGenerator::getAbsolute(const InterfaceDeclPtr& proxy)
 {
-    return getAbsoluteImpl(prx->_class(), "", "Prx");
+    return getAbsoluteImpl(proxy, "", "Prx");
+}
+
+string
+SwiftGenerator::getAbsolute(const InterfaceDefPtr& interface)
+{
+    return getAbsoluteImpl(interface);
 }
 
 string
@@ -1313,169 +1214,9 @@ SwiftGenerator::modeToString(Operation::Mode opMode)
 }
 
 string
-SwiftGenerator::getOptionalFormat(const TypePtr& type)
+SwiftGenerator::getTagFormat(const TypePtr& type)
 {
-    BuiltinPtr bp = BuiltinPtr::dynamicCast(type);
-    if(bp)
-    {
-        switch(bp->kind())
-        {
-        case Builtin::KindByte:
-        case Builtin::KindBool:
-        {
-            return ".F1";
-        }
-        case Builtin::KindShort:
-        {
-            return ".F2";
-        }
-        case Builtin::KindInt:
-        case Builtin::KindFloat:
-        {
-            return ".F4";
-        }
-        case Builtin::KindLong:
-        case Builtin::KindDouble:
-        {
-            return ".F8";
-        }
-        case Builtin::KindString:
-        {
-            return ".VSize";
-        }
-        case Builtin::KindObject:
-        {
-            return ".Class";
-        }
-        case Builtin::KindObjectProxy:
-        {
-            return ".FSize";
-        }
-        case Builtin::KindLocalObject:
-        {
-            assert(false);
-            break;
-        }
-        case Builtin::KindValue:
-        {
-            return ".Class";
-        }
-        }
-    }
-
-    if(EnumPtr::dynamicCast(type))
-    {
-        return ".Size";
-    }
-
-    SequencePtr seq = SequencePtr::dynamicCast(type);
-    if(seq)
-    {
-        return seq->type()->isVariableLength() ? ".FSize" : ".VSize";
-    }
-
-    DictionaryPtr d = DictionaryPtr::dynamicCast(type);
-    if(d)
-    {
-        return (d->keyType()->isVariableLength() || d->valueType()->isVariableLength()) ?
-            ".FSize" : ".VSize";
-    }
-
-    StructPtr st = StructPtr::dynamicCast(type);
-    if(st)
-    {
-        return st->isVariableLength() ? ".FSize" : ".VSize";
-    }
-
-    if(ProxyPtr::dynamicCast(type))
-    {
-        return ".FSize";
-    }
-
-    ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
-    assert(cl);
-    return ".Class";
-}
-
-bool
-SwiftGenerator::isNullableType(const TypePtr& type)
-{
-    BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
-    if(builtin)
-    {
-        switch(builtin->kind())
-        {
-            case Builtin::KindObject:
-            case Builtin::KindObjectProxy:
-            case Builtin::KindLocalObject:
-            case Builtin::KindValue:
-            {
-                return true;
-            }
-            default:
-            {
-                return false;
-            }
-        }
-    }
-
-    return ClassDeclPtr::dynamicCast(type) || ProxyPtr::dynamicCast(type);
-}
-
-bool
-SwiftGenerator::isProxyType(const TypePtr& p)
-{
-    const BuiltinPtr builtin = BuiltinPtr::dynamicCast(p);
-    return (builtin && builtin->kind() == Builtin::KindObjectProxy) || ProxyPtr::dynamicCast(p);
-}
-
-bool
-SwiftGenerator::isClassType(const TypePtr& p)
-{
-    const BuiltinPtr builtin = BuiltinPtr::dynamicCast(p);
-    return (builtin && (builtin->kind() == Builtin::KindObject ||
-                        builtin->kind() == Builtin::KindValue)) ||
-        ClassDeclPtr::dynamicCast(p);
-}
-
-bool
-SwiftGenerator::containsClassMembers(const StructPtr& s)
-{
-    DataMemberList dm = s->dataMembers();
-    for(DataMemberList::const_iterator i = dm.begin(); i != dm.end(); ++i)
-    {
-        if(isClassType((*i)->type()))
-        {
-            return true;
-        }
-
-        StructPtr st = StructPtr::dynamicCast((*i)->type());
-        if(st && containsClassMembers(st))
-        {
-            return true;
-        }
-
-        SequencePtr seq = SequencePtr::dynamicCast((*i)->type());
-        if(seq)
-        {
-            st = StructPtr::dynamicCast(seq->type());
-            if(isClassType(seq->type()) || (st && containsClassMembers(st)))
-            {
-                return true;
-            }
-        }
-
-        DictionaryPtr dict = DictionaryPtr::dynamicCast((*i)->type());
-        if(dict)
-        {
-            st = StructPtr::dynamicCast(dict->valueType());
-            if(isClassType(dict->valueType()) || (st && containsClassMembers(st)))
-            {
-                return true;
-            }
-        }
-    }
-    return false;
+    return "." + type->getTagFormat();
 }
 
 void
@@ -1505,62 +1246,45 @@ SwiftGenerator::writeDefaultInitializer(IceUtilInternal::Output& out,
 
 void
 SwiftGenerator::writeMemberwiseInitializer(IceUtilInternal::Output& out,
-                                           const DataMemberList& members,
+                                           const MemberList& members,
                                            const ContainedPtr& p)
 {
-    writeMemberwiseInitializer(out, members, DataMemberList(), members, p, false, true);
+    writeMemberwiseInitializer(out, members, MemberList(), members, p, true);
 }
 
 void
 SwiftGenerator::writeMemberwiseInitializer(IceUtilInternal::Output& out,
-                                           const DataMemberList& members,
-                                           const DataMemberList& baseMembers,
-                                           const DataMemberList& allMembers,
+                                           const MemberList& members,
+                                           const MemberList& baseMembers,
+                                           const MemberList& allMembers,
                                            const ContainedPtr& p,
-                                           bool local,
-                                           bool rootClass,
-                                           const StringPairList& extraParams)
+                                           bool rootClass)
 {
     if(!members.empty())
     {
         out << sp;
         out << nl;
-        int typeCtx = TypeContextInParam;
-        if(local)
-        {
-            typeCtx |= TypeContextLocal;
-        }
         out << "public init" << spar;
-        for(DataMemberList::const_iterator i = allMembers.begin(); i != allMembers.end(); ++i)
+        for (const auto& member : allMembers)
         {
-            DataMemberPtr m = *i;
-            out << (fixIdent(m->name()) + ": " +
-                    typeToString(m->type(), p, m->getMetaData(), m->optional(), TypeContextInParam));
+            out << (fixIdent(member->name()) + ": " + typeToString(member->type(), p, member->getAllMetadata()));
         }
-        for(StringPairList::const_iterator q = extraParams.begin(); q != extraParams.end(); ++q)
-        {
-            out << (q->first + ": " + q->second);
-        }
+
         out << epar;
         out << sb;
-        for(DataMemberList::const_iterator i = members.begin(); i != members.end(); ++i)
+        for (const auto& member : members)
         {
-            DataMemberPtr m = *i;
-            out << nl << "self." << fixIdent(m->name()) << " = " << fixIdent(m->name());
+            out << nl << "self." << fixIdent(member->name()) << " = " << fixIdent(member->name());
         }
 
         if(!rootClass)
         {
             out << nl << "super.init";
             out << spar;
-            for(DataMemberList::const_iterator i = baseMembers.begin(); i != baseMembers.end(); ++i)
+            for (const auto& member : baseMembers)
             {
-                const string name = fixIdent((*i)->name());
+                const string name = fixIdent(member->name());
                 out << (name + ": " + name);
-            }
-            for(StringPairList::const_iterator q = extraParams.begin(); q != extraParams.end(); ++q)
-            {
-                out << (q->first + ": " + q->first);
             }
             out << epar;
         }
@@ -1570,30 +1294,26 @@ SwiftGenerator::writeMemberwiseInitializer(IceUtilInternal::Output& out,
 
 void
 SwiftGenerator::writeMembers(IceUtilInternal::Output& out,
-                             const DataMemberList& members,
-                             const ContainedPtr& p,
-                             int typeCtx)
+                             const MemberList& members,
+                             const ContainedPtr& p)
 {
     string swiftModule = getSwiftModule(getTopLevelModule(p));
-    bool protocol = (typeCtx & TypeContextProtocol) != 0;
-    string access = protocol ? "" : "public ";
-    for(DataMemberList::const_iterator q = members.begin(); q != members.end(); ++q)
+    for (const auto& member : members)
     {
-        DataMemberPtr member = *q;
         TypePtr type = member->type();
         const string defaultValue = member->defaultValue();
 
         const string memberName = fixIdent(member->name());
-        string memberType = typeToString(type, p, member->getMetaData(), member->optional(), typeCtx);
+        string memberType = typeToString(type, p, member->getAllMetadata());
 
         //
         // If the member type is equal to the member name, create a local type alias
         // to avoid ambiguity.
         //
         string alias;
-        if(!protocol && memberName == memberType && (StructPtr::dynamicCast(type) ||
-                                                     SequencePtr::dynamicCast(type) ||
-                                                     DictionaryPtr::dynamicCast(type)))
+        if(memberName == memberType && (StructPtr::dynamicCast(type) ||
+                                        SequencePtr::dynamicCast(type) ||
+                                        DictionaryPtr::dynamicCast(type)))
         {
             ModulePtr m = getTopLevelModule(type);
             alias =  m->name() + "_" + memberType;
@@ -1601,23 +1321,16 @@ SwiftGenerator::writeMembers(IceUtilInternal::Output& out,
         }
 
         writeMemberDoc(out, member);
-        out << nl << access << "var " << memberName << ": " << memberType;
-        if(protocol)
+        out << nl << "public var " << memberName << ": " << memberType;
+        out << " = ";
+        if(alias.empty())
         {
-            out << " { get set }";
+            writeConstantValue(out, type, member->defaultValueType(), defaultValue, p->getAllMetadata(), swiftModule,
+                               member->tagged());
         }
         else
         {
-            out << " = ";
-            if(alias.empty())
-            {
-                writeConstantValue(out, type, member->defaultValueType(), defaultValue, p->getMetaData(), swiftModule,
-                                   member->optional());
-            }
-            else
-            {
-                out << alias << "()";
-            }
+            out << alias << "()";
         }
     }
 }
@@ -1639,13 +1352,16 @@ SwiftGenerator::usesMarshalHelper(const TypePtr& type)
 }
 
 void
-SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
-                                          const TypePtr& type,
+SwiftGenerator::writeMarshalUnmarshalCode(Output& out,
+                                          const TypePtr& constType,
                                           const ContainedPtr& p,
                                           const string& param,
                                           bool marshal,
                                           int tag)
 {
+    // TODO: rework this code
+    TypePtr type = unwrapIfOptional(constType);
+
     string swiftModule = getSwiftModule(getTopLevelModule(p));
     string stream = StructPtr::dynamicCast(p) ? "self" : marshal ? "ostr" : "istr";
 
@@ -1673,26 +1389,7 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
     {
         switch(builtin->kind())
         {
-            case Builtin::KindByte:
-            case Builtin::KindBool:
-            case Builtin::KindShort:
-            case Builtin::KindInt:
-            case Builtin::KindLong:
-            case Builtin::KindFloat:
-            case Builtin::KindDouble:
-            case Builtin::KindString:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".write(" << args << ")";
-                }
-                else
-                {
-                    out << nl << param << " = try " << stream << ".read(" << args << ")";
-                }
-                break;
-            }
-            case Builtin::KindObjectProxy:
+            case Builtin::KindObject:
             {
                 if(marshal)
                 {
@@ -1710,8 +1407,7 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
                 }
                 break;
             }
-            case Builtin::KindObject:
-            case Builtin::KindValue:
+            case Builtin::KindAnyClass:
             {
                 if(marshal)
                 {
@@ -1723,13 +1419,16 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
                 }
                 break;
             }
-            case Builtin::KindLocalObject:
-            {
-                assert(false);
-                break;
-            }
             default:
             {
+                if(marshal)
+                {
+                    out << nl << stream << ".write(" << args << ")";
+                }
+                else
+                {
+                    out << nl << param << " = try " << stream << ".read(" << args << ")";
+                }
                 break;
             }
         }
@@ -1744,38 +1443,32 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
         }
         else
         {
-            if(cl->isInterface())
+            if (tag >= 0)
             {
-                out << nl << "try " << stream << ".read(" << args << ") { " << param << " = $0 }";
+                args += ", value: ";
             }
-            else
+            string memberType = getUnqualified(getAbsolute(type), swiftModule);
+            string memberName;
+            const string memberPrefix = "self.";
+            if (param.find(memberPrefix) == 0)
             {
-                if(tag >= 0)
-                {
-                    args += ", value: ";
-                }
-                string memberType = getUnqualified(getAbsolute(type), swiftModule);
-                string memberName;
-                const string memberPrefix = "self.";
-                if(param.find(memberPrefix) == 0)
-                {
-                    memberName = param.substr(memberPrefix.size());
-                }
+                memberName = param.substr(memberPrefix.size());
+            }
 
-                string alias;
-                //
-                // If the member type is equal to the member name, create a local type alias
-                // to avoid ambiguity.
-                //
-                if(memberType == memberName)
-                {
-                    ModulePtr m = getTopLevelModule(type);
-                    alias =  m->name() + "_" + memberType;
-                    out << nl << "typealias " << alias << " = " << memberType;
-                }
-                args += (alias.empty() ? memberType : alias) + ".self";
-                out << nl << "try " << stream << ".read(" << args << ") { " << param << " = $0 " << "}";
+            string alias;
+            //
+            // If the member type is equal to the member name, create a local type alias
+            // to avoid ambiguity.
+            //
+            if (memberType == memberName)
+            {
+                ModulePtr m = getTopLevelModule(type);
+                alias = m->name() + "_" + memberType;
+                out << nl << "typealias " << alias << " = " << memberType;
             }
+            args += (alias.empty() ? memberType : alias) + ".self";
+            out << nl << "try " << stream << ".read(" << args << ") { " << param << " = $0 "
+                << "}";
         }
         return;
     }
@@ -1794,8 +1487,7 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
         return;
     }
 
-    ProxyPtr prx = ProxyPtr::dynamicCast(type);
-    if(prx)
+    if(InterfaceDeclPtr::dynamicCast(type))
     {
         if(marshal)
         {
@@ -1808,15 +1500,7 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
                 args += ", type: ";
             }
 
-            ClassDefPtr def = prx->_class()->definition();
-            if(!def || def->isAbstract())
-            {
-                args += getUnqualified(getAbsolute(type), swiftModule) + ".self";
-            }
-            else
-            {
-                args += getUnqualified("Ice.ObjectPrx", swiftModule) + ".self";
-            }
+            args += getUnqualified(getAbsolute(type), swiftModule) + ".self";
             out << nl << param << " = try " << stream << ".read(" << args << ")";
         }
         return;
@@ -1891,7 +1575,7 @@ SwiftGenerator::writeMarshalUnmarshalCode(Output &out,
 }
 
 bool
-SwiftGenerator::MetaDataVisitor::visitModuleStart(const ModulePtr& p)
+SwiftGenerator::MetadataVisitor::visitModuleStart(const ModulePtr& p)
 {
     if(UnitPtr::dynamicCast(p->container()))
     {
@@ -1905,7 +1589,7 @@ SwiftGenerator::MetaDataVisitor::visitModuleStart(const ModulePtr& p)
         string swiftModule;
         string swiftPrefix;
 
-        if(p->findMetaData(modulePrefix, swiftModule))
+        if(p->findMetadata(modulePrefix, swiftModule))
         {
             swiftModule = swiftModule.substr(modulePrefix.size());
 
@@ -1966,34 +1650,32 @@ SwiftGenerator::MetaDataVisitor::visitModuleStart(const ModulePtr& p)
             }
         }
     }
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line()));
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
     return true;
 }
 
 string
-SwiftGenerator::paramLabel(const string& param, const ParamDeclList& params)
+SwiftGenerator::paramLabel(const string& name, const MemberList& params)
 {
-    string s = param;
-    for(ParamDeclList::const_iterator q = params.begin(); q != params.end(); ++q)
+    for (const auto& param : params)
     {
-        if((*q)->name() == param)
+        if(param->name() == name)
         {
-            s = "_" + s;
-            break;
+            return "_" + name;
         }
     }
-    return s;
+    return name;
 }
 
 bool
 SwiftGenerator::operationReturnIsTuple(const OperationPtr& op)
 {
-    ParamDeclList outParams = op->outParameters();
-    return (op->returnType() && outParams.size() > 0) || outParams.size() > 1;
+    MemberList outParams = op->outParameters();
+    return (op->deprecatedReturnType() && outParams.size() > 0) || outParams.size() > 1;
 }
 
 string
-SwiftGenerator::operationReturnType(const OperationPtr& op, int typeCtx)
+SwiftGenerator::operationReturnType(const OperationPtr& op)
 {
     ostringstream os;
     bool returnIsTuple = operationReturnIsTuple(op);
@@ -2002,18 +1684,18 @@ SwiftGenerator::operationReturnType(const OperationPtr& op, int typeCtx)
         os << "(";
     }
 
-    ParamDeclList outParams = op->outParameters();
-    TypePtr returnType = op->returnType();
+    MemberList outParams = op->outParameters();
+    TypePtr returnType = op->deprecatedReturnType();
     if(returnType)
     {
         if(returnIsTuple)
         {
             os << paramLabel("returnValue", outParams) << ": ";
         }
-        os << typeToString(returnType, op, op->getMetaData(), op->returnIsOptional(), typeCtx);
+        os << typeToString(returnType, op, op->getAllMetadata());
     }
 
-    for(ParamDeclList::const_iterator q = outParams.begin(); q != outParams.end(); ++q)
+    for (auto q = outParams.begin(); q != outParams.end(); ++q)
     {
         if(returnType || q != outParams.begin())
         {
@@ -2025,7 +1707,7 @@ SwiftGenerator::operationReturnType(const OperationPtr& op, int typeCtx)
             os << (*q)->name() << ": ";
         }
 
-        os << typeToString((*q)->type(), *q, (*q)->getMetaData(), (*q)->optional(), typeCtx);
+        os << typeToString((*q)->type(), *q, (*q)->getAllMetadata());
     }
 
     if(returnIsTuple)
@@ -2040,8 +1722,8 @@ std::string
 SwiftGenerator::operationReturnDeclaration(const OperationPtr& op)
 {
     ostringstream os;
-    ParamDeclList outParams = op->outParameters();
-    TypePtr returnType = op->returnType();
+    MemberList outParams = op->outParameters();
+    TypePtr returnType = op->deprecatedReturnType();
     bool returnIsTuple = operationReturnIsTuple(op);
 
     if(returnIsTuple)
@@ -2054,7 +1736,7 @@ SwiftGenerator::operationReturnDeclaration(const OperationPtr& op)
         os << ("iceP_" + paramLabel("returnValue", outParams));
     }
 
-    for(ParamDeclList::const_iterator q = outParams.begin(); q != outParams.end(); ++q)
+    for (auto q = outParams.begin(); q != outParams.end(); ++q)
     {
         if(returnType || q != outParams.begin())
         {
@@ -2077,7 +1759,7 @@ SwiftGenerator::operationInParamsDeclaration(const OperationPtr& op)
 {
     ostringstream os;
 
-    ParamDeclList inParams = op->inParameters();
+    MemberList inParams = op->params();
     const bool isTuple = inParams.size() > 1;
 
     if(!inParams.empty())
@@ -2086,7 +1768,7 @@ SwiftGenerator::operationInParamsDeclaration(const OperationPtr& op)
         {
             os << "(";
         }
-        for(ParamDeclList::const_iterator q = inParams.begin(); q != inParams.end(); ++q)
+        for (auto q = inParams.begin(); q != inParams.end(); ++q)
         {
             if(q != inParams.begin())
             {
@@ -2106,14 +1788,14 @@ SwiftGenerator::operationInParamsDeclaration(const OperationPtr& op)
         {
             os << "(";
         }
-        for(ParamDeclList::const_iterator q = inParams.begin(); q != inParams.end(); ++q)
+        for (auto q = inParams.begin(); q != inParams.end(); ++q)
         {
             if(q != inParams.begin())
             {
                 os << ", ";
             }
 
-            os << typeToString((*q)->type(), *q, (*q)->getMetaData(), (*q)->optional());
+            os << typeToString((*q)->type(), *q, (*q)->getAllMetadata());
         }
         if(isTuple)
         {
@@ -2127,47 +1809,46 @@ SwiftGenerator::operationInParamsDeclaration(const OperationPtr& op)
 bool
 SwiftGenerator::operationIsAmd(const OperationPtr& op)
 {
-    const ClassDefPtr cl = ClassDefPtr::dynamicCast(op->container());
-    return cl->hasMetaData("amd") || op->hasMetaData("amd");
+    const InterfaceDefPtr def = op->interface();
+    return def->hasMetadata("amd") || op->hasMetadata("amd");
 }
 
 ParamInfoList
-SwiftGenerator::getAllInParams(const OperationPtr& op, int typeCtx)
+SwiftGenerator::getAllInParams(const OperationPtr& op)
 {
-    const ParamDeclList l = op->inParameters();
     ParamInfoList r;
-    for(ParamDeclList::const_iterator p = l.begin(); p != l.end(); ++p)
+    for (const auto& param : op->params())
     {
         ParamInfo info;
-        info.name = (*p)->name();
-        info.type = (*p)->type();
-        info.typeStr = typeToString(info.type, op, (*p)->getMetaData(), (*p)->optional(), typeCtx);
-        info.optional = (*p)->optional();
-        info.tag = (*p)->tag();
-        info.param = *p;
+        info.name = param->name();
+        info.type = param->type();
+        info.typeStr = typeToString(info.type, op, param->getAllMetadata());
+        info.isTagged = param->tagged();
+        info.tag = param->tag();
+        info.param = param;
         r.push_back(info);
     }
     return r;
 }
 
 void
-SwiftGenerator::getInParams(const OperationPtr& op, ParamInfoList& required, ParamInfoList& optional)
+SwiftGenerator::getInParams(const OperationPtr& op, ParamInfoList& requiredParams, ParamInfoList& taggedParams)
 {
     const ParamInfoList params = getAllInParams(op);
     for(ParamInfoList::const_iterator p = params.begin(); p != params.end(); ++p)
     {
-        if(p->optional)
+        if(p->isTagged)
         {
-            optional.push_back(*p);
+            taggedParams.push_back(*p);
         }
         else
         {
-            required.push_back(*p);
+            requiredParams.push_back(*p);
         }
     }
 
     //
-    // Sort optional parameters by tag.
+    // Sort tagged parameters by tag.
     //
     class SortFn
     {
@@ -2177,34 +1858,34 @@ SwiftGenerator::getInParams(const OperationPtr& op, ParamInfoList& required, Par
             return lhs.tag < rhs.tag;
         }
     };
-    optional.sort(SortFn::compare);
+    taggedParams.sort(SortFn::compare);
 }
 
 ParamInfoList
-SwiftGenerator::getAllOutParams(const OperationPtr& op, int typeCtx)
+SwiftGenerator::getAllOutParams(const OperationPtr& op)
 {
-    ParamDeclList params = op->outParameters();
+    MemberList params = op->outParameters();
     ParamInfoList l;
 
-    for(ParamDeclList::const_iterator p = params.begin(); p != params.end(); ++p)
+    for (const auto& param : params)
     {
         ParamInfo info;
-        info.name = (*p)->name();
-        info.type = (*p)->type();
-        info.typeStr = typeToString(info.type, op, (*p)->getMetaData(), (*p)->optional(), typeCtx);
-        info.optional = (*p)->optional();
-        info.tag = (*p)->tag();
-        info.param = *p;
+        info.name = param->name();
+        info.type = param->type();
+        info.typeStr = typeToString(info.type, op, param->getAllMetadata());
+        info.isTagged = param->tagged();
+        info.tag = param->tag();
+        info.param = param;
         l.push_back(info);
     }
 
-    if(op->returnType())
+    if(op->deprecatedReturnType())
     {
         ParamInfo info;
         info.name = paramLabel("returnValue", params);
-        info.type = op->returnType();
-        info.typeStr = typeToString(info.type, op, op->getMetaData(), op->returnIsOptional(), typeCtx);
-        info.optional = op->returnIsOptional();
+        info.type = op->deprecatedReturnType();
+        info.typeStr = typeToString(info.type, op, op->getAllMetadata());
+        info.isTagged = op->returnIsTagged();
         info.tag = op->returnTag();
         l.push_back(info);
     }
@@ -2213,23 +1894,23 @@ SwiftGenerator::getAllOutParams(const OperationPtr& op, int typeCtx)
 }
 
 void
-SwiftGenerator::getOutParams(const OperationPtr& op, ParamInfoList& required, ParamInfoList& optional)
+SwiftGenerator::getOutParams(const OperationPtr& op, ParamInfoList& requiredParams, ParamInfoList& taggedParams)
 {
     const ParamInfoList params = getAllOutParams(op);
     for(ParamInfoList::const_iterator p = params.begin(); p != params.end(); ++p)
     {
-        if(p->optional)
+        if(p->isTagged)
         {
-            optional.push_back(*p);
+            taggedParams.push_back(*p);
         }
         else
         {
-            required.push_back(*p);
+            requiredParams.push_back(*p);
         }
     }
 
     //
-    // Sort optional parameters by tag.
+    // Sort tagged parameters by tag.
     //
     class SortFn
     {
@@ -2239,21 +1920,21 @@ SwiftGenerator::getOutParams(const OperationPtr& op, ParamInfoList& required, Pa
             return lhs.tag < rhs.tag;
         }
     };
-    optional.sort(SortFn::compare);
+    taggedParams.sort(SortFn::compare);
 }
 
 void
 SwiftGenerator::writeMarshalInParams(::IceUtilInternal::Output& out, const OperationPtr& op)
 {
-    ParamInfoList requiredInParams, optionalInParams;
-    getInParams(op, requiredInParams, optionalInParams);
+    ParamInfoList requiredInParams, taggedInParams;
+    getInParams(op, requiredInParams, taggedInParams);
 
     out << "{ ostr in";
     out.inc();
     //
     // Marshal parameters
     // 1. required
-    // 2. optional
+    // 2. tagged
     //
 
     for(ParamInfoList::const_iterator q = requiredInParams.begin(); q != requiredInParams.end(); ++q)
@@ -2261,7 +1942,7 @@ SwiftGenerator::writeMarshalInParams(::IceUtilInternal::Output& out, const Opera
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true);
     }
 
-    for(ParamInfoList::const_iterator q = optionalInParams.begin(); q != optionalInParams.end(); ++q)
+    for(ParamInfoList::const_iterator q = taggedInParams.begin(); q != taggedInParams.end(); ++q)
     {
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true, q->tag);
     }
@@ -2277,15 +1958,15 @@ SwiftGenerator::writeMarshalInParams(::IceUtilInternal::Output& out, const Opera
 void
 SwiftGenerator::writeMarshalOutParams(::IceUtilInternal::Output& out, const OperationPtr& op)
 {
-    ParamInfoList requiredOutParams, optionalOutParams;
-    getOutParams(op, requiredOutParams, optionalOutParams);
+    ParamInfoList requiredOutParams, taggedOutParams;
+    getOutParams(op, requiredOutParams, taggedOutParams);
 
     out << "{ ostr in";
     out.inc();
     //
     // Marshal parameters
     // 1. required
-    // 2. optional (including optional return)
+    // 2. tagged (including tagged return)
     //
 
     for(ParamInfoList::const_iterator q = requiredOutParams.begin(); q != requiredOutParams.end(); ++q)
@@ -2293,7 +1974,7 @@ SwiftGenerator::writeMarshalOutParams(::IceUtilInternal::Output& out, const Oper
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true);
     }
 
-    for(ParamInfoList::const_iterator q = optionalOutParams.begin(); q != optionalOutParams.end(); ++q)
+    for(ParamInfoList::const_iterator q = taggedOutParams.begin(); q != taggedOutParams.end(); ++q)
     {
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true, q->tag);
     }
@@ -2310,15 +1991,15 @@ SwiftGenerator::writeMarshalOutParams(::IceUtilInternal::Output& out, const Oper
 void
 SwiftGenerator::writeMarshalAsyncOutParams(::IceUtilInternal::Output& out, const OperationPtr& op)
 {
-    ParamInfoList requiredOutParams, optionalOutParams;
-    getOutParams(op, requiredOutParams, optionalOutParams);
+    ParamInfoList requiredOutParams, taggedOutParams;
+    getOutParams(op, requiredOutParams, taggedOutParams);
 
     out << sb << " (ostr, retVals) in";
     out << nl << "let " << operationReturnDeclaration(op) << " = retVals";
     //
     // Marshal parameters
     // 1. required
-    // 2. optional (including optional return)
+    // 2. tagged (including tagged return)
     //
 
     for(ParamInfoList::const_iterator q = requiredOutParams.begin(); q != requiredOutParams.end(); ++q)
@@ -2326,7 +2007,7 @@ SwiftGenerator::writeMarshalAsyncOutParams(::IceUtilInternal::Output& out, const
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true);
     }
 
-    for(ParamInfoList::const_iterator q = optionalOutParams.begin(); q != optionalOutParams.end(); ++q)
+    for(ParamInfoList::const_iterator q = taggedOutParams.begin(); q != taggedOutParams.end(); ++q)
     {
         writeMarshalUnmarshalCode(out, q->type, op, "iceP_" + q->name, true, q->tag);
     }
@@ -2342,23 +2023,23 @@ SwiftGenerator::writeMarshalAsyncOutParams(::IceUtilInternal::Output& out, const
 void
 SwiftGenerator::writeUnmarshalOutParams(::IceUtilInternal::Output& out, const OperationPtr& op)
 {
-    TypePtr returnType = op->returnType();
+    TypePtr returnType = op->deprecatedReturnType();
 
-    ParamInfoList requiredOutParams, optionalOutParams;
-    getOutParams(op, requiredOutParams, optionalOutParams);
+    ParamInfoList requiredOutParams, taggedOutParams;
+    getOutParams(op, requiredOutParams, taggedOutParams);
     const ParamInfoList allOutParams = getAllOutParams(op);
     //
     // Unmarshal parameters
     // 1. required
     // 2. return
-    // 3. optional (including optional return)
+    // 3. tagged (including tagged return)
     //
     out << "{ istr in";
     out.inc();
     for(ParamInfoList::const_iterator q = requiredOutParams.begin(); q != requiredOutParams.end(); ++q)
     {
         string param;
-        if(isClassType(q->type))
+        if(q->type->isClassType())
         {
             out << nl << "var iceP_" << q->name << ": " << q->typeStr;
             param = "iceP_" + q->name;
@@ -2370,10 +2051,10 @@ SwiftGenerator::writeUnmarshalOutParams(::IceUtilInternal::Output& out, const Op
         writeMarshalUnmarshalCode(out, q->type, op, param, false);
     }
 
-    for(ParamInfoList::const_iterator q = optionalOutParams.begin(); q != optionalOutParams.end(); ++q)
+    for(ParamInfoList::const_iterator q = taggedOutParams.begin(); q != taggedOutParams.end(); ++q)
     {
         string param;
-        if(isClassType(q->type))
+        if(q->type->isClassType())
         {
             out << nl << "var iceP_" << q->name << ": " << q->typeStr;
             param = "iceP_" + q->name;
@@ -2421,13 +2102,13 @@ SwiftGenerator::writeUnmarshalOutParams(::IceUtilInternal::Output& out, const Op
 void
 SwiftGenerator::writeUnmarshalInParams(::IceUtilInternal::Output& out, const OperationPtr& op)
 {
-    ParamInfoList requiredInParams, optionalInParams;
-    getInParams(op, requiredInParams, optionalInParams);
+    ParamInfoList requiredInParams, taggedInParams;
+    getInParams(op, requiredInParams, taggedInParams);
     const ParamInfoList allInParams = getAllInParams(op);
     //
     // Unmarshal parameters
     // 1. required
-    // 3. optional
+    // 3. tagged
     //
     out << "{ istr in";
     out.inc();
@@ -2436,7 +2117,7 @@ SwiftGenerator::writeUnmarshalInParams(::IceUtilInternal::Output& out, const Ope
         if(q->param)
         {
             string param;
-            if(isClassType(q->type))
+            if(q->type->isClassType())
             {
                 out << nl << "var iceP_" << q->name << ": " << q->typeStr;
                 param = "iceP_" + q->name;
@@ -2449,10 +2130,10 @@ SwiftGenerator::writeUnmarshalInParams(::IceUtilInternal::Output& out, const Ope
         }
     }
 
-    for(ParamInfoList::const_iterator q = optionalInParams.begin(); q != optionalInParams.end(); ++q)
+    for(ParamInfoList::const_iterator q = taggedInParams.begin(); q != taggedInParams.end(); ++q)
     {
         string param;
-        if(isClassType(q->type))
+        if(q->type->isClassType())
         {
             out << nl << "var iceP_" << q->name << ": " << q->typeStr;
             param = "iceP_" + q->name;
@@ -2546,11 +2227,11 @@ SwiftGenerator::writeProxyOperation(::IceUtilInternal::Output& out, const Operat
     {
         if(allInParams.size() == 1)
         {
-            out << ("_ iceP_" + q->name + ": " + q->typeStr + (q->optional ? " = nil" : ""));
+            out << ("_ iceP_" + q->name + ": " + q->typeStr + (q->isTagged ? " = nil" : ""));
         }
         else
         {
-            out << (q->name + " iceP_" + q->name + ": " + q->typeStr + (q->optional ? " = nil" : ""));
+            out << (q->name + " iceP_" + q->name + ": " + q->typeStr + (q->isTagged ? " = nil" : ""));
         }
     }
     out << ("context: " + getUnqualified("Ice.Context", swiftModule) + "? = nil");
@@ -2632,11 +2313,11 @@ SwiftGenerator::writeProxyAsyncOperation(::IceUtilInternal::Output& out, const O
     {
         if(allInParams.size() == 1)
         {
-            out << ("_ iceP_" + q->name + ": " + q->typeStr + (q->optional ? " = nil" : ""));
+            out << ("_ iceP_" + q->name + ": " + q->typeStr + (q->isTagged ? " = nil" : ""));
         }
         else
         {
-            out << (q->name + " iceP_" + q->name + ": " + q->typeStr + (q->optional ? " = nil" : ""));
+            out << (q->name + " iceP_" + q->name + ": " + q->typeStr + (q->isTagged ? " = nil" : ""));
         }
     }
     out << "context: " + getUnqualified("Ice.Context", swiftModule) + "? = nil";
@@ -2817,98 +2498,80 @@ SwiftGenerator::writeDispatchAsyncOperation(::IceUtilInternal::Output& out, cons
 }
 
 bool
-SwiftGenerator::MetaDataVisitor::visitClassDefStart(const ClassDefPtr& p)
+SwiftGenerator::MetadataVisitor::visitClassDefStart(const ClassDefPtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
-    DataMemberList members = p->dataMembers();
-    for(DataMemberList::iterator q = members.begin(); q != members.end(); ++q)
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
+    for (auto& member : p->dataMembers())
     {
-        (*q)->setMetaData(validate((*q)->type(), (*q)->getMetaData(), p->file(), (*q)->line(), p->isLocal()));
+        member->setMetadata(validate(member->type(), member->getAllMetadata(), p->file(), member->line()));
     }
     return true;
 }
 
-void
-SwiftGenerator::MetaDataVisitor::visitOperation(const OperationPtr& p)
+bool
+SwiftGenerator::MetadataVisitor::visitInterfaceDefStart(const InterfaceDefPtr& p)
 {
-    ClassDefPtr cl = ClassDefPtr::dynamicCast(p->container());
-    StringList metaData = p->getMetaData();
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
+    return true;
+}
+
+void
+SwiftGenerator::MetadataVisitor::visitOperation(const OperationPtr& p)
+{
+    InterfaceDefPtr interface = InterfaceDefPtr::dynamicCast(p->container());
+    StringList metadata = p->getAllMetadata();
 
     const UnitPtr ut = p->unit();
     const DefinitionContextPtr dc = ut->findDefinitionContext(p->file());
     assert(dc);
 
-    if(!cl->isLocal())
+    p->setMetadata(validate(p, metadata, p->file(), p->line()));
+    for (auto& param : p->allMembers())
     {
-        for(StringList::iterator q = metaData.begin(); q != metaData.end();)
-        {
-            string s = *q++;
-            if(s.find("swift:attribute:") == 0 ||
-               s.find("swift:type:") == 0 ||
-               s == "swift:noexcept" ||
-               s == "swift:nonnull")
-            {
-                dc->warning(InvalidMetaData, p->file(), p->line(),
-                            "ignoring metadata `" + s + "' for non local operation");
-                metaData.remove(s);
-            }
-        }
-    }
-    p->setMetaData(validate(p, metaData, p->file(), p->line(), cl->isLocal()));
-    ParamDeclList params = p->parameters();
-    for(ParamDeclList::iterator q = params.begin(); q != params.end(); ++q)
-    {
-        (*q)->setMetaData(validate((*q)->type(), (*q)->getMetaData(), p->file(), (*q)->line(), cl->isLocal(), true));
+        param->setMetadata(validate(param->type(), param->getAllMetadata(), p->file(), param->line()));
     }
 }
 
 bool
-SwiftGenerator::MetaDataVisitor::visitExceptionStart(const ExceptionPtr& p)
+SwiftGenerator::MetadataVisitor::visitExceptionStart(const ExceptionPtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
-    DataMemberList members = p->dataMembers();
-    for(DataMemberList::iterator q = members.begin(); q != members.end(); ++q)
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
+    for (auto& member : p->dataMembers())
     {
-        (*q)->setMetaData(validate((*q)->type(), (*q)->getMetaData(), p->file(), (*q)->line(), p->isLocal()));
+        member->setMetadata(validate(member->type(), member->getAllMetadata(), p->file(), member->line()));
     }
     return true;
 }
 
 bool
-SwiftGenerator::MetaDataVisitor::visitStructStart(const StructPtr& p)
+SwiftGenerator::MetadataVisitor::visitStructStart(const StructPtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
-    DataMemberList members = p->dataMembers();
-    for(DataMemberList::iterator q = members.begin(); q != members.end(); ++q)
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
+    for (auto& member : p->dataMembers())
     {
-        (*q)->setMetaData(validate((*q)->type(), (*q)->getMetaData(), p->file(), (*q)->line(), p->isLocal()));
+        member->setMetadata(validate(member->type(), member->getAllMetadata(), p->file(), member->line()));
     }
     return true;
 }
 
 void
-SwiftGenerator::MetaDataVisitor::visitSequence(const SequencePtr& p)
+SwiftGenerator::MetadataVisitor::visitSequence(const SequencePtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
 }
 
 void
-SwiftGenerator::MetaDataVisitor::visitDictionary(const DictionaryPtr& p)
+SwiftGenerator::MetadataVisitor::visitDictionary(const DictionaryPtr& p)
 {
     const string prefix = "swift:";
     const DefinitionContextPtr dc = p->unit()->findDefinitionContext(p->file());
     assert(dc);
 
-    StringList newMetaData = p->keyMetaData();
-    for(StringList::const_iterator q = newMetaData.begin(); q != newMetaData.end();)
+    StringList newMetadata = p->keyMetadata();
+    for(StringList::const_iterator q = newMetadata.begin(); q != newMetadata.end();)
     {
         string s = *q++;
         if(s.find(prefix) != 0)
-        {
-            continue;
-        }
-
-        if(p->isLocal() && s.find("swift:type:") == 0)
         {
             continue;
         }
@@ -2916,60 +2579,43 @@ SwiftGenerator::MetaDataVisitor::visitDictionary(const DictionaryPtr& p)
         dc->error(p->file(), p->line(), "invalid metadata `" + s + "' for dictionary key type");
     }
 
-    newMetaData = p->valueMetaData();
+    newMetadata = p->valueMetadata();
     TypePtr t = p->valueType();
-    for(StringList::const_iterator q = newMetaData.begin(); q != newMetaData.end();)
+    for(StringList::const_iterator q = newMetadata.begin(); q != newMetadata.end();)
     {
         string s = *q++;
         if(s.find(prefix) != 0)
         {
             continue;
         }
-
-        if(p->isLocal() && s.find("swift:type:") == 0)
-        {
-            continue;
-        }
-
-        if(p->isLocal() && s == "swift:nonnull")
-        {
-            if(!isNullableType(t))
-            {
-                dc->error(p->file(), p->line(), "error invalid metadata `" + s + "' for non nullable value type");
-            }
-            continue;
-        }
-
         dc->error(p->file(), p->line(), "error invalid metadata `" + s + "' for dictionary value type");
     }
 
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
 }
 
 void
-SwiftGenerator::MetaDataVisitor::visitEnum(const EnumPtr& p)
+SwiftGenerator::MetadataVisitor::visitEnum(const EnumPtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line(), p->isLocal()));
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
 }
 
 void
-SwiftGenerator::MetaDataVisitor::visitConst(const ConstPtr& p)
+SwiftGenerator::MetadataVisitor::visitConst(const ConstPtr& p)
 {
-    p->setMetaData(validate(p, p->getMetaData(), p->file(), p->line()));
+    p->setMetadata(validate(p, p->getAllMetadata(), p->file(), p->line()));
 }
 
 StringList
-SwiftGenerator::MetaDataVisitor::validate(const SyntaxTreeBasePtr& cont, const StringList& metaData,
-                                          const string& file, const string& line,
-                                          bool local,
-                                          bool operationParameter)
+SwiftGenerator::MetadataVisitor::validate(const SyntaxTreeBasePtr& cont, const StringList& metadata,
+                                          const string& file, int line)
 {
-    StringList newMetaData = metaData;
+    StringList newMetadata = metadata;
     const string prefix = "swift:";
     const UnitPtr ut = cont->unit();
     const DefinitionContextPtr dc = ut->findDefinitionContext(file);
     assert(dc);
-    for(StringList::const_iterator p = newMetaData.begin(); p != newMetaData.end();)
+    for(StringList::const_iterator p = newMetadata.begin(); p != newMetadata.end();)
     {
         string s = *p++;
         if(s.find(prefix) != 0)
@@ -2982,70 +2628,18 @@ SwiftGenerator::MetaDataVisitor::validate(const SyntaxTreeBasePtr& cont, const S
             continue;
         }
 
-        if(local)
-        {
-            OperationPtr op = OperationPtr::dynamicCast(cont);
-            if(op)
-            {
-                if(s == "swift:noexcept")
-                {
-                    continue;
-                }
-
-                if(s == "swift:nonnull")
-                {
-                    TypePtr returnType = op->returnType();
-                    if(!returnType)
-                    {
-                        dc->warning(InvalidMetaData, file, line,
-                                    "ignoring invalid metadata `" + s + "' for operation with void return type");
-                        newMetaData.remove(s);
-                    }
-                    else if(!isNullableType(returnType))
-                    {
-                        dc->warning(InvalidMetaData, file, line,
-                                    "ignoring invalid metadata `" + s + "' for operation with non nullable return type");
-                        newMetaData.remove(s);
-                    }
-                    continue;
-                }
-            }
-
-            if(operationParameter && s == "swift:nonnull")
-            {
-                if(!isNullableType(TypePtr::dynamicCast(cont)))
-                {
-                     dc->warning(InvalidMetaData, file, line,
-                                 "ignoring invalid metadata `swift:nonnull' for non nullable type");
-                     newMetaData.remove(s);
-                }
-                continue;
-            }
-
-            if(s.find("swift:type:") == 0)
-            {
-                continue;
-            }
-
-            SequencePtr seq =  SequencePtr::dynamicCast(cont);
-            if(seq && s == "swift:nonnull")
-            {
-                if(!isNullableType(seq->type()))
-                {
-                    dc->warning(InvalidMetaData, file, line,
-                                "ignoring invalid metadata `" + s + "' for sequence of non nullable type");
-                    newMetaData.remove(s);
-                }
-                continue;
-            }
-        }
-
         if(ClassDefPtr::dynamicCast(cont) && s.find("swift:inherits:") == 0)
         {
             continue;
         }
 
+        if(InterfaceDefPtr::dynamicCast(cont) && s.find("swift:inherits:") == 0)
+        {
+            continue;
+        }
+
         if((ClassDefPtr::dynamicCast(cont) ||
+            InterfaceDefPtr::dynamicCast(cont) ||
             EnumPtr::dynamicCast(cont) ||
             ExceptionPtr::dynamicCast(cont) ||
             OperationPtr::dynamicCast(cont)) && s.find("swift:attribute:") == 0)
@@ -3053,9 +2647,9 @@ SwiftGenerator::MetaDataVisitor::validate(const SyntaxTreeBasePtr& cont, const S
             continue;
         }
 
-        dc->warning(InvalidMetaData, file, line, "ignoring invalid metadata `" + s + "'");
-        newMetaData.remove(s);
+        dc->warning(InvalidMetadata, file, line, "ignoring invalid metadata `" + s + "'");
+        newMetadata.remove(s);
         continue;
     }
-    return newMetaData;
+    return newMetadata;
 }

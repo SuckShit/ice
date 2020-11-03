@@ -1,63 +1,54 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.FaultTolerance
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.ServerIdleTime", "120");
-        int port = 0;
-        for(int i = 0; i < args.Length; i++)
+        public override async Task RunAsync(string[] args)
         {
-            if(args[i][0] == '-')
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.ServerIdleTime"] = "120";
+            int port = 0;
+            for (int i = 0; i < args.Length; i++)
             {
-                throw new ArgumentException("Server: unknown option `" + args[i] + "'");
+                if (args[i][0] == '-')
+                {
+                    throw new ArgumentException("Server: unknown option `" + args[i] + "'");
+                }
+
+                if (port != 0)
+                {
+                    throw new ArgumentException("Server: only one port can be specified");
+                }
+
+                try
+                {
+                    port = int.Parse(args[i]);
+                }
+                catch (FormatException)
+                {
+                    throw new ArgumentException("Server: invalid port");
+                }
             }
 
-            if(port != 0)
+            if (port <= 0)
             {
-                throw new ArgumentException("Server: only one port can be specified");
+                throw new ArgumentException("Server: no port specified");
             }
 
-            try
-            {
-                port = int.Parse(args[i]);
-            }
-            catch(FormatException)
-            {
-                throw new ArgumentException("Server: invalid port");
-            }
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(port));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new TestIntf());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
 
-        if(port <= 0)
-        {
-            throw new ArgumentException("Server: no port specified");
-        }
-
-        using(var communicator = initialize(properties))
-        {
-            communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(port));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            Ice.Object obj = new TestI();
-            adapter.add(obj, Ice.Util.stringToIdentity("test"));
-            adapter.activate();
-            communicator.waitForShutdown();
-        }
-    }
-
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

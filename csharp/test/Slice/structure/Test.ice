@@ -2,7 +2,9 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-module Test
+[[3.7]]
+
+module ZeroC::Slice::Test::Structure
 {
 
 sequence<string> StringSeq;
@@ -14,7 +16,6 @@ class C
     int i;
 }
 
-["clr:class"]
 struct S1
 {
     string name;

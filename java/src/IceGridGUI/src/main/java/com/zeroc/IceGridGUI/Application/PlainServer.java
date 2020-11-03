@@ -23,11 +23,8 @@ class PlainServer extends Communicator implements Server
         ServerDescriptor copy = sd.clone();
 
         copy.adapters = Adapter.copyDescriptors(copy.adapters);
-        copy.dbEnvs = DbEnv.copyDescriptors(copy.dbEnvs);
 
         copy.propertySet = PropertySet.copyDescriptor(copy.propertySet);
-
-        copy.distrib = copy.distrib.clone();
 
         if(copy instanceof IceBoxDescriptor)
         {
@@ -52,9 +49,6 @@ class PlainServer extends Communicator implements Server
         into.activation = from.activation;
         into.activationTimeout = from.activationTimeout;
         into.deactivationTimeout = from.deactivationTimeout;
-        into.applicationDistrib = from.applicationDistrib;
-        into.distrib.icepatch = from.distrib.icepatch;
-        into.distrib.directories = from.distrib.directories;
     }
 
     static public ServerDescriptor newServerDescriptor()
@@ -62,7 +56,6 @@ class PlainServer extends Communicator implements Server
         return new ServerDescriptor(
             new java.util.LinkedList<AdapterDescriptor>(),
             new PropertySetDescriptor(new String[0], new java.util.LinkedList<PropertyDescriptor>()),
-            new java.util.LinkedList<DbEnvDescriptor>(),
             new String[0],
             "",
             "NewServer",
@@ -74,8 +67,6 @@ class PlainServer extends Communicator implements Server
             "manual",
             "",
             "",
-            true,
-            new DistributionDescriptor("", new java.util.LinkedList<String>()),
             false, // Allocatable
             "");
     }
@@ -85,7 +76,6 @@ class PlainServer extends Communicator implements Server
         return new IceBoxDescriptor(
             new java.util.LinkedList<AdapterDescriptor>(),
             new PropertySetDescriptor(new String[0], new java.util.LinkedList<PropertyDescriptor>()),
-            new java.util.LinkedList<DbEnvDescriptor>(),
             new String[0],
             "",
             "NewIceBox",
@@ -97,8 +87,6 @@ class PlainServer extends Communicator implements Server
             "manual",
             "",
             "",
-            true,
-            new DistributionDescriptor("", new java.util.LinkedList<String>()),
             false, // Allocatable
             "",
             new java.util.LinkedList<ServiceInstanceDescriptor>()
@@ -118,8 +106,7 @@ class PlainServer extends Communicator implements Server
            (clipboard instanceof ServerDescriptor
             || clipboard instanceof ServerInstanceDescriptor
             || (isIceBox() && (clipboard instanceof ServiceInstanceDescriptor))
-            || (!isIceBox() && (clipboard instanceof Adapter.AdapterCopy
-                                || clipboard instanceof DbEnvDescriptor))))
+            || (!isIceBox() && (clipboard instanceof Adapter.AdapterCopy))))
         {
             actions[PASTE] = true;
         }
@@ -132,7 +119,6 @@ class PlainServer extends Communicator implements Server
             actions[SUBSTITUTE_VARS] = true;
 
             actions[NEW_ADAPTER] = !_services.initialized();
-            actions[NEW_DBENV] = !_services.initialized();
             actions[NEW_SERVICE] = _services.initialized();
             actions[NEW_SERVICE_FROM_TEMPLATE] = _services.initialized();
         }
@@ -147,7 +133,6 @@ class PlainServer extends Communicator implements Server
         {
             _popup = new JPopupMenu();
             _popup.add(actions.get(NEW_ADAPTER));
-            _popup.add(actions.get(NEW_DBENV));
             _popup.add(actions.get(NEW_SERVICE));
             _popup.add(actions.get(NEW_SERVICE_FROM_TEMPLATE));
         }
@@ -239,7 +224,6 @@ class PlainServer extends Communicator implements Server
     public Object saveDescriptor()
     {
         ServerDescriptor clone = _descriptor.clone();
-        clone.distrib = clone.distrib.clone();
         return clone;
     }
 
@@ -288,10 +272,6 @@ class PlainServer extends Communicator implements Server
         if(descriptor.activationTimeout.length() > 0)
         {
             attributes.add(createAttribute("activation-timeout", descriptor.activationTimeout));
-        }
-        if(!descriptor.applicationDistrib)
-        {
-            attributes.add(createAttribute("application-distrib", "false"));
         }
         if(descriptor.deactivationTimeout.length() > 0)
         {
@@ -350,7 +330,6 @@ class PlainServer extends Communicator implements Server
 
                 writePropertySet(writer, "", "", _descriptor.propertySet, _descriptor.adapters, _descriptor.logs);
                 writeLogs(writer, _descriptor.logs, _descriptor.propertySet.properties);
-                writeDistribution(writer, _descriptor.distrib);
 
                 _adapters.write(writer, _descriptor.propertySet.properties);
                 _services.write(writer);
@@ -370,10 +349,8 @@ class PlainServer extends Communicator implements Server
 
                 writePropertySet(writer, _descriptor.propertySet, _descriptor.adapters, _descriptor.logs);
                 writeLogs(writer, _descriptor.logs, _descriptor.propertySet.properties);
-                writeDistribution(writer, _descriptor.distrib);
 
                 _adapters.write(writer, _descriptor.propertySet.properties);
-                _dbEnvs.write(writer);
                 writer.writeEndTag("server");
             }
         }
@@ -483,7 +460,6 @@ class PlainServer extends Communicator implements Server
         _descriptor = serverDescriptor;
 
         _adapters.clear();
-        _dbEnvs.clear();
         _services.clear();
 
         if(!_ephemeral)
@@ -493,15 +469,6 @@ class PlainServer extends Communicator implements Server
             {
                 IceBoxDescriptor iceBoxDescriptor = (IceBoxDescriptor)_descriptor;
                 _services.init(iceBoxDescriptor.services);
-
-                //
-                // IceBox has not dbEnv
-                //
-                assert _descriptor.dbEnvs.size() == 0;
-            }
-            else
-            {
-                _dbEnvs.init(_descriptor.dbEnvs);
             }
         }
     }

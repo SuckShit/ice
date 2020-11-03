@@ -226,9 +226,7 @@ ICE_DEFINE_PTR(ServerProfilePtr, ServerProfile);
 // DBus Bluetooth daemon. These objects include local Bluetooth adapters, paired devices, etc.
 //
 class BluetoothService : public DBus::Filter
-#ifdef ICE_CPP11_MAPPING
                        , public std::enable_shared_from_this<BluetoothService>
-#endif
 {
 public:
 
@@ -300,11 +298,7 @@ public:
         }
 
         VariantMap properties;
-#ifdef ICE_CPP11_MAPPING
         vector<function<void(const string&, const PropertyMap&)>> callbacks;
-#else
-        vector<DiscoveryCallbackPtr> callbacks;
-#endif
     };
 
     typedef map<string, RemoteDevice> RemoteDeviceMap; // Key is the object path.
@@ -321,7 +315,7 @@ public:
             // from the Bluetooth service.
             //
             _dbusConnection = DBus::Connection::getSystemBus();
-            _dbusConnection->addFilter(ICE_SHARED_FROM_THIS);
+            _dbusConnection->addFilter(shared_from_this());
             getManagedObjects();
         }
         catch(const DBus::Exception& ex)
@@ -526,7 +520,7 @@ public:
         // As a subclass of DBus::Service, the ServerProfile object will receive DBus method
         // invocations for a given object path.
         //
-        ProfilePtr profile = ICE_MAKE_SHARED(ServerProfile, cb);
+        ProfilePtr profile = std::make_shared<ServerProfile>(cb);
 
         string path = generatePath();
 
@@ -576,16 +570,12 @@ public:
         //
         // Start a thread to establish the connection.
         //
-        IceUtil::ThreadPtr t = new ConnectThread(ICE_SHARED_FROM_THIS, addr, uuid, cb);
+        IceUtil::ThreadPtr t = new ConnectThread(shared_from_this(), addr, uuid, cb);
         _connectThreads.push_back(t);
         t->start();
     }
 
-#ifdef ICE_CPP11_MAPPING
     void startDiscovery(const string& addr, function<void(const string&, const PropertyMap&)> cb)
-#else
-    void startDiscovery(const string& addr, const DiscoveryCallbackPtr& cb)
-#endif
     {
         string path;
 
@@ -597,11 +587,7 @@ public:
                 if(p->second.getAddress() == IceUtilInternal::toUpper(addr))
                 {
                     path = p->first;
-#ifdef ICE_CPP11_MAPPING
                     p->second.callbacks.push_back(move(cb));
-#else
-                    p->second.callbacks.push_back(cb);
-#endif
                 }
             }
         }
@@ -888,11 +874,7 @@ public:
             return; // Ignore devices that don't have an Address property.
         }
 
-#ifdef ICE_CPP11_MAPPING
         vector<function<void(const string&, const PropertyMap&)>> callbacks;
-#else
-        vector<DiscoveryCallbackPtr> callbacks;
-#endif
 
         {
             IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_lock);
@@ -912,7 +894,6 @@ public:
             {
                 pm[p->first] = p->second->toString();
             }
-#ifdef ICE_CPP11_MAPPING
             for(const auto& discovered : callbacks)
             {
                 try
@@ -923,28 +904,12 @@ public:
                 {
                 }
             }
-#else
-            for(vector<DiscoveryCallbackPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
-            {
-                try
-                {
-                    (*p)->discovered(dev.getAddress(), pm);
-                }
-                catch(...)
-                {
-                }
-            }
-#endif
         }
     }
 
     void deviceChanged(const string& path, const VariantMap& changed, const vector<string>& removedProps)
     {
-#ifdef ICE_CPP11_MAPPING
         vector<function<void(const string&, const PropertyMap&)>> callbacks;
-#else
-        vector<DiscoveryCallbackPtr> callbacks;
-#endif
         string addr;
         string adapter;
         VariantMap props;
@@ -998,7 +963,6 @@ public:
             {
                 pm[p->first] = p->second->toString();
             }
-#ifdef ICE_CPP11_MAPPING
             for(const auto& discovered : callbacks)
             {
                 try
@@ -1009,18 +973,6 @@ public:
                 {
                 }
             }
-#else
-            for(vector<DiscoveryCallbackPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
-            {
-                try
-                {
-                    (*p)->discovered(addr, pm);
-                }
-                catch(...)
-                {
-                }
-            }
-#endif
         }
     }
 
@@ -1200,7 +1152,7 @@ public:
             DBus::ConnectionPtr dbusConn = DBus::Connection::getSystemBus();
             conn = new ConnectionI(dbusConn, devicePath, uuid);
 
-            ProfilePtr profile = ICE_MAKE_SHARED(ClientProfile, conn, cb);
+            ProfilePtr profile = std::make_shared<ClientProfile>(conn, cb);
             string path = generatePath();
 
             //
@@ -1313,18 +1265,10 @@ public:
     vector<IceUtil::ThreadPtr> _connectThreads;
 
     bool _discovering;
-#ifdef ICE_CPP11_MAPPING
     vector<function<void(const string&, const PropertyMap&)>> _discoveryCallbacks;
-#else
-    vector<DiscoveryCallbackPtr> _discoveryCallbacks;
-#endif
 };
 
 }
-
-#ifndef ICE_CPP11_MAPPING
-IceUtil::Shared* IceBT::upCast(IceBT::BluetoothService* p) { return p; }
-#endif
 
 IceBT::Engine::Engine(const Ice::CommunicatorPtr& communicator) :
     _communicator(communicator),
@@ -1341,7 +1285,7 @@ IceBT::Engine::communicator() const
 void
 IceBT::Engine::initialize()
 {
-    _service = ICE_MAKE_SHARED(BluetoothService);
+    _service = std::make_shared<BluetoothService>();
     _service->init();
     _initialized = true;
 }
@@ -1389,11 +1333,7 @@ IceBT::Engine::connect(const string& addr, const string& uuid, const ConnectCall
 }
 
 void
-#ifdef ICE_CPP11_MAPPING
 IceBT::Engine::startDiscovery(const string& address, function<void(const string&, const PropertyMap&)> cb)
-#else
-IceBT::Engine::startDiscovery(const string& address, const DiscoveryCallbackPtr& cb)
-#endif
 {
     _service->startDiscovery(address, cb);
 }

@@ -47,7 +47,7 @@
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(MSBuildThisFileDirectory)..\..\..\..\msbuild\ice.cpp98.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\..\msbuild\ice.source.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -76,7 +76,7 @@
     <ClInclude Include="../../ServiceManagerI.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Service.cpp" />
+    <ClCompile Include="..\..\ServiceI.cpp" />
     <ClCompile Include="..\..\ServiceManagerI.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

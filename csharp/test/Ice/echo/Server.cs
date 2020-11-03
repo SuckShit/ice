@@ -1,59 +1,31 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.Echo
 {
-    private class EchoI : Test.EchoDisp_
+    public class Server : TestHelper
     {
-        public EchoI(BlobjectI blob)
+        private class Echo : IEcho
         {
-            _blob = blob;
+            public void Shutdown(Current current, CancellationToken cancel) =>
+                current.Adapter.Communicator.ShutdownAsync();
         }
 
-        public override void startBatch(Ice.Current current)
+        public override async Task RunAsync(string[] args)
         {
-            _blob.startBatch();
+            await using Communicator communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            var blob = new BlobjectI();
+            adapter.AddDefault(blob);
+            adapter.Add("__echo", new Echo());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
 
-        public override void flushBatch(Ice.Current current)
-        {
-            _blob.flushBatch();
-        }
-
-        public override void shutdown(Ice.Current current)
-        {
-            current.adapter.getCommunicator().shutdown();
-        }
-
-        private BlobjectI _blob;
-    }
-
-    public override void run(string[] args)
-    {
-        using(var communicator = initialize(ref args))
-        {
-            communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            BlobjectI blob = new BlobjectI();
-            adapter.addDefaultServant(blob, "");
-            adapter.add(new EchoI(blob), Ice.Util.stringToIdentity("__echo"));
-            adapter.activate();
-            communicator.waitForShutdown();
-        }
-    }
-
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

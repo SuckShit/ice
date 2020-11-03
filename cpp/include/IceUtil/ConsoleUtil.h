@@ -12,15 +12,12 @@
 namespace IceUtilInternal
 {
 
-#if defined(_WIN32) && !defined(ICE_OS_UWP)
+#ifdef _WIN32
 
 class ConsoleUtil;
 ICE_DEFINE_PTR(ConsoleUtilPtr, ConsoleUtil);
 
 class ICE_API ConsoleUtil
-#  ifndef ICE_CPP11_MAPPING
-    : public IceUtil::Shared
-#  endif
 {
 public:
 
@@ -77,13 +74,13 @@ operator<<(ConsoleErr& err, const T& val)
 ICE_API ConsoleErr& endl(ConsoleErr&);
 ICE_API ConsoleErr& flush(ConsoleErr&);
 
-extern ICE_API ConsoleOut consoleOut ICE_GLOBAL_VAR_SUFFIX;
-extern ICE_API ConsoleErr consoleErr ICE_GLOBAL_VAR_SUFFIX;
+extern ICE_API ConsoleOut consoleOut;
+extern ICE_API ConsoleErr consoleErr;
 
 #else
 
-extern ICE_API std::ostream& consoleOut ICE_GLOBAL_VAR_SUFFIX;
-extern ICE_API std::ostream& consoleErr ICE_GLOBAL_VAR_SUFFIX;
+extern ICE_API std::ostream& consoleOut;
+extern ICE_API std::ostream& consoleErr;
 
 #endif
 

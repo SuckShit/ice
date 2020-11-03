@@ -1,17 +1,11 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Binding
 {
-    namespace binding
+    public class TestIntf : ITestIntf
     {
-        public class TestI : Test.TestIntfDisp_
-        {
-            public override string getAdapterName(Ice.Current current)
-            {
-                return current.adapter.getName();
-            }
-        }
+        public string GetAdapterName(Current current, CancellationToken cancel) => current.Adapter.Name;
     }
 }

@@ -112,48 +112,30 @@ public final class InitialI implements Initial
     }
 
     @Override
-    public com.zeroc.Ice.Value getI(com.zeroc.Ice.Current current)
-    {
-        return new II();
-    }
-
-    @Override
-    public com.zeroc.Ice.Value getJ(com.zeroc.Ice.Current current)
-    {
-        return new JI();
-    }
-
-    @Override
-    public com.zeroc.Ice.Value getH(com.zeroc.Ice.Current current)
-    {
-        return new HI();
-    }
-
-    @Override
     public K getK(com.zeroc.Ice.Current current)
     {
         return new K(new L("l"));
     }
 
     @Override
-    public OpValueResult
-    opValue(com.zeroc.Ice.Value v1, com.zeroc.Ice.Current current)
+    public OpClassResult
+    opClass(com.zeroc.Ice.Value v1, com.zeroc.Ice.Current current)
     {
-        return new OpValueResult(v1, v1);
+        return new OpClassResult(v1, v1);
     }
 
     @Override
-    public OpValueSeqResult
-    opValueSeq(com.zeroc.Ice.Value[] v1, com.zeroc.Ice.Current current)
+    public OpClassSeqResult
+    opClassSeq(com.zeroc.Ice.Value[] v1, com.zeroc.Ice.Current current)
     {
-        return new OpValueSeqResult(v1, v1);
+        return new OpClassSeqResult(v1, v1);
     }
 
     @Override
-    public OpValueMapResult
-    opValueMap(java.util.Map<String, com.zeroc.Ice.Value> v1, com.zeroc.Ice.Current current)
+    public OpClassMapResult
+    opClassMap(java.util.Map<String, com.zeroc.Ice.Value> v1, com.zeroc.Ice.Current current)
     {
-        return new OpValueMapResult(v1, v1);
+        return new OpClassMapResult(v1, v1);
     }
 
     @Override
@@ -182,11 +164,6 @@ public final class InitialI implements Initial
 
     @Override
     public void setG(G theG, com.zeroc.Ice.Current current)
-    {
-    }
-
-    @Override
-    public void setI(com.zeroc.Ice.Value theI, com.zeroc.Ice.Current current)
     {
     }
 

@@ -1,95 +1,52 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System.Collections.Generic;
+
+namespace ZeroC.Ice
 {
-    using System.Collections.Generic;
+    /// <summary>Creates an ice1 endpoint from an <see cref="InputStream"/> stream.</summary>
+    /// <param name="transport">The transport of the endpoint previously read from the stream.</param>
+    /// <param name="istr">The stream to read from.</param>
+    /// <returns>A new endpoint for the ice1 protocol.</returns>
+    public delegate Endpoint Ice1EndpointFactory(Transport transport, InputStream istr);
 
-    public interface EndpointFactory
-    {
-        void initialize();
-        short type();
-        string protocol();
-        EndpointI create(List<string> args, bool oaEndpoint);
-        EndpointI read(Ice.InputStream s);
-        void destroy();
+    /// <summary>Creates an ice1 endpoint from a parsed ice1 endpoint string.</summary>
+    /// <param name="transport">The transport of the new endpoint.</param>
+    /// <param name="options">The options of the new endpoint. This delegate removes any option it understands from this
+    /// dictionary.</param>
+    /// <param name="communicator">The communicator.</param>
+    /// <param name="oaEndpoint">When true, the new endpoint corresponds to an object adapter's endpoint configuration;
+    /// when false, endpointString represents a proxy endpoint.</param>
+    /// <param name="endpointString">The original endpoint string, for error messages and tracing.</param>
+    /// <returns>A new endpoint for the ice1 protocol.</returns>
+    public delegate Endpoint Ice1EndpointParser(
+        Transport transport,
+        Dictionary<string, string?> options,
+        Communicator communicator,
+        bool oaEndpoint,
+        string endpointString);
 
-        EndpointFactory clone(ProtocolInstance instance);
-    }
+    /// <summary>Creates an ice2 endpoint from an <see cref="EndpointData"/> struct.</summary>
+    /// <param name="data">The endpoint's data.</param>
+    /// <param name="communicator">The communicator.</param>
+    /// <returns>A new endpoint for the ice2 protocol.</returns>
+    public delegate Endpoint Ice2EndpointFactory(EndpointData data, Communicator communicator);
 
-    abstract public class EndpointFactoryWithUnderlying : EndpointFactory
-    {
-        public EndpointFactoryWithUnderlying(ProtocolInstance instance, short type)
-        {
-            instance_ = instance;
-            _type = type;
-        }
-
-        public void initialize()
-        {
-            //
-            // Get the endpoint factory for the underlying type and clone it with
-            // our protocol instance.
-            //
-            EndpointFactory factory = instance_.getEndpointFactory(_type);
-            if(factory != null)
-            {
-                _underlying = factory.clone(instance_);
-                _underlying.initialize();
-            }
-        }
-
-        public short type()
-        {
-            return instance_.type();
-        }
-
-        public string protocol()
-        {
-            return instance_.protocol();
-        }
-
-        public EndpointI create(List<string> args, bool oaEndpoint)
-        {
-            if(_underlying == null)
-            {
-                return null; // Can't create an endpoint without underlying factory.
-            }
-            return createWithUnderlying(_underlying.create(args, oaEndpoint), args, oaEndpoint);
-        }
-
-        public EndpointI read(Ice.InputStream s)
-        {
-            if(_underlying == null)
-            {
-                return null; // Can't create an endpoint without underlying factory.
-            }
-            return readWithUnderlying(_underlying.read(s), s);
-        }
-
-        public void destroy()
-        {
-            if(_underlying != null)
-            {
-                _underlying.destroy();
-            }
-            instance_ = null;
-        }
-
-        public EndpointFactory clone(ProtocolInstance instance)
-        {
-            return cloneWithUnderlying(instance, _type);
-        }
-
-        abstract public EndpointFactory cloneWithUnderlying(ProtocolInstance instance, short type);
-
-        abstract protected EndpointI createWithUnderlying(EndpointI underlying, List<string> args, bool oaEndpoint);
-        abstract protected EndpointI readWithUnderlying(EndpointI underlying, Ice.InputStream s);
-
-        protected ProtocolInstance instance_;
-
-        private readonly short _type;
-        private EndpointFactory _underlying;
-    }
+    /// <summary>Creates an ice2 endpoint from a parsed URI.</summary>
+    /// <param name="transport">The transport of the new endpoint.</param>
+    /// <param name="host">The host name or IP address.</param>
+    /// <param name="port">The port number.</param>
+    /// <param name="options">The options of the new endpoint. This delegate removes any option it understands from this
+    /// dictionary.</param>
+    /// <param name="communicator">The communicator.</param>
+    /// <param name="oaEndpoint">When true, the new endpoint corresponds to an object adapter's endpoint configuration;
+    /// when false, represents a proxy endpoint.</param>
+    /// <returns>A new endpoint for the ice2 protocol.</returns>
+    public delegate Endpoint Ice2EndpointParser(
+        Transport transport,
+        string host,
+        ushort port,
+        Dictionary<string, string> options,
+        Communicator communicator,
+        bool oaEndpoint);
 }

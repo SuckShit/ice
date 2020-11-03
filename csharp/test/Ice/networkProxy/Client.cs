@@ -1,28 +1,18 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.NetworkProxy
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            AllTests.allTests(this);
+            await using var communicator = Initialize(ref args);
+            AllTests.Run(this);
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

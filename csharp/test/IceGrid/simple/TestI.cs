@@ -1,12 +1,13 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-public sealed class TestI : Test.TestIntfDisp_
+using System.Threading;
+using Test;
+
+namespace ZeroC.IceGrid.Test.Simple
 {
-    public override void
-    shutdown(Ice.Current current)
+    public sealed class TestIntf : ITestIntf
     {
-        current.adapter.getCommunicator().shutdown();
+        public void Shutdown(Ice.Current current, CancellationToken cancel) =>
+            current.Communicator.ShutdownAsync();
     }
 }

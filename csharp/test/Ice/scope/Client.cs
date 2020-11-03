@@ -1,34 +1,21 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Scope
 {
-    namespace scope
+    public class Client : TestHelper
     {
-        public class Client : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var initData = new InitializationData();
-                initData.typeIdNamespaces = new string[]{"Ice.scope.TypeId"};
-                initData.properties = createTestProperties(ref args);
-                using(var communicator = initialize(initData))
-                {
-                    var output = getWriter();
-                    output.Write("test using same type name in different Slice modules... ");
-                    output.Flush();
-                    AllTests.allTests(this);
-                    output.WriteLine("ok");
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Client>(args);
-            }
+            await using var communicator = Initialize(ref args);
+            Output.Write("test using same type name in different Slice modules... ");
+            Output.Flush();
+            AllTests.Run(this);
+            Output.WriteLine("ok");
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

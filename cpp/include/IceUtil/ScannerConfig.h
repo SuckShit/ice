@@ -7,33 +7,40 @@
 
 #include <IceUtil/Config.h> // Required by generated Scanners.
 
-//
-// COMPILERFIX: VC compilers does not provide stdint.h header until v100
-// the header must be included before that macros for integral types
-// in flex generated Scanners are defined.
-//
+#if defined(_MSC_VER)
+// Suppresses inclusion of the non ANSI unistd.h header file.
+#   define YY_NO_UNISTD_H
+
 // in C99 conformant compilers we don't need to include it because the
-// header is included by inttypes.h, that is included by the gernated
+// header is included by inttypes.h, that is included by the generated
 // Scanners.
-//
-#if defined(_MSC_VER) && (_MSC_VER >= 1600)
 #   include <stdint.h>
+
+// '<' : signed/unsigned mismatch
+#   pragma warning(disable:4018)
+// 'initializing' : conversion from '__int64' to 'int', possible loss of data
+#   pragma warning(disable:4244)
+// unreferenced local function has been removed
+#   pragma warning(disable:4505)
+
+#   if defined(ICE_64)
+// '=' : conversion from 'size_t' to 'int', possible loss of data
+// The result of fread() is a size_t and gets inserted into an int
+#       pragma warning(disable:4267)
+#   endif
 #endif
 
-//
-// Clang++ >= 5.1 and VC++ using C++17 standard deprecate 'register' storage
-// class specifier used by lex generated Scanners.
-//
-#if defined(__clang__)
-#   pragma clang diagnostic ignored "-Wdeprecated-register"
-#elif defined(_MSC_VER) && (_MSC_VER >= 1900)
-#   pragma warning(disable:5033)
+#if defined(__GNUC__)
+#   pragma GCC diagnostic ignored "-Wsign-compare"
+#   pragma GCC diagnostic ignored "-Wunused-function"
+#   pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #endif
 
 #if defined(__clang__)
 #   pragma clang diagnostic ignored "-Wconversion"
 #   pragma clang diagnostic ignored "-Wsign-conversion"
 #   pragma clang diagnostic ignored "-Wdocumentation"
+#   pragma clang diagnostic ignored "-Wunused-function"
 #endif
 
 #endif

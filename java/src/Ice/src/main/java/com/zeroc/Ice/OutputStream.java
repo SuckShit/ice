@@ -4,6 +4,8 @@
 
 package com.zeroc.Ice;
 
+import org.checkerframework.checker.nullness.qual.*;
+
 /**
  * Interface to marshal (write) Slice types into sequence of bytes encoded using the
  * Ice encoding.
@@ -576,22 +578,22 @@ public class OutputStream
     }
 
     /**
-     * Write the header information for an optional value.
+     * Write the header information for a tagged value.
      *
      * @param tag The numeric tag associated with the value.
-     * @param format The optional format of the value.
-     * @return True if the current encoding supports optionals, false otherwise.
+     * @param format The tag format of the value.
+     * @return True if the current encoding supports tagged members, false otherwise.
      **/
-    public boolean writeOptional(int tag, OptionalFormat format)
+    public boolean writeTag(int tag, TagFormat format)
     {
         assert(_encapsStack != null);
         if(_encapsStack.encoder != null)
         {
-            return _encapsStack.encoder.writeOptional(tag, format);
+            return _encapsStack.encoder.writeTag(tag, format);
         }
         else
         {
-            return writeOptionalImpl(tag, format);
+            return writeTagImpl(tag, format);
         }
     }
 
@@ -607,30 +609,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional byte to the stream.
+     * Writes a tagged byte to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional byte to write to the stream.
+     * @param tag The tag.
+     * @param v The byte to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeByte(int tag, java.util.Optional<Byte> v)
+    public void writeByte(int tag, @Nullable Byte v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeByte(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional byte to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The byte to write to the stream.
-     **/
-    public void writeByte(int tag, byte v)
-    {
-        if(writeOptional(tag, OptionalFormat.F1))
-        {
-            writeByte(v);
+            if(writeTag(tag, TagFormat.F1))
+            {
+                writeByte(v);
+            }
         }
     }
 
@@ -649,9 +640,9 @@ public class OutputStream
      * Writes a byte sequence to the stream.
      *
      * @param v The byte sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeByteSeq(byte[] v)
+    public void writeByteSeq(byte @Nullable[] v)
     {
         if(v == null)
         {
@@ -666,30 +657,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional byte sequence to the stream.
+     * Writes a tagged byte sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional byte sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The byte sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeByteSeq(int tag, java.util.Optional<byte[]> v)
+    public void writeByteSeq(int tag, byte @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeByteSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional byte sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The byte sequence to write to the stream.
-     **/
-    public void writeByteSeq(int tag, byte[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeByteSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeByteSeq(v);
+            }
         }
     }
 
@@ -697,8 +677,9 @@ public class OutputStream
      * Writes the remaining contents of the byte buffer as a byte sequence to the stream.
      *
      * @param v The byte buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeByteBuffer(java.nio.ByteBuffer v)
+    public void writeByteBuffer(java.nio.@Nullable ByteBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -716,8 +697,9 @@ public class OutputStream
      * Writes a serializable Java object to the stream.
      *
      * @param o The serializable object to write.
+     *          Passing <code>null</code> causes a null object to be written to the stream.
      **/
-    public void writeSerializable(java.io.Serializable o)
+    public void writeSerializable(java.io.@Nullable Serializable o)
     {
         if(o == null)
         {
@@ -739,31 +721,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional serializable Java object to the stream.
+     * Writes a tagged serializable Java object to the stream.
      *
-     * @param <T> The serializable class.
-     * @param tag The optional tag.
-     * @param v The optional serializable object to write.
+     * @param tag The tag.
+     * @param v The serializable object to write. Nothing will be written to the stream if null is passed.
      **/
-    public <T extends java.io.Serializable> void writeSerializable(int tag, java.util.Optional<T> v)
+    public void writeSerializable(int tag, java.io.@Nullable Serializable v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeSerializable(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional serializable Java object to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The serializable object to write.
-     **/
-    public void writeSerializable(int tag, java.io.Serializable v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSerializable(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSerializable(v);
+            }
         }
     }
 
@@ -779,30 +749,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional boolean to the stream.
+     * Writes a tagged boolean to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional boolean to write to the stream.
+     * @param tag The tag.
+     * @param v The boolean to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeBool(int tag, java.util.Optional<Boolean> v)
+    public void writeBool(int tag, @Nullable Boolean v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeBool(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional boolean to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The boolean to write to the stream.
-     **/
-    public void writeBool(int tag, boolean v)
-    {
-        if(writeOptional(tag, OptionalFormat.F1))
-        {
-            writeBool(v);
+            if(writeTag(tag, TagFormat.F1))
+            {
+                writeBool(v);
+            }
         }
     }
 
@@ -821,9 +780,9 @@ public class OutputStream
      * Writes a boolean sequence to the stream.
      *
      * @param v The boolean sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeBoolSeq(boolean[] v)
+    public void writeBoolSeq(boolean @Nullable[] v)
     {
         if(v == null)
         {
@@ -841,30 +800,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional boolean sequence to the stream.
+     * Writes a tagged boolean sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional boolean sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The boolean sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeBoolSeq(int tag, java.util.Optional<boolean[]> v)
+    public void writeBoolSeq(int tag, boolean @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeBoolSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional boolean sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The boolean sequence to write to the stream.
-     **/
-    public void writeBoolSeq(int tag, boolean[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeBoolSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeBoolSeq(v);
+            }
         }
     }
 
@@ -880,30 +828,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional short to the stream.
+     * Writes a tagged short to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional short to write to the stream.
+     * @param tag The tag.
+     * @param v The short to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeShort(int tag, java.util.Optional<Short> v)
+    public void writeShort(int tag, @Nullable Short v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeShort(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional short to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The short to write to the stream.
-     **/
-    public void writeShort(int tag, short v)
-    {
-        if(writeOptional(tag, OptionalFormat.F2))
-        {
-            writeShort(v);
+            if(writeTag(tag, TagFormat.F2))
+            {
+                writeShort(v);
+            }
         }
     }
 
@@ -911,9 +848,9 @@ public class OutputStream
      * Writes a short sequence to the stream.
      *
      * @param v The short sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeShortSeq(short[] v)
+    public void writeShortSeq(short @Nullable[] v)
     {
         if(v == null)
         {
@@ -930,31 +867,20 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional short sequence to the stream.
+     * Writes a tagged short sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional short sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The short sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeShortSeq(int tag, java.util.Optional<short[]> v)
+    public void writeShortSeq(int tag, short @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeShortSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional short sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The short sequence to write to the stream.
-     **/
-    public void writeShortSeq(int tag, short[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSize(v == null || v.length == 0 ? 1 : v.length * 2 + (v.length > 254 ? 5 : 1));
-            writeShortSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSize(v == null || v.length == 0 ? 1 : v.length * 2 + (v.length > 254 ? 5 : 1));
+                writeShortSeq(v);
+            }
         }
     }
 
@@ -962,8 +888,9 @@ public class OutputStream
      * Writes the remaining contents of the short buffer as a short sequence to the stream.
      *
      * @param v The short buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeShortBuffer(java.nio.ShortBuffer v)
+    public void writeShortBuffer(java.nio.@Nullable ShortBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -993,30 +920,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional int to the stream.
+     * Writes a tagged int to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional int to write to the stream.
+     * @param tag The tag.
+     * @param v The int to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeInt(int tag, java.util.OptionalInt v)
+    public void writeInt(int tag, @Nullable Integer v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeInt(tag, v.getAsInt());
-        }
-    }
-
-    /**
-     * Writes an optional int to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The int to write to the stream.
-     **/
-    public void writeInt(int tag, int v)
-    {
-        if(writeOptional(tag, OptionalFormat.F4))
-        {
-            writeInt(v);
+            if(writeTag(tag, TagFormat.F4))
+            {
+                writeInt(v);
+            }
         }
     }
 
@@ -1035,9 +951,9 @@ public class OutputStream
      * Writes an int sequence to the stream.
      *
      * @param v The int sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeIntSeq(int[] v)
+    public void writeIntSeq(int @Nullable[] v)
     {
         if(v == null)
         {
@@ -1054,31 +970,20 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional int sequence to the stream.
+     * Writes a tagged int sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional int sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The int sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeIntSeq(int tag, java.util.Optional<int[]> v)
+    public void writeIntSeq(int tag, int @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeIntSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional int sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The int sequence to write to the stream.
-     **/
-    public void writeIntSeq(int tag, int[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSize(v == null || v.length == 0 ? 1 : v.length * 4 + (v.length > 254 ? 5 : 1));
-            writeIntSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSize(v == null || v.length == 0 ? 1 : v.length * 4 + (v.length > 254 ? 5 : 1));
+                writeIntSeq(v);
+            }
         }
     }
 
@@ -1086,8 +991,9 @@ public class OutputStream
      * Writes the remaining contents of the int buffer as an int sequence to the stream.
      *
      * @param v The int buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeIntBuffer(java.nio.IntBuffer v)
+    public void writeIntBuffer(java.nio.@Nullable IntBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -1117,30 +1023,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional long to the stream.
+     * Writes a tagged long to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional long to write to the stream.
+     * @param tag The tag.
+     * @param v The long to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeLong(int tag, java.util.OptionalLong v)
+    public void writeLong(int tag, @Nullable Long v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeLong(tag, v.getAsLong());
-        }
-    }
-
-    /**
-     * Writes an optional long to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The long to write to the stream.
-     **/
-    public void writeLong(int tag, long v)
-    {
-        if(writeOptional(tag, OptionalFormat.F8))
-        {
-            writeLong(v);
+            if(writeTag(tag, TagFormat.F8))
+            {
+                writeLong(v);
+            }
         }
     }
 
@@ -1148,9 +1043,9 @@ public class OutputStream
      * Writes a long sequence to the stream.
      *
      * @param v The long sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeLongSeq(long[] v)
+    public void writeLongSeq(long @Nullable[] v)
     {
         if(v == null)
         {
@@ -1167,31 +1062,20 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional long sequence to the stream.
+     * Writes a tagged long sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional long sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The long sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeLongSeq(int tag, java.util.Optional<long[]> v)
+    public void writeLongSeq(int tag, long @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeLongSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional long sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The long sequence to write to the stream.
-     **/
-    public void writeLongSeq(int tag, long[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSize(v == null || v.length == 0 ? 1 : v.length * 8 + (v.length > 254 ? 5 : 1));
-            writeLongSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSize(v == null || v.length == 0 ? 1 : v.length * 8 + (v.length > 254 ? 5 : 1));
+                writeLongSeq(v);
+            }
         }
     }
 
@@ -1199,8 +1083,9 @@ public class OutputStream
      * Writes the remaining contents of the long buffer as a long sequence to the stream.
      *
      * @param v The long buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeLongBuffer(java.nio.LongBuffer v)
+    public void writeLongBuffer(java.nio.@Nullable LongBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -1230,30 +1115,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional float to the stream.
+     * Writes a tagged float to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional float to write to the stream.
+     * @param tag The tag.
+     * @param v The float to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeFloat(int tag, java.util.Optional<Float> v)
+    public void writeFloat(int tag, @Nullable Float v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeFloat(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional float to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The float to write to the stream.
-     **/
-    public void writeFloat(int tag, float v)
-    {
-        if(writeOptional(tag, OptionalFormat.F4))
-        {
-            writeFloat(v);
+            if(writeTag(tag, TagFormat.F4))
+            {
+                writeFloat(v);
+            }
         }
     }
 
@@ -1261,9 +1135,9 @@ public class OutputStream
      * Writes a float sequence to the stream.
      *
      * @param v The float sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeFloatSeq(float[] v)
+    public void writeFloatSeq(float @Nullable[] v)
     {
         if(v == null)
         {
@@ -1280,31 +1154,20 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional float sequence to the stream.
+     * Writes a tagged float sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional float sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The float sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeFloatSeq(int tag, java.util.Optional<float[]> v)
+    public void writeFloatSeq(int tag, float @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeFloatSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional float sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The float sequence to write to the stream.
-     **/
-    public void writeFloatSeq(int tag, float[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSize(v == null || v.length == 0 ? 1 : v.length * 4 + (v.length > 254 ? 5 : 1));
-            writeFloatSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSize(v == null || v.length == 0 ? 1 : v.length * 4 + (v.length > 254 ? 5 : 1));
+                writeFloatSeq(v);
+            }
         }
     }
 
@@ -1312,8 +1175,9 @@ public class OutputStream
      * Writes the remaining contents of the float buffer as a float sequence to the stream.
      *
      * @param v The float buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeFloatBuffer(java.nio.FloatBuffer v)
+    public void writeFloatBuffer(java.nio.@Nullable FloatBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -1343,30 +1207,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional double to the stream.
+     * Writes a tagged double to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional double to write to the stream.
+     * @param tag The tag.
+     * @param v The double to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeDouble(int tag, java.util.OptionalDouble v)
+    public void writeDouble(int tag, @Nullable Double v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeDouble(tag, v.getAsDouble());
-        }
-    }
-
-    /**
-     * Writes an optional double to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The double to write to the stream.
-     **/
-    public void writeDouble(int tag, double v)
-    {
-        if(writeOptional(tag, OptionalFormat.F8))
-        {
-            writeDouble(v);
+            if(writeTag(tag, TagFormat.F8))
+            {
+                writeDouble(v);
+            }
         }
     }
 
@@ -1374,9 +1227,9 @@ public class OutputStream
      * Writes a double sequence to the stream.
      *
      * @param v The double sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeDoubleSeq(double[] v)
+    public void writeDoubleSeq(double @Nullable[] v)
     {
         if(v == null)
         {
@@ -1393,31 +1246,20 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional double sequence to the stream.
+     * Writes a tagged double sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional double sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The double sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeDoubleSeq(int tag, java.util.Optional<double[]> v)
+    public void writeDoubleSeq(int tag, double @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeDoubleSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional double sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The double sequence to write to the stream.
-     **/
-    public void writeDoubleSeq(int tag, double[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeSize(v == null || v.length == 0 ? 1 : v.length * 8 + (v.length > 254 ? 5 : 1));
-            writeDoubleSeq(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeSize(v == null || v.length == 0 ? 1 : v.length * 8 + (v.length > 254 ? 5 : 1));
+                writeDoubleSeq(v);
+            }
         }
     }
 
@@ -1425,8 +1267,9 @@ public class OutputStream
      * Writes the remaining contents of the double buffer as a double sequence to the stream.
      *
      * @param v The double buffer to write to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeDoubleBuffer(java.nio.DoubleBuffer v)
+    public void writeDoubleBuffer(java.nio.@Nullable DoubleBuffer v)
     {
         if(v == null || v.remaining() == 0)
         {
@@ -1450,10 +1293,10 @@ public class OutputStream
     /**
      * Writes a string to the stream.
      *
-     * @param v The string to write to the stream. Passing <code>null</code> causes
-     * an empty string to be written to the stream.
+     * @param v The string to write to the stream.
+     *          Passing <code>null</code> causes an empty string to be written to the stream.
      **/
-    public void writeString(String v)
+    public void writeString(@Nullable String v)
     {
         if(v == null)
         {
@@ -1516,30 +1359,19 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional string to the stream.
+     * Writes a tagged string to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional string to write to the stream.
+     * @param tag The tag.
+     * @param v The string to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeString(int tag, java.util.Optional<String> v)
+    public void writeString(int tag, @Nullable String v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeString(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional string to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The string to write to the stream.
-     **/
-    public void writeString(int tag, String v)
-    {
-        if(writeOptional(tag, OptionalFormat.VSize))
-        {
-            writeString(v);
+            if(writeTag(tag, TagFormat.VSize))
+            {
+                writeString(v);
+            }
         }
     }
 
@@ -1547,9 +1379,9 @@ public class OutputStream
      * Writes a string sequence to the stream.
      *
      * @param v The string sequence to write to the stream.
-     * Passing <code>null</code> causes an empty sequence to be written to the stream.
+     *          Passing <code>null</code> causes an empty sequence to be written to the stream.
      **/
-    public void writeStringSeq(String[] v)
+    public void writeStringSeq(String @Nullable[] v)
     {
         if(v == null)
         {
@@ -1566,32 +1398,21 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional string sequence to the stream.
+     * Writes a tagged string sequence to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional string sequence to write to the stream.
+     * @param tag The tag.
+     * @param v The string sequence to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeStringSeq(int tag, java.util.Optional<String[]> v)
+    public void writeStringSeq(int tag, String @Nullable[] v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeStringSeq(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional string sequence to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The string sequence to write to the stream.
-     **/
-    public void writeStringSeq(int tag, String[] v)
-    {
-        if(writeOptional(tag, OptionalFormat.FSize))
-        {
-            int pos = startSize();
-            writeStringSeq(v);
-            endSize(pos);
+            if(writeTag(tag, TagFormat.FSize))
+            {
+                int pos = startSize();
+                writeStringSeq(v);
+                endSize(pos);
+            }
         }
     }
 
@@ -1599,8 +1420,9 @@ public class OutputStream
      * Writes a proxy to the stream.
      *
      * @param v The proxy to write.
+     *          Passing <code>null</code> causes a null proxy to be written to the stream.
      **/
-    public void writeProxy(ObjectPrx v)
+    public void writeProxy(@Nullable ObjectPrx v)
     {
         if(v != null)
         {
@@ -1614,32 +1436,21 @@ public class OutputStream
     }
 
     /**
-     * Writes an optional proxy to the stream.
+     * Writes a tagged proxy to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional proxy to write to the stream.
+     * @param tag The tag.
+     * @param v The proxy to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public void writeProxy(int tag, java.util.Optional<ObjectPrx> v)
+    public void writeProxy(int tag, @Nullable ObjectPrx v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeProxy(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional proxy to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The proxy to write to the stream.
-     **/
-    public void writeProxy(int tag, ObjectPrx v)
-    {
-        if(writeOptional(tag, OptionalFormat.FSize))
-        {
-            int pos = startSize();
-            writeProxy(v);
-            endSize(pos);
+            if(writeTag(tag, TagFormat.FSize))
+            {
+                int pos = startSize();
+                writeProxy(v);
+                endSize(pos);
+            }
         }
     }
 
@@ -1678,38 +1489,26 @@ public class OutputStream
      * @param v The value to write. This method writes the index of an instance; the state of the value is
      * written once {@link #writePendingValues} is called.
      **/
-    public void writeValue(Value v)
+    public void writeValue(@Nullable Value v)
     {
         initEncaps();
         _encapsStack.encoder.writeValue(v);
     }
 
     /**
-     * Writes an optional value to the stream.
+     * Writes a tagged value to the stream.
      *
-     * @param tag The optional tag.
-     * @param v The optional value to write to the stream.
-     * @param <T> The type of the optional value.
+     * @param tag The tag.
+     * @param v The value to write to the stream. Nothing will be written to the stream if null is passed.
      **/
-    public <T extends Value> void writeValue(int tag, java.util.Optional<T> v)
+    public void writeValue(int tag, @Nullable Value v)
     {
-        if(v != null && v.isPresent())
+        if(v != null)
         {
-            writeValue(tag, v.get());
-        }
-    }
-
-    /**
-     * Writes an optional value to the stream.
-     *
-     * @param tag The optional tag.
-     * @param v The value to write to the stream.
-     **/
-    public void writeValue(int tag, Value v)
-    {
-        if(writeOptional(tag, OptionalFormat.Class))
-        {
-            writeValue(v);
+            if(writeTag(tag, TagFormat.Class))
+            {
+                writeValue(v);
+            }
         }
     }
 
@@ -1724,11 +1523,11 @@ public class OutputStream
         _encapsStack.encoder.writeException(v);
     }
 
-    private boolean writeOptionalImpl(int tag, OptionalFormat format)
+    private boolean writeTagImpl(int tag, TagFormat format)
     {
         if(isEncoding_1_0())
         {
-            return false; // Optional members aren't supported with the 1.0 encoding.
+            return false; // Tagged members aren't supported with the 1.0 encoding.
         }
 
         int v = format.value();
@@ -1823,7 +1622,7 @@ public class OutputStream
         abstract void startSlice(String typeId, int compactId, boolean last);
         abstract void endSlice();
 
-        boolean writeOptional(int tag, OptionalFormat format)
+        boolean writeTag(int tag, TagFormat format)
         {
             return false;
         }
@@ -2206,13 +2005,13 @@ public class OutputStream
         void endSlice()
         {
             //
-            // Write the optional member end marker if some optional members
-            // were encoded. Note that the optional members are encoded before
+            // Write the tagged member end marker if some tagged members
+            // were encoded. Note that the tagged members are encoded before
             // the indirection table and are included in the slice size.
             //
-            if((_current.sliceFlags & com.zeroc.IceInternal.Protocol.FLAG_HAS_OPTIONAL_MEMBERS) != 0)
+            if((_current.sliceFlags & com.zeroc.IceInternal.Protocol.FLAG_HAS_TAGGED_MEMBERS) != 0)
             {
-                _stream.writeByte((byte)com.zeroc.IceInternal.Protocol.OPTIONAL_END_MARKER);
+                _stream.writeByte((byte)com.zeroc.IceInternal.Protocol.TAGGED_END_MARKER);
             }
 
             //
@@ -2251,17 +2050,17 @@ public class OutputStream
         }
 
         @Override
-        boolean writeOptional(int tag, OptionalFormat format)
+        boolean writeTag(int tag, TagFormat format)
         {
             if(_current == null)
             {
-                return _stream.writeOptionalImpl(tag, format);
+                return _stream.writeTagImpl(tag, format);
             }
             else
             {
-                if(_stream.writeOptionalImpl(tag, format))
+                if(_stream.writeTagImpl(tag, format))
                 {
-                    _current.sliceFlags |= com.zeroc.IceInternal.Protocol.FLAG_HAS_OPTIONAL_MEMBERS;
+                    _current.sliceFlags |= com.zeroc.IceInternal.Protocol.FLAG_HAS_TAGGED_MEMBERS;
                     return true;
                 }
                 else
@@ -2295,9 +2094,9 @@ public class OutputStream
                 //
                 _stream.writeBlob(info.bytes);
 
-                if(info.hasOptionalMembers)
+                if(info.hasTaggedMembers)
                 {
-                    _current.sliceFlags |= com.zeroc.IceInternal.Protocol.FLAG_HAS_OPTIONAL_MEMBERS;
+                    _current.sliceFlags |= com.zeroc.IceInternal.Protocol.FLAG_HAS_TAGGED_MEMBERS;
                 }
 
                 //

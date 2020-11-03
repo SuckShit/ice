@@ -6,9 +6,7 @@
 
 #include <SingleModuleWithPackage.ice>
 
-module M
-{
-module N
+module M::N
 {
 
 const smwpEnum smwpTest10Constant = smwpE1;
@@ -27,9 +25,9 @@ sequence<smwpStruct> smwpTest10StructSeq;
 
 dictionary<smwpStruct, smwpBaseClass> smwpTest10StructClassSeq;
 
-interface smwpTest10Interface extends smwpInterface {}
+interface smwpTest10Interface : smwpInterface {}
 
-exception smwpTest10Exception extends smwpException
+exception smwpTest10Exception : smwpException
 {
     smwpEnum e1;
     smwpStruct s1;
@@ -39,7 +37,7 @@ exception smwpTest10Exception extends smwpException
     smwpInterface i1;
 }
 
-class smwpTest10Class extends smwpBaseClass implements smwpBaseInterface
+class smwpTest10Class : smwpBaseClass implements smwpBaseInterface
 {
     smwpStruct
     smwpTest10Op1(smwpEnum i1,
@@ -56,7 +54,7 @@ class smwpTest10Class extends smwpBaseClass implements smwpBaseInterface
                   out smwpClass o6)
         throws smwpException;
 
-    ["amd"]
+    [amd]
     smwpStruct
     smwpTest10Op3(smwpEnum i1,
                   smwpStruct i2,
@@ -73,5 +71,4 @@ class smwpTest10Class extends smwpBaseClass implements smwpBaseInterface
         throws smwpException;
 }
 
-}
 }

@@ -4,6 +4,8 @@
 
 #pragma once
 
+[[3.7]]
+
 module Test
 {
 
@@ -12,7 +14,7 @@ class SBase
     string sb;
 }
 
-class SBSKnownDerived extends SBase
+class SBSKnownDerived : SBase
 {
     string sbskd;
 }
@@ -23,7 +25,7 @@ class B
     B pb;
 }
 
-class D1 extends B
+class D1 : B
 {
     string sd1;
     B pd1;
@@ -55,7 +57,7 @@ exception BaseException
     B pb;
 }
 
-exception DerivedException extends BaseException
+exception DerivedException : BaseException
 {
     string sde;
     D1 pd1;
@@ -70,29 +72,29 @@ class PBase
 
 sequence<PBase> PBaseSeq;
 
-["preserve-slice"]
-class Preserved extends PBase
+[preserve-slice]
+class Preserved : PBase
 {
     string ps;
 }
 
-class PDerived extends Preserved
+class PDerived : Preserved
 {
     PBase pb;
 }
 
-["preserve-slice"]
+[preserve-slice]
 class PNode
 {
     PNode next;
 }
 
-["preserve-slice"]
+[preserve-slice]
 exception PreservedException
 {
 }
 
-["amd", "format:sliced"]
+[amd] [format(sliced)]
 interface TestIntf
 {
     Object SBaseAsObject();
@@ -102,7 +104,7 @@ interface TestIntf
 
     SBase SBSUnknownDerivedAsSBase();
 
-    ["format:compact"] SBase SBSUnknownDerivedAsSBaseCompact();
+    [format(compact)] SBase SBSUnknownDerivedAsSBaseCompact();
 
     Object SUnknownAsObject();
     void checkSUnknown(Object o);

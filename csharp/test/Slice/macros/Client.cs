@@ -1,32 +1,32 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Threading.Tasks;
 using Test;
 
-public class Client : TestHelper
+namespace ZeroC.Slice.Test.Macros
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        Console.Out.Write("testing Slice predefined macros... ");
-        Console.Out.Flush();
-        Default d = new Default();
-        test(d.x == 10);
-        test(d.y == 10);
+        public override Task RunAsync(string[] args)
+        {
+            Console.Out.Write("testing Slice predefined macros... ");
+            Console.Out.Flush();
+            var d = new Default();
+            Assert(d.X == 10);
+            Assert(d.Y == 10);
 
-        NoDefault nd = new NoDefault();
-        test(nd.x != 10);
-        test(nd.y != 10);
+            var nd = new NoDefault();
+            Assert(nd.X != 10);
+            Assert(nd.Y != 10);
 
-        CsOnly c = new CsOnly();
-        test(c.lang.Equals("cs"));
-        test(c.version == Ice.Util.intVersion());
-        Console.Out.WriteLine("ok");
-    }
+            var c = new CsOnly();
+            Assert(c.Lang.Equals("cs"));
+            Assert(c.Version == Ice.Runtime.IntVersion);
+            Console.Out.WriteLine("ok");
+            return Task.CompletedTask;
+        }
 
-    public static int Main(string[] args)
-    {
-        return TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

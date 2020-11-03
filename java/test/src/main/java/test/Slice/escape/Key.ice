@@ -4,7 +4,8 @@
 
 #pragma once
 
-[["java:package:test.Slice.escape", "suppress-warning:deprecated"]]
+[[java:package(test.Slice.escape)]]
+
 module abstract
 {
 
@@ -20,7 +21,7 @@ struct break
 
 interface catch
 {
-    ["amd"] void checkedCast(int clone, out int continue);
+    [amd] void checkedCast(int clone, out int continue);
 }
 
 interface default
@@ -35,7 +36,7 @@ class else
     int final;
 }
 
-interface finalize extends default, catch
+interface finalize : default, catch
 {
 }
 sequence<assert> for;
@@ -46,17 +47,10 @@ exception hashCode
     int if;
 }
 
-exception import extends hashCode
+exception import : hashCode
 {
     int instanceof;
     int native;
-}
-
-local interface new
-{
-    assert notify(break notifyAll, else null, finalize package, else* private, finalize* protected, catch* public,
-                default* return, int static, int strictfp, int super)
-        throws hashCode, import;
 }
 
 const int switch = 0;

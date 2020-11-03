@@ -1,42 +1,35 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
 using System.IO;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Logger
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        Console.Out.Write("testing Ice.LogFile... ");
-        Console.Out.Flush();
-        if(File.Exists("log.txt"))
+        public override async Task RunAsync(string[] args)
         {
-            File.Delete("log.txt");
-        }
-        var initData = new Ice.InitializationData();
-        initData.properties = createTestProperties(ref args);
-        initData.properties.setProperty("Ice.LogFile", "log.txt");
-        using(var communicator = initialize(initData))
-        {
-            communicator.getLogger().trace("info", "my logger");
-        }
-        test(File.Exists("log.txt"));
-        test(File.ReadAllText("log.txt").Contains("my logger"));
-        File.Delete("log.txt");
-        Console.Out.WriteLine("ok");
-    }
+            Console.Out.Write("testing Ice.LogFile... ");
+            Console.Out.Flush();
+            if (File.Exists("log.txt"))
+            {
+                File.Delete("log.txt");
+            }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+            {
+                var properties = CreateTestProperties(ref args);
+                properties["Ice.LogFile"] = "log.txt";
+                await using var communicator = Initialize(properties);
+                communicator.Logger.Trace("info", "my logger");
+            }
+            Assert(File.Exists("log.txt"));
+            Assert(File.ReadAllText("log.txt").Contains("my logger"));
+            File.Delete("log.txt");
+            Console.Out.WriteLine("ok");
+        }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

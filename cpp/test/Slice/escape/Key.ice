@@ -2,8 +2,7 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-[["underscore"]]
-[["suppress-warning:deprecated"]]
+[[suppress-warning(reserved-identifier)]]
 
 module and
 {
@@ -18,14 +17,14 @@ struct auto
     int default;
 }
 
-["cpp:class"] struct delete
+struct delete
 {
     string else;
 }
 
 interface break
 {
-    ["amd"] void case(int catch, out int try);
+    [amd] void case(int catch, out int try);
 }
 
 interface char
@@ -40,7 +39,7 @@ class switch
     int volatile;
 }
 
-interface do extends char, break
+interface do : char, break
 {
 }
 
@@ -53,16 +52,9 @@ exception return
     int signed;
 }
 
-exception sizeof extends return
+exception sizeof : return
 {
     int static; int switch;
-}
-
-local interface friend
-{
-    auto goto(continue if, auto d, delete inline, switch private, do mutable, break* namespace,
-              char* new, switch* not, do* operator, int or, int protected, int public, int register)
-        throws return, sizeof;
 }
 
 const int template = 0;

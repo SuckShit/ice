@@ -5,7 +5,6 @@
 #include <Glacier2/PermissionsVerifier.h>
 #include <IceUtil/IceUtil.h>
 #include <Ice/Ice.h>
-#include <Ice/UniqueRef.h>
 
 #include <IceUtil/FileUtil.h>
 #include <IceUtil/StringUtil.h>
@@ -35,130 +34,44 @@ using namespace Glacier2;
 namespace
 {
 
-#if defined(__FreeBSD__) && !defined(__GLIBC__)
-
-//
-// FreeBSD crypt is no reentrat we use this global mutex
-// to serialize access.
-//
-IceUtil::Mutex* _staticMutex = 0;
-
-class Init
+#if defined(__APPLE__)
+template <typename T>
+struct CFTypeRefDeleter
 {
-public:
-
-    Init()
+    using pointer = T; // This is used by std::unique_ptr to determine the type
+    void operator()(T ref)
     {
-        _staticMutex = new IceUtil::Mutex;
-    }
-
-    ~Init()
-    {
-        delete _staticMutex;
-        _staticMutex = 0;
+        CFRelease(ref);
     }
 };
-
-Init init;
-
-#elif defined(__APPLE__)
-
-// UniqueRef helper class for CoreFoundation classes, comparable to std::unique_ptr
-
-template<typename R>
-class UniqueRef
-{
-public:
-
-    explicit UniqueRef(R ref = 0) :
-        _ref(ref)
-    {
-    }
-
-    ~UniqueRef()
-    {
-        if(_ref != 0)
-        {
-            CFRelease(_ref);
-        }
-    }
-
-    R release()
-    {
-        R r = _ref;
-        _ref = 0;
-        return r;
-    }
-
-    void reset(R ref = 0)
-    {
-        assert(ref == 0 || ref != _ref);
-
-        if(_ref != 0)
-        {
-            CFRelease(_ref);
-        }
-        _ref = ref;
-    }
-
-    R& get()
-    {
-        return _ref;
-    }
-
-    R get() const
-    {
-        return _ref;
-    }
-
-    operator bool() const
-    {
-        return _ref != 0;
-    }
-
-    void swap(UniqueRef& a)
-    {
-        R tmp = a._ref;
-        a._ref = _ref;
-        _ref = tmp;
-    }
-
-private:
-
-    UniqueRef(UniqueRef&);
-    UniqueRef& operator=(UniqueRef&);
-
-    R _ref;
-};
-
 #endif
 
-class CryptPermissionsVerifierI : public PermissionsVerifier
+class CryptPermissionsVerifierI final : public PermissionsVerifier
 {
 public:
 
     CryptPermissionsVerifierI(const map<string, string>&);
 
-    virtual bool checkPermissions(const string&, const string&, string&, const Ice::Current&) const;
+    bool checkPermissions(string, string, string&, const Ice::Current&) const override;
 
 private:
 
     const map<string, string> _passwords;
-    IceUtil::Mutex _cryptMutex; // for old thread-unsafe crypt()
+    mutex _cryptMutex; // for old thread-unsafe crypt()
 };
 
-class CryptPermissionsVerifierPlugin : public Ice::Plugin
+class CryptPermissionsVerifierPlugin final : public Ice::Plugin
 {
 public:
 
-    CryptPermissionsVerifierPlugin(const CommunicatorPtr&);
+    CryptPermissionsVerifierPlugin(shared_ptr<Communicator>);
 
-    virtual void initialize();
-    virtual void destroy();
+    void initialize() override;
+    void destroy() override;
 
 private:
 
-    CommunicatorPtr _communicator;
+    shared_ptr<Communicator> _communicator;
 };
 
 map<string, string>
@@ -232,7 +145,7 @@ paddingBytes(size_t length)
 
 }
 bool
-CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& password, string&, const Current&) const
+CryptPermissionsVerifierI::checkPermissions(string userId, string password, string&, const Current&) const
 {
     map<string, string>::const_iterator p = _passwords.find(userId);
 
@@ -267,7 +180,7 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     data.initialized = 0;
     return p->second == crypt_r(password.c_str(), salt.c_str(), &data);
 #   else
-    IceUtilInternal::MutexPtrLock<IceUtil::Mutex> lock(_staticMutex);
+    lock_guard<mutex> lg(_cryptMutex);
     return p->second == crypt(password.c_str(), salt.c_str());
 #   endif
 #elif defined(__APPLE__) || defined(_WIN32)
@@ -388,27 +301,31 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     std::replace(checksum.begin(), checksum.end(), '.', '+');
     checksum += paddingBytes(checksum.size());
 #   if defined(__APPLE__)
-    UniqueRef<CFErrorRef> error;
-    UniqueRef<SecTransformRef> decoder(SecDecodeTransformCreate(kSecBase64Encoding, &error.get()));
+    CFErrorRef error = nullptr;
+    unique_ptr<SecTransformRef, CFTypeRefDeleter<SecTransformRef>> decoder(SecDecodeTransformCreate(kSecBase64Encoding, &error));
+
     if(error)
     {
+        CFRelease(error);
         return false;
     }
 
-    UniqueRef<CFDataRef> data(CFDataCreateWithBytesNoCopy(kCFAllocatorDefault,
+    unique_ptr<CFDataRef, CFTypeRefDeleter<CFDataRef>> data(CFDataCreateWithBytesNoCopy(kCFAllocatorDefault,
                                                           reinterpret_cast<const uint8_t*>(salt.c_str()),
                                                           static_cast<CFIndex>(salt.size()),
                                                           kCFAllocatorNull));
 
-    SecTransformSetAttribute(decoder.get(), kSecTransformInputAttributeName, data.get(), &error.get());
+    SecTransformSetAttribute(decoder.get(), kSecTransformInputAttributeName, data.get(), &error);
     if(error)
     {
+        CFRelease(error);
         return false;
     }
 
-    UniqueRef<CFDataRef> saltBuffer(static_cast<CFDataRef>(SecTransformExecute(decoder.get(), &error.get())));
+    unique_ptr<CFDataRef, CFTypeRefDeleter<CFDataRef>> saltBuffer(static_cast<CFDataRef>(SecTransformExecute(decoder.get(), &error)));
     if(error)
     {
+        CFRelease(error);
         return false;
     }
 
@@ -420,31 +337,34 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
                                            static_cast<size_t>(CFDataGetLength(saltBuffer.get())),
                                            algorithmId,
                                            static_cast<unsigned int>(rounds),
-                                           &checksumBuffer1[0],
+                                           checksumBuffer1.data(),
                                            checksumLength);
     if(status != errSecSuccess)
     {
         return false;
     }
 
-    decoder.reset(SecDecodeTransformCreate(kSecBase64Encoding, &error.get()));
+    decoder.reset(SecDecodeTransformCreate(kSecBase64Encoding, &error));
     if(error)
     {
+        CFRelease(error);
         return false;
     }
     data.reset(CFDataCreateWithBytesNoCopy(kCFAllocatorDefault,
                                            reinterpret_cast<const uint8_t*>(checksum.c_str()),
                                            static_cast<CFIndex>(checksum.size()),
                                            kCFAllocatorNull));
-    SecTransformSetAttribute(decoder.get(), kSecTransformInputAttributeName, data.get(), &error.get());
+    SecTransformSetAttribute(decoder.get(), kSecTransformInputAttributeName, data.get(), &error);
     if(error)
     {
+        CFRelease(error);
         return false;
     }
 
-    data.reset(static_cast<CFDataRef>(SecTransformExecute(decoder.get(), &error.get())));
+    data.reset(static_cast<CFDataRef>(SecTransformExecute(decoder.get(), &error)));
     if(error)
     {
+        CFRelease(error);
         return false;
     }
 
@@ -502,14 +422,14 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     }
     string salt = p->second.substr(0, 2);
 
-    IceUtil::Mutex::Lock lock(_cryptMutex);
+    lock_guard<mutex> lg(_cryptMutex);
     return p->second == crypt(password.c_str(), salt.c_str());
 
 #endif
 }
 
-CryptPermissionsVerifierPlugin::CryptPermissionsVerifierPlugin(const CommunicatorPtr& communicator) :
-    _communicator(communicator)
+CryptPermissionsVerifierPlugin::CryptPermissionsVerifierPlugin(shared_ptr<Communicator> communicator) :
+    _communicator(move(communicator))
 {
 }
 
@@ -524,14 +444,11 @@ CryptPermissionsVerifierPlugin::initialize()
         ObjectAdapterPtr adapter = _communicator->createObjectAdapter(""); // colloc-only adapter
 
         // Each prop represents a property to set + the associated password file
-
-        for(PropertyDict::const_iterator p = props.begin(); p != props.end(); ++p)
+        for(const auto& prop : props)
         {
-            string name = p->first.substr(prefix.size());
-            Identity id;
-            id.name = Ice::generateUUID();
-            id.category = "Glacier2CryptPermissionsVerifier";
-            ObjectPrx prx = adapter->add(new CryptPermissionsVerifierI(retrievePasswordMap(p->second)), id);
+            string name = prop.first.substr(prefix.size());
+            Identity id = { Ice::generateUUID(), "Glacier2CryptPermissionsVerifier" };
+            auto prx = adapter->add(make_shared<CryptPermissionsVerifierI>(retrievePasswordMap(prop.second)), id);
             _communicator->getProperties()->setProperty(name, _communicator->proxyToString(prx));
         }
 
@@ -561,7 +478,7 @@ extern "C"
 {
 
 CRYPT_PERMISSIONS_VERIFIER_API Ice::Plugin*
-createCryptPermissionsVerifier(const CommunicatorPtr& communicator, const string& name, const StringSeq& args)
+createCryptPermissionsVerifier(const shared_ptr<Communicator>& communicator, const string& name, const StringSeq& args)
 {
     if(args.size() > 0)
     {

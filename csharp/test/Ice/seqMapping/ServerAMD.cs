@@ -1,38 +1,23 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.SeqMapping
 {
-    namespace seqMapping
+    public class ServerAMD : TestHelper
     {
-        namespace AMD
+        public override async Task RunAsync(string[] args)
         {
-            public class Server : TestHelper
-            {
-                public override void run(string[] args)
-                {
-                    var initData = new InitializationData();
-                    initData.typeIdNamespaces = new string[]{"Ice.seqMapping.AMD.TypeId"};
-                    initData.properties = createTestProperties(ref args);
-                    using(var communicator = initialize(initData))
-                    {
-                        communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                        var adapter = communicator.createObjectAdapter("TestAdapter");
-                        adapter.add(new MyClassI(), Ice.Util.stringToIdentity("test"));
-                        adapter.activate();
-                        serverReady();
-                        communicator.waitForShutdown();
-                    }
-                }
-
-                public static int Main(string[] args)
-                {
-                    return TestDriver.runTest<Server>(args);
-                }
-            }
+            await using Communicator communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            var adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new AsyncMyClass());
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<ServerAMD>(args);
     }
 }

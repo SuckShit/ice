@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/Context.ice>
 
-[["js:es6-module"]]
+[[js:es6-module]]
 
 module Test
 {
@@ -18,7 +18,7 @@ interface MyClass
     Ice::Context getContext();
 }
 
-interface MyDerivedClass extends MyClass
+interface MyDerivedClass : MyClass
 {
     Object* echo(Object* obj);
 }

@@ -24,7 +24,7 @@
 #endif
 
 //
-// Automatically link IceDB37[D|++11|++11D].lib with Visual C++
+// Automatically link IceDB37[D].lib with Visual C++
 //
 #if !defined(ICE_BUILDING_ICE_DB) && defined(ICE_DB_API_EXPORTS)
 #   define ICE_BUILDING_ICE_DB
@@ -48,15 +48,10 @@ class ICE_DB_API LMDBException : public IceUtil::Exception
 public:
 
     LMDBException(const char*, int, int);
-#ifndef ICE_CPP11_COMPILER
-    virtual ~LMDBException() throw();
-#endif
 
     virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
-#ifndef ICE_CPP11_MAPPING
-    virtual LMDBException* ice_clone() const;
-#endif
+    virtual IceUtil::Exception* ice_cloneImpl() const;
     virtual void ice_throw() const;
 
     int error() const;
@@ -76,15 +71,10 @@ class ICE_DB_API KeyTooLongException : public IceUtil::Exception
 public:
 
     KeyTooLongException(const char*, int, size_t);
-#ifndef ICE_CPP11_COMPILER
-    virtual ~KeyTooLongException() throw();
-#endif
 
     virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
-#ifndef ICE_CPP11_MAPPING
-    virtual KeyTooLongException* ice_clone() const;
-#endif
+    virtual IceUtil::Exception* ice_cloneImpl() const;
     virtual void ice_throw() const;
 
 private:
@@ -102,15 +92,10 @@ class ICE_DB_API BadEnvException : public IceUtil::Exception
 public:
 
     BadEnvException(const char*, int, size_t);
-#ifndef ICE_CPP11_COMPILER
-    virtual ~BadEnvException() throw();
-#endif
 
     virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
-#ifndef ICE_CPP11_MAPPING
-    virtual BadEnvException* ice_clone() const;
-#endif
+    virtual IceUtil::Exception* ice_cloneImpl() const;
     virtual void ice_throw() const;
 
 private:
@@ -166,18 +151,23 @@ class ICE_DB_API Txn
 {
 public:
 
-    virtual ~Txn();
-
     void commit();
     void rollback();
 
     MDB_txn* mtxn() const;
 
+    bool isReadOnly() const
+    {
+        return _readOnly;
+    }
+
 protected:
 
-    explicit Txn(const Env&, unsigned int);
+    Txn(const Env&, unsigned int);
+    ~Txn();
 
     MDB_txn* _mtxn;
+    const bool _readOnly;
 
 private:
 
@@ -190,9 +180,8 @@ class ICE_DB_API ReadOnlyTxn : public Txn
 {
 public:
 
-    virtual ~ReadOnlyTxn();
-
     explicit ReadOnlyTxn(const Env&);
+     ~ReadOnlyTxn();
 
     void reset();
     void renew();
@@ -202,9 +191,8 @@ class ICE_DB_API ReadWriteTxn : public Txn
 {
 public:
 
-    virtual ~ReadWriteTxn();
-
     explicit ReadWriteTxn(const Env&);
+     ~ReadWriteTxn();
 };
 
 class ICE_DB_API DbiBase
@@ -213,8 +201,6 @@ public:
 
     void clear(const ReadWriteTxn&);
     MDB_dbi mdbi() const;
-
-    virtual ~DbiBase();
 
 protected:
 
@@ -343,14 +329,12 @@ class ICE_DB_API CursorBase
 public:
 
     void close();
-
     MDB_cursor* mcursor() const;
-
-    virtual ~CursorBase();
 
 protected:
 
-    CursorBase(MDB_dbi dbi, const Txn& txn, bool);
+    CursorBase(MDB_dbi dbi, const Txn& txn);
+    ~CursorBase();
 
     bool get(MDB_val*, MDB_val*, MDB_cursor_op);
     void put(MDB_val*, MDB_val*, unsigned int);
@@ -374,21 +358,13 @@ class Cursor : public CursorBase
 {
 public:
 
-    Cursor(const Dbi<K, D, C, H>& dbi, const ReadOnlyTxn& txn) :
-        CursorBase(dbi.mdbi(), txn, true),
-        _marshalingContext(dbi.marshalingContext())
-    {
-    }
-
-    Cursor(const Dbi<K, D, C, H>& dbi, const ReadWriteTxn& txn) :
-        CursorBase(dbi.mdbi(), txn, false),
-        _marshalingContext(dbi.marshalingContext())
-    {
-    }
-
     Cursor(const Dbi<K, D, C, H>& dbi, const Txn& txn) :
-        CursorBase(dbi.mdbi(), txn, dynamic_cast<const ReadOnlyTxn*>(&txn) != 0),
+        CursorBase(dbi.mdbi(), txn),
         _marshalingContext(dbi.marshalingContext())
+    {
+    }
+
+    ~Cursor()
     {
     }
 

@@ -1,64 +1,57 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
 using System.Collections.Generic;
+using Test;
+using System.Threading;
 
-public sealed class ControllerI : Test.ControllerDisp_
+namespace ZeroC.Ice.Test.Discovery
 {
-    public override void
-    activateObjectAdapter(string name, string adapterId, string replicaGroupId, Ice.Current current)
+    public sealed class Controller : IController
     {
-        Ice.Communicator communicator = current.adapter.getCommunicator();
-        Ice.Properties properties = communicator.getProperties();
-        properties.setProperty(name + ".AdapterId", adapterId);
-        properties.setProperty(name + ".ReplicaGroupId", replicaGroupId);
-        properties.setProperty(name + ".Endpoints", "default");
-        Ice.ObjectAdapter oa = communicator.createObjectAdapter(name);
-        _adapters[name] = oa;
-        oa.activate();
+        private readonly Dictionary<string, ObjectAdapter> _adapters = new Dictionary<string, ObjectAdapter>();
+
+        public void ActivateObjectAdapter(
+            string name,
+            string adapterId,
+            string replicaGroupId,
+            Current current,
+            CancellationToken cancel)
+        {
+            Communicator communicator = current.Adapter.Communicator;
+            bool ice1 = TestHelper.GetTestProtocol(communicator.GetProperties()) == Protocol.Ice1;
+            communicator.SetProperty($"{name}.AdapterId", adapterId);
+            communicator.SetProperty($"{name}.ReplicaGroupId", replicaGroupId);
+            communicator.SetProperty($"{name}.Endpoints", ice1 ? "tcp -h 127.0.0.1" : "ice+tcp://127.0.0.1:0");
+            ObjectAdapter oa = communicator.CreateObjectAdapter(name);
+            _adapters[name] = oa;
+            oa.Activate();
+        }
+
+        public void DeactivateObjectAdapter(string name, Current current, CancellationToken cancel)
+        {
+            _adapters[name].Dispose();
+            _adapters.Remove(name);
+        }
+
+        public void AddObject(string oaName, string identityAndFacet, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(_adapters.ContainsKey(oaName));
+            _adapters[oaName].Add(identityAndFacet, new TestIntf());
+        }
+
+        public void RemoveObject(string oaName, string identityAndFacet, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(_adapters.ContainsKey(oaName));
+            _adapters[oaName].Remove(identityAndFacet);
+        }
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
     }
 
-    public override void
-    deactivateObjectAdapter(string name, Ice.Current current)
+    public sealed class TestIntf : ITestIntf
     {
-        _adapters[name].destroy();
-        _adapters.Remove(name);
-    }
-
-    public override void
-    addObject(string oaName, string id, Ice.Current current)
-    {
-        Debug.Assert(_adapters.ContainsKey(oaName));
-        Ice.Identity identity = new Ice.Identity();
-        identity.name = id;
-        _adapters[oaName].add(new TestIntfI(), identity);
-    }
-
-    public override void
-    removeObject(string oaName, string id, Ice.Current current)
-    {
-        Debug.Assert(_adapters.ContainsKey(oaName));
-        Ice.Identity identity = new Ice.Identity();
-        identity.name = id;
-        _adapters[oaName].remove(identity);
-    }
-
-    public override void
-    shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
-    }
-
-    private Dictionary<string, Ice.ObjectAdapter> _adapters = new Dictionary<string, Ice.ObjectAdapter>();
-}
-
-public sealed class TestIntfI : Test.TestIntfDisp_
-{
-    public override string
-    getAdapterId(Ice.Current current)
-    {
-        return current.adapter.getCommunicator().getProperties().getProperty(current.adapter.getName() + ".AdapterId");
+        public string GetAdapterId(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.GetProperty($"{current.Adapter.Name}.AdapterId") ?? "";
     }
 }

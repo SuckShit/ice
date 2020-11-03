@@ -101,66 +101,13 @@
 #endif
 
 //
-// Check for C++ 11 support
-//
-// For GCC, we recognize --std=c++0x only for GCC version 4.5 and greater,
-// as C++11 support in prior releases was too limited.
-//
-#if (ICE_CPLUSPLUS >= 201103) || \
-    ((defined(__GNUC__) && defined(__GXX_EXPERIMENTAL_CXX0X__) && ((__GNUC__* 100) + __GNUC_MINOR__) >= 405)) || \
-    (defined(_MSC_VER) && (_MSC_VER >= 1900))
-#   define ICE_CPP11_COMPILER
-#endif
-
-//
-// Ensure the C++ compiler supports C++11 when using the C++11 mapping
-//
-#if defined(ICE_CPP11_MAPPING) && !defined(ICE_CPP11_COMPILER)
-#   error "you need a C++11 capable compiler to use the C++11 mapping"
-#endif
-
-#if defined(ICE_CPP11_COMPILER)
-#   define ICE_NOEXCEPT noexcept
-#   define ICE_NOEXCEPT_FALSE noexcept(false)
-#   define ICE_FINAL final
-#else
-#   define ICE_NOEXCEPT throw()
-#   define ICE_NOEXCEPT_FALSE /**/
-#   define ICE_FINAL /**/
-#endif
-
-//
 // Does the C++ compiler library provide std::codecvt_utf8 and
 // std::codecvt_utf8_utf16?
 //
-#if (defined(_MSC_VER) && (_MSC_VER >= 1800)) || \
-    defined(__clang__)                        || \
-    (defined(ICE_CPP11_COMPILER) && defined(__GNUC__) && (__GNUC__ >= 5))
+#if (defined(_MSC_VER) || \
+     defined(__clang__) || \
+    (defined(__GNUC__) && (__GNUC__ >= 5)))
 #define ICE_HAS_CODECVT_UTF8
-#endif
-
-//
-// Visual Studio 2015 or later
-//
-#if defined(_MSC_VER) && (_MSC_VER >= 1900)
-
-//
-// Check if building for UWP
-//
-#   include <winapifamily.h>
-#   if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
-#      define ICE_OS_UWP
-#      define ICE_STATIC_LIBS
-#   endif
-
-#endif
-
-//
-// Support for thread-safe function local static initialization
-// (a.k.a. "magic statics")
-//
-#if defined(ICE_CPP11_MAPPING) || defined(__GNUC__) || defined(__clang__) || (defined(_MSC_VER) && (_MSC_VER >= 1900))
-#   define ICE_HAS_THREAD_SAFE_LOCAL_STATIC
 #endif
 
 //
@@ -173,12 +120,9 @@
 //  With Visual Studio, we can import/export member functions without importing/
 //  exporting the whole class
 #   define ICE_MEMBER_IMPORT_EXPORT
-#elif (defined(__GNUC__) || defined(__clang__) || defined(__IBMCPP__)) && !defined(__ibmxl__)
+#elif defined(__GNUC__) || defined(__clang__)
 #   define ICE_DECLSPEC_EXPORT __attribute__((visibility ("default")))
 #   define ICE_DECLSPEC_IMPORT __attribute__((visibility ("default")))
-#elif defined(__SUNPRO_CC)
-#   define ICE_DECLSPEC_EXPORT __global
-#   define ICE_DECLSPEC_IMPORT /**/
 #else
 #   define ICE_DECLSPEC_EXPORT /**/
 #   define ICE_DECLSPEC_IMPORT /**/
@@ -190,14 +134,6 @@
 #else
 #   define ICE_CLASS(API) API
 #   define ICE_MEMBER(API) /**/
-#endif
-
-// With IBM xlC, the visibility attribute must be at the end of the
-// declaration of global variables.
-#if defined(__IBMCPP__) && !defined(ICE_STATIC_LIBS)
-#   define ICE_GLOBAL_VAR_SUFFIX __attribute__((visibility ("default")))
-#else
-#   define ICE_GLOBAL_VAR_SUFFIX /**/
 #endif
 
 //
@@ -275,17 +211,13 @@
 #   include <fcntl.h>
 #endif
 
-#ifdef __IBMCPP__
-    // TODO: better fix for this warning
-#   pragma report(disable, "1540-0198") // private inheritance without private keyword
-#endif
-
 //
 // The Ice version.
 //
-#define ICE_STRING_VERSION "3.7.3" // "A.B.C", with A=major, B=minor, C=patch
-#define ICE_INT_VERSION 30703      // AABBCC, with AA=major, BB=minor, CC=patch
-#define ICE_SO_VERSION "37"      // "ABC", with A=major, B=minor, C=patch
+#define ICE_STRING_VERSION "4.0.0-alpha.0" // "A.B.C", with A=major, B=minor, C=patch
+#define ICE_INT_VERSION 40000      // AABBCC, with AA=major, BB=minor, CC=patch
+#define ICE_SO_VERSION "40a0"        // "ABC", with A=major, B=minor, C=patch
+#define ICE_ALPHA_VERSION 0
 
 #if !defined(ICE_BUILDING_ICE) && defined(ICE_API_EXPORTS)
 #   define ICE_BUILDING_ICE
@@ -296,38 +228,14 @@
 #       error "Only multi-threaded DLL libraries can be used with Ice!"
 #   endif
 
-#   ifdef ICE_CPP11_MAPPING
-#      if defined(_DEBUG)
-#         if defined(ICE_OS_UWP)
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "uwp++11D.lib"
-#         else
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "++11D.lib"
-#         endif
-#      else
-#         if defined(ICE_OS_UWP)
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "uwp++11.lib"
-#         else
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "++11.lib"
-#         endif
-#      endif
-#   else
-#      if defined(_DEBUG)
-#         if defined(ICE_OS_UWP)
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "uwpD.lib"
-#         else
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "D.lib"
-#         endif
-#      else
-#         if defined(ICE_OS_UWP)
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "uwp.lib"
-#         else
-#            define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION ".lib"
-#         endif
-#      endif
-#   endif
+#if defined(_DEBUG)
+#    define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION "D.lib"
+#else
+#    define ICE_LIBNAME(NAME) NAME ICE_SO_VERSION ".lib"
+#endif
 
 //
-//  Automatically link with Ice[D|++11|++11D].lib
+//  Automatically link with Ice[D].lib
 //
 #   if !defined(ICE_BUILDING_ICE) && !defined(ICE_BUILDING_SLICE_COMPILERS)
 #      pragma comment(lib, ICE_LIBNAME("Ice"))
@@ -377,47 +285,12 @@ typedef long long Int64;
 
 }
 
-//
-// Macros to facilitate C++98 -> C++11 transition
-//
-#ifdef ICE_CPP11_MAPPING // C++11 mapping
-#   include <memory>
-#   include <future>
-#   define ICE_HANDLE ::std::shared_ptr
-#   define ICE_INTERNAL_HANDLE ::std::shared_ptr
-#   define ICE_PROXY_HANDLE ::std::shared_ptr
-#   define ICE_MAKE_SHARED(T, ...) ::std::make_shared<T>(__VA_ARGS__)
-#   define ICE_DEFINE_PTR(TPtr, T) using TPtr = ::std::shared_ptr<T>
-#   define ICE_ENUM(CLASS,ENUMERATOR) CLASS::ENUMERATOR
-#   define ICE_SCOPED_ENUM(CLASS,ENUMERATOR) CLASS::ENUMERATOR
-#   define ICE_NULLPTR nullptr
-#   define ICE_DYNAMIC_CAST(T,V) ::std::dynamic_pointer_cast<T>(V)
-#   define ICE_SHARED_FROM_THIS shared_from_this()
-#   define ICE_SHARED_FROM_CONST_THIS(T) const_cast<T*>(this)->shared_from_this()
-#   define ICE_GET_SHARED_FROM_THIS(p) p->shared_from_this()
-#   define ICE_CHECKED_CAST(T, ...) Ice::checkedCast<T>(__VA_ARGS__)
-#   define ICE_UNCHECKED_CAST(T, ...) Ice::uncheckedCast<T>(__VA_ARGS__)
-#   define ICE_DELEGATE(T) T
-#   define ICE_IN(...) __VA_ARGS__
-#   define ICE_SET_EXCEPTION_FROM_CLONE(T, V)  T = V
-#else // C++98 mapping
-#   define ICE_HANDLE ::IceUtil::Handle
-#   define ICE_INTERNAL_HANDLE ::IceInternal::Handle
-#   define ICE_PROXY_HANDLE ::IceInternal::ProxyHandle
-#   define ICE_MAKE_SHARED(T, ...) new T(__VA_ARGS__)
-#   define ICE_DEFINE_PTR(TPtr, T) typedef ::IceUtil::Handle<T> TPtr
-#   define ICE_ENUM(CLASS,ENUMERATOR) ENUMERATOR
-#   define ICE_SCOPED_ENUM(CLASS,ENUMERATOR) CLASS##ENUMERATOR
-#   define ICE_NULLPTR 0
-#   define ICE_DYNAMIC_CAST(T,V) T##Ptr::dynamicCast(V)
-#   define ICE_SHARED_FROM_THIS this
-#   define ICE_SHARED_FROM_CONST_THIS(T) const_cast<T*>(this)
-#   define ICE_GET_SHARED_FROM_THIS(p) p
-#   define ICE_CHECKED_CAST(T, ...) T::checkedCast(__VA_ARGS__)
-#   define ICE_UNCHECKED_CAST(T, ...) T::uncheckedCast(__VA_ARGS__)
-#   define ICE_DELEGATE(T) T##Ptr
-#   define ICE_IN(...) const __VA_ARGS__&
-#   define ICE_SET_EXCEPTION_FROM_CLONE(T, V) T.reset(V)
-#endif
+#include <memory>
+#include <future>
+#define ICE_DEFINE_PTR(TPtr, T) using TPtr = ::std::shared_ptr<T>
+#define ICE_DYNAMIC_CAST(T,V) ::std::dynamic_pointer_cast<T>(V)
+#define ICE_SHARED_FROM_CONST_THIS(T) const_cast<T*>(this)->shared_from_this()
+#define ICE_CHECKED_CAST(T, ...) Ice::checkedCast<T>(__VA_ARGS__)
+#define ICE_UNCHECKED_CAST(T, ...) Ice::uncheckedCast<T>(__VA_ARGS__)
 
 #endif

@@ -6,8 +6,9 @@
 
 #include <Ice/Identity.ice>
 
-["cs:namespace:Ice.udp"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::UDP
 {
 
 interface PingReply
@@ -19,6 +20,7 @@ sequence<byte> ByteSeq;
 
 interface TestIntf
 {
+    int getValue();
     void ping(PingReply* reply);
     void sendByteSeq(ByteSeq seq, PingReply* reply);
     void pingBiDir(Ice::Identity id);

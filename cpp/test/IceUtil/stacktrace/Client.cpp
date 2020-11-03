@@ -71,7 +71,7 @@ splitLines(const string& str)
     {
 #ifdef __APPLE__
         //
-        // Remove patch number from stack trace
+        // Remove patch number and pre-release information from stack trace
         //
         string v1 = ICE_STRING_VERSION;
         size_t pos = line.find(v1);
@@ -122,13 +122,7 @@ Client::run(int, char*[])
     {
         filename += "release";
 #if defined(_MSC_VER)
-#   if(_MSC_VER == 1700)
-        filename += "-vc110";
-#   elif(_MSC_VER == 1800)
-        filename += "-vc120";
-#   elif(_MSC_VER == 1900)
-        filename += "-vc140";
-#    elif(_MSC_VER >= 1910)
+#   if(_MSC_VER >= 1910)
         filename += "-vc141";
 #   endif
 #elif defined(__apple_build_version__)
@@ -209,7 +203,7 @@ Client::run(int, char*[])
                         break;
                     }
 
-                    cerr << "could not find `" << expected[i] << "` in " << actual[i] << endl;
+                    cerr << "could not find `" << expected[i] << "` in `" << actual[i] << "`" << endl;
                     cerr << "Full stack is:\n" << stack << endl;
                     test(false);
                 }

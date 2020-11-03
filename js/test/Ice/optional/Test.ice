@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["suppress-warning:deprecated"]]
+[[3.7]]
 
 module Test
 {
@@ -53,8 +53,6 @@ sequence<SmallStruct> SmallStructList;
 sequence<FixedStruct> FixedStructSeq;
 sequence<FixedStruct> FixedStructList;
 sequence<VarStruct> VarStructSeq;
-sequence<OneOptional> OneOptionalSeq;
-sequence<OneOptional*> OneOptionalPrxSeq;
 
 sequence<byte> Serializable;
 
@@ -63,8 +61,6 @@ dictionary<string, int> StringIntDict;
 dictionary<int, MyEnum> IntEnumDict;
 dictionary<int, FixedStruct> IntFixedStructDict;
 dictionary<int, VarStruct> IntVarStructDict;
-dictionary<int, OneOptional> IntOneOptionalDict;
-dictionary<int, OneOptional*> IntOneOptionalPrxDict;
 
 class MultiOptional
 {
@@ -77,8 +73,7 @@ class MultiOptional
     optional(7) double g;
     optional(8) string h;
     optional(9) MyEnum i;
-    optional(10) MultiOptional* j;
-    optional(11) MultiOptional k;
+
     optional(12) ByteSeq bs;
     optional(13) StringSeq ss;
     optional(14) IntIntDict iid;
@@ -90,14 +85,10 @@ class MultiOptional
     optional(19) MyEnumSeq es;
     optional(20) FixedStructSeq fss;
     optional(21) VarStructSeq vss;
-    optional(22) OneOptionalSeq oos;
-    optional(23) OneOptionalPrxSeq oops;
 
     optional(24) IntEnumDict ied;
     optional(25) IntFixedStructDict ifsd;
     optional(26) IntVarStructDict ivsd;
-    optional(27) IntOneOptionalDict iood;
-    optional(28) IntOneOptionalPrxDict ioopd;
 
     optional(29) BoolSeq bos;
 
@@ -112,14 +103,14 @@ class A
     optional(500) int mc;
 }
 
-["preserve-slice"]
-class B extends A
+[preserve-slice]
+class B : A
 {
     int requiredB;
     optional(10) int md;
 }
 
-class C extends B
+class C : B
 {
     string ss;
     optional(890) string ms;
@@ -136,62 +127,26 @@ exception OptionalException
     bool req = false;
     optional(1) int a = 5;
     optional(2) string b;
-    optional(50) OneOptional o;
+    optional(50) VarStruct vs;
 }
 
-exception DerivedException extends OptionalException
+exception DerivedException : OptionalException
 {
     optional(600) string ss = "test";
-    optional(601) OneOptional o2;
+    optional(601) VarStruct vs2;
 }
 
-exception RequiredException extends OptionalException
+exception RequiredException : OptionalException
 {
     string ss = "test";
-    OneOptional o2;
+    VarStruct vs2;
 }
 
 class OptionalWithCustom
 {
     optional(1) SmallStructList l;
-    ["protected"] optional(2) SmallStructList lp;
+    [protected] optional(2) SmallStructList lp;
     optional(3) ClassVarStruct s;
-}
-
-class E
-{
-    A ae;
-}
-
-class F extends E
-{
-    optional(1) A af;
-}
-
-class G1
-{
-    string a;
-}
-
-class G2
-{
-    long a;
-}
-
-class G
-{
-    optional(1) G1 gg1Opt;
-    G2 gg2;
-    optional(0) G2 gg2Opt;
-    G1 gg1;
-}
-
-class Recursive;
-sequence<Recursive> RecursiveSeq;
-
-class Recursive
-{
-    optional(0) RecursiveSeq value;
 }
 
 interface Initial
@@ -200,13 +155,13 @@ interface Initial
 
     Object pingPong(Object o);
 
-    void opOptionalException(optional(1) int a, optional(2) string b, optional(3) OneOptional o)
+    void opOptionalException(optional(1) int a, optional(2) string b, optional(3) VarStruct vs)
         throws OptionalException;
 
-    void opDerivedException(optional(1) int a, optional(2) string b, optional(3) OneOptional o)
+    void opDerivedException(optional(1) int a, optional(2) string b, optional(3) VarStruct vs)
         throws OptionalException;
 
-    void opRequiredException(optional(1) int a, optional(2) string b, optional(3) OneOptional o)
+    void opRequiredException(optional(1) int a, optional(2) string b, optional(3) VarStruct vs)
         throws OptionalException;
 
     optional(1) byte opByte(optional(2) byte p1, out optional(3) byte p3);
@@ -232,10 +187,6 @@ interface Initial
     optional(1) FixedStruct opFixedStruct(optional(2) FixedStruct p1, out optional(3) FixedStruct p3);
 
     optional(1) VarStruct opVarStruct(optional(2) VarStruct p1, out optional(3) VarStruct p3);
-
-    optional(1) OneOptional opOneOptional(optional(2) OneOptional p1, out optional(3) OneOptional p3);
-
-    optional(1) OneOptional* opOneOptionalProxy(optional(2) OneOptional* p1, out optional(3) OneOptional* p3);
 
     optional(1) ByteSeq opByteSeq(optional(2) ByteSeq p1, out optional(3) ByteSeq p3);
 
@@ -269,33 +220,21 @@ interface Initial
 
     optional(1) StringIntDict opStringIntDict(optional(2) StringIntDict p1, out optional(3) StringIntDict p3);
 
-    optional(1) IntOneOptionalDict opIntOneOptionalDict(optional(2) IntOneOptionalDict p1,
-                                                        out optional(3) IntOneOptionalDict p3);
-
     void opClassAndUnknownOptional(A p);
-
-    void sendOptionalClass(bool req, optional(1) OneOptional o);
-
-    void returnOptionalClass(bool req, out optional(1) OneOptional o);
-
-    G opG(G g);
 
     void opVoid();
 
-    ["marshaled-result"] optional(1) SmallStruct opMStruct1();
-    ["marshaled-result"] optional(1) SmallStruct opMStruct2(optional(2) SmallStruct p1,
+    [marshaled-result] optional(1) SmallStruct opMStruct1();
+    [marshaled-result] optional(1) SmallStruct opMStruct2(optional(2) SmallStruct p1,
                                                             out optional(3)SmallStruct p2);
 
-    ["marshaled-result"] optional(1) StringSeq opMSeq1();
-    ["marshaled-result"] optional(1) StringSeq opMSeq2(optional(2) StringSeq p1,
+    [marshaled-result] optional(1) StringSeq opMSeq1();
+    [marshaled-result] optional(1) StringSeq opMSeq2(optional(2) StringSeq p1,
                                                        out optional(3) StringSeq p2);
 
-    ["marshaled-result"] optional(1) StringIntDict opMDict1();
-    ["marshaled-result"] optional(1) StringIntDict opMDict2(optional(2) StringIntDict p1,
+    [marshaled-result] optional(1) StringIntDict opMDict1();
+    [marshaled-result] optional(1) StringIntDict opMDict2(optional(2) StringIntDict p1,
                                                             out optional(3) StringIntDict p2);
-
-    ["marshaled-result"] optional(1) G opMG1();
-    ["marshaled-result"] optional(1) G opMG2(optional(2) G p1, out optional(3) G p2);
 
     bool supportsRequiredParams();
 

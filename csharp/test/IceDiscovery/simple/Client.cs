@@ -1,37 +1,28 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceDiscoveryTest")]
-[assembly: AssemblyDescription("IceDiscovery test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Discovery
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
+            await using Ice.Communicator communicator = Initialize(ref args);
             int num;
             try
             {
-                num = args.Length == 1 ? Int32.Parse(args[0]) : 0;
+                num = args.Length == 1 ? int.Parse(args[0]) : 0;
             }
-            catch(FormatException)
+            catch (FormatException)
             {
                 num = 0;
             }
-            AllTests.allTests(this, num);
+            AllTests.Run(this, num);
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

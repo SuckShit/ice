@@ -8,18 +8,10 @@
 
 using namespace std;
 
-// Work-around for anonymous namspace bug in xlclang++
-#ifdef __ibmxl__
-namespace OnewaysAMINamespace
-#else
 namespace
-#endif
 {
 
 class CallbackBase
-#ifndef ICE_CPP11_MAPPING
-: public Ice::LocalObject
-#endif
 {
 public:
 
@@ -80,18 +72,13 @@ ICE_DEFINE_PTR(CallbackPtr, Callback);
 
 }
 
-#ifdef __ibmxl__
-using namespace OnewaysAMINamespace;
-#endif
-
 void
 onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
 {
     Test::MyClassPrxPtr p = ICE_UNCHECKED_CAST(Test::MyClassPrx, proxy->ice_oneway());
 
     {
-        CallbackPtr cb = ICE_MAKE_SHARED(Callback);
-#ifdef ICE_CPP11_MAPPING
+        CallbackPtr cb = std::make_shared<Callback>();
         p->ice_pingAsync(
             nullptr,
             [](exception_ptr)
@@ -102,33 +89,20 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             {
                 cb->sent(sent);
             });
-#else
-        Ice::Callback_Object_ice_pingPtr callback =
-            Ice::newCallback_Object_ice_ping(cb, &Callback::noException, &Callback::sent);
-        p->begin_ice_ping(callback);
-#endif
         cb->check();
     }
 
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             p->ice_isAAsync(Test::MyClass::ice_staticId(),
                 [&](bool)
                 {
                     test(false);
                 });
-#else
-            p->begin_ice_isA(Test::MyClass::ice_staticId());
-#endif
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
@@ -136,22 +110,14 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             p->ice_idAsync(
                 [&](string)
                 {
                     test(false);
                 });
-#else
-            p->begin_ice_id();
-#endif
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
@@ -159,28 +125,19 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             p->ice_idsAsync(
                 [&](vector<string>)
                 {
                 });
-#else
-            p->begin_ice_ids();
-#endif
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
 
     {
-        CallbackPtr cb = ICE_MAKE_SHARED(Callback);
-#ifdef ICE_CPP11_MAPPING
+        CallbackPtr cb = std::make_shared<Callback>();
         p->opVoidAsync(
             nullptr,
             [](exception_ptr)
@@ -191,17 +148,11 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             {
                 cb->sent(sent);
             });
-#else
-        Test::Callback_MyClass_opVoidPtr callback =
-            Test::newCallback_MyClass_opVoid(cb, &Callback::noException, &Callback::sent);
-        p->begin_opVoid(callback);
-#endif
         cb->check();
     }
 
     {
-        CallbackPtr cb = ICE_MAKE_SHARED(Callback);
-#ifdef ICE_CPP11_MAPPING
+        CallbackPtr cb = std::make_shared<Callback>();
         p->opIdempotentAsync(
             nullptr,
             [](exception_ptr)
@@ -212,17 +163,11 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             {
                 cb->sent(sent);
             });
-#else
-        Test::Callback_MyClass_opIdempotentPtr callback =
-            Test::newCallback_MyClass_opIdempotent(cb, &Callback::noException, &Callback::sent);
-        p->begin_opIdempotent(callback);
-#endif
         cb->check();
     }
 
     {
-        CallbackPtr cb = ICE_MAKE_SHARED(Callback);
-#ifdef ICE_CPP11_MAPPING
+        CallbackPtr cb = std::make_shared<Callback>();
         p->opNonmutatingAsync(
             nullptr,
             [](exception_ptr)
@@ -233,39 +178,25 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             {
                 cb->sent(sent);
             });
-#else
-        Test::Callback_MyClass_opNonmutatingPtr callback =
-            Test::newCallback_MyClass_opNonmutating(cb, &Callback::noException, &Callback::sent);
-        p->begin_opNonmutating(callback);
-#endif
         cb->check();
     }
 
     {
         try
         {
-#ifdef ICE_CPP11_MAPPING
             p->opByteAsync(Ice::Byte(0xff), Ice::Byte(0x0f),
                 [](Ice::Byte, Ice::Byte)
                 {
                     test(false);
                 });
-#else
-            p->begin_opByte(Ice::Byte(0xff), Ice::Byte(0x0f));
-#endif
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
-#ifdef ICE_CPP11_MAPPING
     {
-        CallbackPtr cb = ICE_MAKE_SHARED(Callback);
+        CallbackPtr cb = std::make_shared<Callback>();
         p->ice_pingAsync(nullptr,
                         [=](exception_ptr e)
                         {
@@ -291,11 +222,7 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             p->ice_isAAsync(Test::MyClass::ice_staticId());
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
@@ -306,11 +233,7 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             p->ice_idAsync();
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
@@ -321,13 +244,8 @@ onewaysAMI(const Ice::CommunicatorPtr&, const Test::MyClassPrxPtr& proxy)
             p->ice_idsAsync();
             test(false);
         }
-#ifdef ICE_CPP11_MAPPING
         catch(const Ice::TwowayOnlyException&)
-#else
-        catch(const IceUtil::IllegalArgumentException&)
-#endif
         {
         }
     }
-#endif
 }

@@ -31,10 +31,11 @@ public:
     virtual void shutdown(const Ice::Current&);
 };
 
-class CookieI : public Test::Cookie
+class Cookie
+
 {
 public:
-
+    virtual ~Cookie();
     virtual std::string message() const;
 };
 

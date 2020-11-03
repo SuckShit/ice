@@ -27,7 +27,7 @@ public class AllTests
     public static MyClassPrx allTests(test.TestHelper helper)
     {
         com.zeroc.Ice.Communicator communicator = helper.communicator();
-        final boolean bluetooth = communicator.getProperties().getProperty("Ice.Default.Protocol").indexOf("bt") == 0;
+        final boolean bluetooth = communicator.getProperties().getProperty("Ice.Default.Transport").indexOf("bt") == 0;
         PrintWriter out = helper.getWriter();
 
         out.print("testing stringToProxy... ");
@@ -729,16 +729,16 @@ public class AllTests
         test(compObj.ice_compress(true).equals(compObj.ice_compress(true)));
         test(!compObj.ice_compress(false).equals(compObj.ice_compress(true)));
 
-        test(!compObj.ice_getCompress().isPresent());
-        test(compObj.ice_compress(true).ice_getCompress().get() == true);
-        test(compObj.ice_compress(false).ice_getCompress().get() == false);
+        test(compObj.ice_getCompress() == null);
+        test(compObj.ice_compress(true).ice_getCompress() == true);
+        test(compObj.ice_compress(false).ice_getCompress() == false);
 
         test(compObj.ice_timeout(20).equals(compObj.ice_timeout(20)));
         test(!compObj.ice_timeout(10).equals(compObj.ice_timeout(20)));
 
-        test(!compObj.ice_getTimeout().isPresent());
-        test(compObj.ice_timeout(10).ice_getTimeout().getAsInt() == 10);
-        test(compObj.ice_timeout(20).ice_getTimeout().getAsInt() == 20);
+        test(compObj.ice_getTimeout() == null);
+        test(compObj.ice_timeout(10).ice_getTimeout() == 10);
+        test(compObj.ice_timeout(20).ice_getTimeout() == 20);
 
         com.zeroc.Ice.LocatorPrx loc1 =
             com.zeroc.Ice.LocatorPrx.uncheckedCast(communicator.stringToProxy("loc1:tcp -p 10000"));
@@ -862,8 +862,8 @@ public class AllTests
                     test(cl.ice_invocationTimeout(10).ice_fixed(connection).ice_getInvocationTimeout() == 10);
                     test(cl.ice_fixed(connection).ice_getConnection() == connection);
                     test(cl.ice_fixed(connection).ice_fixed(connection).ice_getConnection() == connection);
-                    test(!cl.ice_fixed(connection).ice_getTimeout().isPresent());
-                    test(cl.ice_compress(true).ice_fixed(connection).ice_getCompress().get());
+                    test(cl.ice_fixed(connection).ice_getTimeout() == null);
+                    test(cl.ice_compress(true).ice_fixed(connection).ice_getCompress());
                     com.zeroc.Ice.Connection fixedConnection = cl.ice_connectionId("ice_fixed").ice_getConnection();
                     test(cl.ice_fixed(connection).ice_fixed(fixedConnection).ice_getConnection() == fixedConnection);
                     try
@@ -1115,8 +1115,8 @@ public class AllTests
         if(communicator.getProperties().getPropertyAsInt("Ice.IPv6") == 0)
         {
             // Working?
-            boolean ssl = communicator.getProperties().getProperty("Ice.Default.Protocol").equals("ssl");
-            boolean tcp = communicator.getProperties().getProperty("Ice.Default.Protocol").equals("tcp");
+            boolean ssl = communicator.getProperties().getProperty("Ice.Default.Transport").equals("ssl");
+            boolean tcp = communicator.getProperties().getProperty("Ice.Default.Transport").equals("tcp");
 
             // Two legal TCP endpoints expressed as opaque endpoints
             p1 = communicator.stringToProxy("test -e 1.0:opaque -e 1.0 -t 1 -v CTEyNy4wLjAuMeouAAAQJwAAAA==:opaque -e 1.0 -t 1 -v CTEyNy4wLjAuMusuAAAQJwAAAA==");

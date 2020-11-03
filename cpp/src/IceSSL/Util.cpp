@@ -3,7 +3,7 @@
 //
 
 #include <IceUtil/Config.h>
-#if defined(_WIN32) && !defined(ICE_OS_UWP)
+#ifdef _WIN32
 #   include <winsock2.h>
 #endif
 
@@ -19,12 +19,6 @@
 #include <Ice/UniqueRef.h>
 
 #include <fstream>
-
-#ifdef __IBMCPP__
-// Work-around for xlC visibility bug
-// See "ifstream::tellg visibility error" thread on IBM xlC forum
-extern template class std::fpos<char*>;
-#endif
 
 using namespace std;
 using namespace Ice;
@@ -51,7 +45,6 @@ IceSSL::fromCFString(CFStringRef v)
 
 #endif
 
-#ifdef ICE_CPP11_MAPPING
 IceSSL::CertificateVerifier::CertificateVerifier(std::function<bool(const std::shared_ptr<ConnectionInfo>&)> v) :
     _verify(std::move(v))
 {
@@ -73,7 +66,6 @@ IceSSL::PasswordPrompt::getPassword()
 {
     return _prompt();
 }
-#endif
 
 bool
 IceSSL::parseBytes(const string& arg, vector<unsigned char>& buffer)

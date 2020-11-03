@@ -1,23 +1,15 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
+using System;
+using System.Diagnostics;
 
-namespace IceInternal
+namespace ZeroC.Ice
 {
-    using System.Diagnostics;
-
-    public sealed class Time
+    internal static class Time
     {
-        static Time()
-        {
-            _stopwatch.Start();
-        }
+        /// <summary>Gets the total elapsed time since the Ice run-time started as a TimeSpan object.</summary>
+        internal static TimeSpan Elapsed => _stopwatch.Elapsed;
+        static Time() => _stopwatch.Start();
 
-        public static long currentMonotonicTimeMillis()
-        {
-            return _stopwatch.ElapsedMilliseconds;
-        }
-
-        private static Stopwatch _stopwatch = new Stopwatch();
+        private static readonly Stopwatch _stopwatch = new Stopwatch();
     }
 }

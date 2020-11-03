@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/Context.ice>
 
-[["suppress-warning:deprecated"]] // For classes with operations
+[[suppress-warning(deprecated)]] // For classes with operations
 
 module Test
 {
@@ -232,7 +232,7 @@ interface MyClass
 
     idempotent void opIdempotent();
 
-    ["nonmutating"] idempotent void opNonmutating();
+    [nonmutating] idempotent void opNonmutating();
 
     byte opByte1(byte opByte1);
     short opShort1(short opShort1);
@@ -249,28 +249,26 @@ interface MyClass
     StringS opStringLiterals();
     StringS opWStringLiterals();
 
-    ["marshaled-result"] Structure opMStruct1();
-    ["marshaled-result"] Structure opMStruct2(Structure p1, out Structure p2);
+    [marshaled-result] Structure opMStruct1();
+    [marshaled-result] Structure opMStruct2(Structure p1, out Structure p2);
 
-    ["marshaled-result"] StringS opMSeq1();
-    ["marshaled-result"] StringS opMSeq2(StringS p1, out StringS p2);
+    [marshaled-result] StringS opMSeq1();
+    [marshaled-result] StringS opMSeq2(StringS p1, out StringS p2);
 
-    ["marshaled-result"] StringStringD opMDict1();
-    ["marshaled-result"] StringStringD opMDict2(StringStringD p1, out StringStringD p2);
+    [marshaled-result] StringStringD opMDict1();
+    [marshaled-result] StringStringD opMDict2(StringStringD p1, out StringStringD p2);
 }
 
 struct MyStruct1
 {
     string tesT; // Same name as the enclosing module
     MyClass* myClass; // Same name as an already defined class
-    string myStruct1; // Same name as the enclosing struct
 }
 
 class MyClass1
 {
     string tesT; // Same name as the enclosing module
     MyClass* myClass; // Same name as an already defined class
-    string myClass1; // Same name as the enclosing class
 }
 
 interface MyDerivedClass extends MyClass

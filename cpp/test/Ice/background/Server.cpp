@@ -28,7 +28,6 @@ class LocatorI : public Ice::Locator
 {
 public:
 
-#ifdef ICE_CPP11_MAPPING
     virtual void
     findAdapterByIdAsync(string,
                          function<void(const shared_ptr<Ice::ObjectPrx>&)> response,
@@ -50,29 +49,10 @@ public:
         Ice::CommunicatorPtr communicator = current.adapter->getCommunicator();
         response(current.adapter->createDirectProxy(id));
     }
-#else
-    virtual void
-    findAdapterById_async(const Ice::AMD_Locator_findAdapterByIdPtr& response, const string&,
-                          const Ice::Current& current) const
-    {
-        _controller->checkCallPause(current);
-        Ice::CommunicatorPtr communicator = current.adapter->getCommunicator();
-        response->ice_response(current.adapter->createDirectProxy(Ice::stringToIdentity("dummy")));
-    }
-
-    virtual void
-    findObjectById_async(const Ice::AMD_Locator_findObjectByIdPtr& response, const Ice::Identity& id,
-                         const Ice::Current& current) const
-    {
-        _controller->checkCallPause(current);
-        Ice::CommunicatorPtr communicator = current.adapter->getCommunicator();
-        response->ice_response(current.adapter->createDirectProxy(id));
-    }
-#endif
     virtual Ice::LocatorRegistryPrxPtr
     getRegistry(const Ice::Current&) const
     {
-        return ICE_NULLPTR;
+        return nullptr;
     }
 
     LocatorI(const BackgroundControllerIPtr& controller) : _controller(controller)
@@ -93,18 +73,18 @@ public:
     {
         hasRoutingTable = true;
         _controller->checkCallPause(current);
-        return ICE_NULLPTR;
+        return nullptr;
     }
 
     virtual Ice::ObjectPrxPtr
     getServerProxy(const Ice::Current& current) const
     {
         _controller->checkCallPause(current);
-        return ICE_NULLPTR;
+        return nullptr;
     }
 
     virtual Ice::ObjectProxySeq
-    addProxies(ICE_IN(Ice::ObjectProxySeq), const Ice::Current&)
+    addProxies(Ice::ObjectProxySeq, const Ice::Current&)
     {
         return Ice::ObjectProxySeq();
     }
@@ -151,8 +131,8 @@ Server::run(int argc, char** argv)
     // Setup the test transport plug-in.
     //
     properties->setProperty("Ice.Plugin.Test", "TestTransport:createTestTransport");
-    string defaultProtocol = properties->getPropertyWithDefault("Ice.Default.Protocol", "tcp");
-    properties->setProperty("Ice.Default.Protocol", "test-" + defaultProtocol);
+    string defaultProtocol = properties->getPropertyWithDefault("Ice.Default.Transport", "tcp");
+    properties->setProperty("Ice.Default.Transport", "test-" + defaultProtocol);
 
     Ice::CommunicatorHolder communicator = initialize(argc, argv, properties);
 
@@ -163,18 +143,14 @@ Server::run(int argc, char** argv)
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
     Ice::ObjectAdapterPtr adapter2 = communicator->createObjectAdapter("ControllerAdapter");
 
-#ifdef ICE_CPP11_MAPPING
     shared_ptr<PluginI> plugin = dynamic_pointer_cast<PluginI>(communicator->getPluginManager()->getPlugin("Test"));
-#else
-    PluginI* plugin = dynamic_cast<PluginI*>(communicator->getPluginManager()->getPlugin("Test").get());
-#endif
     assert(plugin);
     ConfigurationPtr configuration = plugin->getConfiguration();
-    BackgroundControllerIPtr backgroundController = ICE_MAKE_SHARED(BackgroundControllerI, adapter, configuration);
+    BackgroundControllerIPtr backgroundController = std::make_shared<BackgroundControllerI>(adapter, configuration);
 
-    adapter->add(ICE_MAKE_SHARED(BackgroundI, backgroundController), Ice::stringToIdentity("background"));
-    adapter->add(ICE_MAKE_SHARED(LocatorI, backgroundController), Ice::stringToIdentity("locator"));
-    adapter->add(ICE_MAKE_SHARED(RouterI, backgroundController), Ice::stringToIdentity("router"));
+    adapter->add(std::make_shared<BackgroundI>(backgroundController), Ice::stringToIdentity("background"));
+    adapter->add(std::make_shared<LocatorI>(backgroundController), Ice::stringToIdentity("locator"));
+    adapter->add(std::make_shared<RouterI>(backgroundController), Ice::stringToIdentity("router"));
     adapter->activate();
 
     adapter2->add(backgroundController, Ice::stringToIdentity("backgroundController"));

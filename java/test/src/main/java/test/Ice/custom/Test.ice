@@ -6,45 +6,45 @@
 
 #include <Ice/BuiltinSequences.ice>
 
-[["java:package:test.Ice.custom"]]
+[[java:package(test.Ice.custom)]]
 module Test
 {
 
 class C {}
 
 sequence<C> CSeq;
-["java:type:java.util.ArrayList<C>"] sequence<C> CArray;
-["java:type:java.util.LinkedList<C>"] sequence<C> CList;
+[java:type(java.util.ArrayList<C>)] sequence<C> CArray;
+[java:type(java.util.LinkedList<C>)] sequence<C> CList;
 
-["java:type:java.util.ArrayList<Boolean>"] sequence<bool> BoolSeq;
-["java:type:java.util.ArrayList<Byte>"] sequence<byte> ByteSeq;
-["java:type:java.util.ArrayList<Short>"] sequence<short> ShortSeq;
-["java:type:java.util.ArrayList<Integer>"] sequence<int> IntSeq;
-["java:type:java.util.ArrayList<Long>"] sequence<long> LongSeq;
-["java:type:java.util.ArrayList<Float>"] sequence<float> FloatSeq;
-["java:type:java.util.ArrayList<Double>"] sequence<double> DoubleSeq;
-["java:type:java.util.ArrayList<String>"] sequence<string> StringSeq;
+[java:type(java.util.ArrayList<Boolean>)] sequence<bool> BoolSeq;
+[java:type(java.util.ArrayList<Byte>)] sequence<byte> ByteSeq;
+[java:type(java.util.ArrayList<Short>)] sequence<short> ShortSeq;
+[java:type(java.util.ArrayList<Integer>)] sequence<int> IntSeq;
+[java:type(java.util.ArrayList<Long>)] sequence<long> LongSeq;
+[java:type(java.util.ArrayList<Float>)] sequence<float> FloatSeq;
+[java:type(java.util.ArrayList<Double>)] sequence<double> DoubleSeq;
+[java:type(java.util.ArrayList<String>)] sequence<string> StringSeq;
 
-["java:buffer"] sequence<byte> ByteBuffer;
-["java:buffer"] sequence<short> ShortBuffer;
-["java:buffer"] sequence<int> IntBuffer;
-["java:buffer"] sequence<long> LongBuffer;
-["java:buffer"] sequence<float> FloatBuffer;
-["java:buffer"] sequence<double> DoubleBuffer;
+[java:buffer] sequence<byte> ByteBuffer;
+[java:buffer] sequence<short> ShortBuffer;
+[java:buffer] sequence<int> IntBuffer;
+[java:buffer] sequence<long> LongBuffer;
+[java:buffer] sequence<float> FloatBuffer;
+[java:buffer] sequence<double> DoubleBuffer;
 
 enum E { E1, E2, E3 }
-["java:type:java.util.ArrayList<E>"] sequence<E> ESeq;
+[java:type(java.util.ArrayList<E>)] sequence<E> ESeq;
 
 struct S
 {
     E en;
 }
-["java:type:java.util.ArrayList<S>"] sequence<S> SSeq;
+[java:type(java.util.ArrayList<S>)] sequence<S> SSeq;
 
 dictionary<int, string> D;
-["java:type:java.util.ArrayList<java.util.Map<Integer,String>>"] sequence<D> DSeq;
+[java:type(java.util.ArrayList<java.util.Map<Integer,String>>)] sequence<D> DSeq;
 
-["java:type:java.util.LinkedList<java.util.List<String>>"] sequence<StringSeq> StringSeqSeq;
+[java:type(java.util.LinkedList<java.util.List<String>>)] sequence<StringSeq> StringSeqSeq;
 
 interface TestIntf
 {
@@ -71,28 +71,25 @@ interface TestIntf
     FloatBuffer opFloatBufferSeq(FloatBuffer inSeq, out FloatBuffer outSeq);
     DoubleBuffer opDoubleBufferSeq(DoubleBuffer inSeq, out DoubleBuffer outSeq);
 
-    optional(1) CSeq opOptCSeq(optional(2) CSeq inSeq, out optional(3) CSeq outSeq);
-    optional(1) CArray opOptCArray(optional(2) CArray inSeq, out optional(3) CArray outSeq);
-    optional(1) CList opOptCList(optional(2) CList inSeq, out optional(3) CList outSeq);
-    optional(1) BoolSeq opOptBoolSeq(optional(2) BoolSeq inSeq, out optional(3) BoolSeq outSeq);
-    optional(1) ByteSeq opOptByteSeq(optional(2) ByteSeq inSeq, out optional(3) ByteSeq outSeq);
-    optional(1) ShortSeq opOptShortSeq(optional(2) ShortSeq inSeq, out optional(3) ShortSeq outSeq);
-    optional(1) IntSeq opOptIntSeq(optional(2) IntSeq inSeq, out optional(3) IntSeq outSeq);
-    optional(1) LongSeq opOptLongSeq(optional(2) LongSeq inSeq, out optional(3) LongSeq outSeq);
-    optional(1) FloatSeq opOptFloatSeq(optional(2) FloatSeq inSeq, out optional(3) FloatSeq outSeq);
-    optional(1) DoubleSeq opOptDoubleSeq(optional(2) DoubleSeq inSeq, out optional(3) DoubleSeq outSeq);
-    optional(1) StringSeq opOptStringSeq(optional(2) StringSeq inSeq, out optional(3) StringSeq outSeq);
-    optional(1) ESeq opOptESeq(optional(2) ESeq inSeq, out optional(3) ESeq outSeq);
-    optional(1) SSeq opOptSSeq(optional(2) SSeq inSeq, out optional(3) SSeq outSeq);
-    optional(1) DSeq opOptDSeq(optional(2) DSeq inSeq, out optional(3) DSeq outSeq);
-    optional(1) StringSeqSeq opOptStringSeqSeq(optional(2) StringSeqSeq inSeq, out optional(3) StringSeqSeq outSeq);
+    tag(1) BoolSeq? opOptBoolSeq(tag(2) BoolSeq? inSeq, out tag(3) BoolSeq? outSeq);
+    tag(1) ByteSeq? opOptByteSeq(tag(2) ByteSeq? inSeq, out tag(3) ByteSeq? outSeq);
+    tag(1) ShortSeq? opOptShortSeq(tag(2) ShortSeq? inSeq, out tag(3) ShortSeq? outSeq);
+    tag(1) IntSeq? opOptIntSeq(tag(2) IntSeq? inSeq, out tag(3) IntSeq? outSeq);
+    tag(1) LongSeq? opOptLongSeq(tag(2) LongSeq? inSeq, out tag(3) LongSeq? outSeq);
+    tag(1) FloatSeq? opOptFloatSeq(tag(2) FloatSeq? inSeq, out tag(3) FloatSeq? outSeq);
+    tag(1) DoubleSeq? opOptDoubleSeq(tag(2) DoubleSeq? inSeq, out tag(3) DoubleSeq? outSeq);
+    tag(1) StringSeq? opOptStringSeq(tag(2) StringSeq? inSeq, out tag(3) StringSeq? outSeq);
+    tag(1) ESeq? opOptESeq(tag(2) ESeq? inSeq, out tag(3) ESeq? outSeq);
+    tag(1) SSeq? opOptSSeq(tag(2) SSeq? inSeq, out tag(3) SSeq? outSeq);
+    tag(1) DSeq? opOptDSeq(tag(2) DSeq? inSeq, out tag(3) DSeq? outSeq);
+    tag(1) StringSeqSeq? opOptStringSeqSeq(tag(2) StringSeqSeq? inSeq, out tag(3) StringSeqSeq? outSeq);
 
-    optional(1) ByteBuffer opOptByteBufferSeq(optional(2) ByteBuffer inSeq, out optional(3) ByteBuffer outSeq);
-    optional(1) ShortBuffer opOptShortBufferSeq(optional(2) ShortBuffer inSeq, out optional(3) ShortBuffer outSeq);
-    optional(1) IntBuffer opOptIntBufferSeq(optional(2) IntBuffer inSeq, out optional(3) IntBuffer outSeq);
-    optional(1) LongBuffer opOptLongBufferSeq(optional(2) LongBuffer inSeq, out optional(3) LongBuffer outSeq);
-    optional(1) FloatBuffer opOptFloatBufferSeq(optional(2) FloatBuffer inSeq, out optional(3) FloatBuffer outSeq);
-    optional(1) DoubleBuffer opOptDoubleBufferSeq(optional(2) DoubleBuffer inSeq, out optional(3) DoubleBuffer outSeq);
+    tag(1) ByteBuffer? opOptByteBufferSeq(tag(2) ByteBuffer? inSeq, out tag(3) ByteBuffer? outSeq);
+    tag(1) ShortBuffer? opOptShortBufferSeq(tag(2) ShortBuffer? inSeq, out tag(3) ShortBuffer? outSeq);
+    tag(1) IntBuffer? opOptIntBufferSeq(tag(2) IntBuffer? inSeq, out tag(3) IntBuffer? outSeq);
+    tag(1) LongBuffer? opOptLongBufferSeq(tag(2) LongBuffer? inSeq, out tag(3) LongBuffer? outSeq);
+    tag(1) FloatBuffer? opOptFloatBufferSeq(tag(2) FloatBuffer? inSeq, out tag(3) FloatBuffer? outSeq);
+    tag(1) DoubleBuffer? opOptDoubleBufferSeq(tag(2) DoubleBuffer? inSeq, out tag(3) DoubleBuffer? outSeq);
 
     void shutdown();
 }

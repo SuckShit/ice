@@ -1,58 +1,24 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System.Collections.Generic;
+using ZeroC.Ice.Instrumentation;
+
+namespace ZeroC.Ice
 {
-    using System.Collections.Generic;
-    using Ice.Instrumentation;
-
-    public sealed class ObserverHelper
+    internal static class ObserverHelper
     {
-        static public InvocationObserver get(Instance instance, string op)
+        internal static IInvocationObserver? GetInvocationObserver(
+            IObjectPrx proxy,
+            string op,
+            IReadOnlyDictionary<string, string> context)
         {
-            CommunicatorObserver obsv = instance.initializationData().observer;
-            if(obsv != null)
+            if (proxy.Communicator.Observer is ICommunicatorObserver communicatorObserver)
             {
-                InvocationObserver observer = obsv.getInvocationObserver(null, op, _emptyContext);
-                if(observer != null)
-                {
-                    observer.attach();
-                }
+                IInvocationObserver? observer = communicatorObserver.GetInvocationObserver(proxy, op, context);
+                observer?.Attach();
                 return observer;
             }
             return null;
         }
-
-        static public InvocationObserver get(Ice.ObjectPrx proxy, string op)
-        {
-            return get(proxy, op, null);
-        }
-
-        static public InvocationObserver get(Ice.ObjectPrx proxy, string op, Dictionary<string, string> context)
-        {
-            CommunicatorObserver obsv =
-                ((Ice.ObjectPrxHelperBase)proxy).iceReference().getInstance().initializationData().observer;
-            if(obsv != null)
-            {
-                InvocationObserver observer;
-                if(context == null)
-                {
-                    observer = obsv.getInvocationObserver(proxy, op, _emptyContext);
-                }
-                else
-                {
-                    observer = obsv.getInvocationObserver(proxy, op, context);
-                }
-                if(observer != null)
-                {
-                    observer.attach();
-                }
-                return observer;
-            }
-            return null;
-        }
-
-        private static Dictionary<string, string> _emptyContext = new Dictionary<string, string>();
     }
 }

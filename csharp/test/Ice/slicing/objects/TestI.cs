@@ -1,458 +1,371 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Test;
 
-public sealed class TestI : TestIntfDisp_
+namespace ZeroC.Ice.Test.Slicing.Objects
 {
-    private static void test(bool b)
+    public sealed class TestIntf : ITestIntf
     {
-        if(!b)
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        public AnyClass SBaseAsObject(Current current, CancellationToken cancel)
         {
-            throw new Exception();
+            var sb = new SBase();
+            sb.Sb = "SBase.sb";
+            return sb;
         }
-    }
 
-    public override void shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
-    }
-
-    public override Ice.Value SBaseAsObject(Ice.Current current)
-    {
-        SBase sb = new SBase();
-        sb.sb = "SBase.sb";
-        return sb;
-    }
-
-    public override SBase SBaseAsSBase(Ice.Current current)
-    {
-        SBase sb = new SBase();
-        sb.sb = "SBase.sb";
-        return sb;
-    }
-
-    public override SBase SBSKnownDerivedAsSBase(Ice.Current current)
-    {
-        SBSKnownDerived sbskd = new SBSKnownDerived();
-        sbskd.sb = "SBSKnownDerived.sb";
-        sbskd.sbskd = "SBSKnownDerived.sbskd";
-        return sbskd;
-    }
-
-    public override SBSKnownDerived SBSKnownDerivedAsSBSKnownDerived(Ice.Current current)
-    {
-        SBSKnownDerived sbskd = new SBSKnownDerived();
-        sbskd.sb = "SBSKnownDerived.sb";
-        sbskd.sbskd = "SBSKnownDerived.sbskd";
-        return sbskd;
-    }
-
-    public override SBase SBSUnknownDerivedAsSBase(Ice.Current current)
-    {
-        SBSUnknownDerived sbsud = new SBSUnknownDerived();
-        sbsud.sb = "SBSUnknownDerived.sb";
-        sbsud.sbsud = "SBSUnknownDerived.sbsud";
-        return sbsud;
-    }
-
-    public override SBase SBSUnknownDerivedAsSBaseCompact(Ice.Current current)
-    {
-        SBSUnknownDerived sbsud = new SBSUnknownDerived();
-        sbsud.sb = "SBSUnknownDerived.sb";
-        sbsud.sbsud = "SBSUnknownDerived.sbsud";
-        return sbsud;
-    }
-
-    public override Ice.Value SUnknownAsObject(Ice.Current current)
-    {
-        SUnknown su = new SUnknown();
-        su.su = "SUnknown.su";
-        su.cycle = su;
-        return su;
-    }
-
-    public override void checkSUnknown(Ice.Value obj, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public SBase SBaseAsSBase(Current current, CancellationToken cancel)
         {
-            test(!(obj is SUnknown));
+            var sb = new SBase();
+            sb.Sb = "SBase.sb";
+            return sb;
         }
-        else
+
+        public SBase SBSKnownDerivedAsSBase(Current current, CancellationToken cancel)
         {
-            SUnknown su = obj as SUnknown;
-            test(su.su.Equals("SUnknown.su"));
+            var sbskd = new SBSKnownDerived();
+            sbskd.Sb = "SBSKnownDerived.sb";
+            sbskd.Sbskd = "SBSKnownDerived.sbskd";
+            return sbskd;
         }
-    }
 
-    public override B oneElementCycle(Ice.Current current)
-    {
-        B b = new B();
-        b.sb = "B1.sb";
-        b.pb = b;
-        return b;
-    }
-
-    public override B twoElementCycle(Ice.Current current)
-    {
-        B b1 = new B();
-        b1.sb = "B1.sb";
-        B b2 = new B();
-        b2.sb = "B2.sb";
-        b2.pb = b1;
-        b1.pb = b2;
-        return b1;
-    }
-
-    public override B D1AsB(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return d1;
-    }
-
-    public override D1 D1AsD1(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return d1;
-    }
-
-    public override B D2AsB(Ice.Current current)
-    {
-        D2 d2 = new D2();
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        D1 d1 = new D1();
-        d1.pb = d2;
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        d1.pd1 = d2;
-        d2.pb = d1;
-        d2.pd2 = d1;
-        return d2;
-    }
-
-    public override void paramTest1(out B p1, out B p2, Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        p1 = d1;
-        p2 = d2;
-    }
-
-    public override void paramTest2(out B p1, out B p2, Ice.Current current)
-    {
-        paramTest1(out p2, out p1, current);
-    }
-
-    public override B paramTest3(out B p1, out B p2, Ice.Current current)
-    {
-        D2 d2 = new D2();
-        d2.sb = "D2.sb (p1 1)";
-        d2.pb = null;
-        d2.sd2 = "D2.sd2 (p1 1)";
-        p1 = d2;
-
-        D1 d1 = new D1();
-        d1.sb = "D1.sb (p1 2)";
-        d1.pb = null;
-        d1.sd1 = "D1.sd2 (p1 2)";
-        d1.pd1 = null;
-        d2.pd2 = d1;
-
-        D2 d4 = new D2();
-        d4.sb = "D2.sb (p2 1)";
-        d4.pb = null;
-        d4.sd2 = "D2.sd2 (p2 1)";
-        p2 = d4;
-
-        D1 d3 = new D1();
-        d3.sb = "D1.sb (p2 2)";
-        d3.pb = null;
-        d3.sd1 = "D1.sd2 (p2 2)";
-        d3.pd1 = null;
-        d4.pd2 = d3;
-
-        return d3;
-    }
-
-    public override B paramTest4(out B p1, Ice.Current current)
-    {
-        D4 d4 = new D4();
-        d4.sb = "D4.sb (1)";
-        d4.pb = null;
-        d4.p1 = new B();
-        d4.p1.sb = "B.sb (1)";
-        d4.p2 = new B();
-        d4.p2.sb = "B.sb (2)";
-        p1 = d4;
-        return d4.p2;
-    }
-
-    public override B returnTest1(out B p1, out B p2, Ice.Current current)
-    {
-        paramTest1(out p1, out p2, current);
-        return p1;
-    }
-
-    public override B returnTest2(out B p1, out B p2, Ice.Current current)
-    {
-        paramTest1(out p2, out p1, current);
-        return p1;
-    }
-
-    public override B returnTest3(B p1, B p2, Ice.Current current)
-    {
-        return p1;
-    }
-
-    public override SS3 sequenceTest(SS1 p1, SS2 p2, Ice.Current current)
-    {
-        SS3 ss = new SS3();
-        ss.c1 = p1;
-        ss.c2 = p2;
-        return ss;
-    }
-
-    public override Dictionary<int, B> dictionaryTest(Dictionary<int, B> bin, out Dictionary<int, B> bout,
-                                                      Ice.Current current)
-    {
-        bout = new Dictionary<int, B>();
-        int i;
-        for(i = 0; i < 10; ++i)
+        public void CUnknownAsSBase(SBase? cUnknown, Current current, CancellationToken cancel)
         {
-            B b = bin[i];
-            D2 d2 = new D2();
-            d2.sb = b.sb;
-            d2.pb = b.pb;
-            d2.sd2 = "D2";
-            d2.pd2 = d2;
-            bout[i * 10] = d2;
+            if (cUnknown!.Sb != "CUnknown.sb")
+            {
+                throw new Exception();
+            }
         }
-        Dictionary<int, B> r = new Dictionary<int, B>();
-        for(i = 0; i < 10; ++i)
+
+        public SBSKnownDerived SBSKnownDerivedAsSBSKnownDerived(Current current, CancellationToken cancel)
         {
-            string s = "D1." + (i * 20).ToString();
-            D1 d1 = new D1();
-            d1.sb = s;
-            d1.pb = i == 0 ? null : r[(i - 1) * 20];
-            d1.sd1 = s;
-            d1.pd1 = d1;
-            r[i * 20] = d1;
+            var sbskd = new SBSKnownDerived();
+            sbskd.Sb = "SBSKnownDerived.sb";
+            sbskd.Sbskd = "SBSKnownDerived.sbskd";
+            return sbskd;
         }
-        return r;
-    }
 
-    public override PBase exchangePBase(PBase pb, Ice.Current current)
-    {
-        return pb;
-    }
+        public SBase SBSUnknownDerivedAsSBase(Current current, CancellationToken cancel) =>
+            new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud");
 
-    public override Preserved PBSUnknownAsPreserved(Ice.Current current)
-    {
-        PSUnknown r = new PSUnknown();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.psu = "unknown";
-        r.graph = null;
-        if(!current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public SBase SBSUnknownDerivedAsSBaseCompact(Current current, CancellationToken cancel) =>
+            new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud");
+
+        public AnyClass SUnknownAsObject(Current current, CancellationToken cancel)
         {
-            //
-            // 1.0 encoding doesn't support unmarshaling unknown classes even if referenced
-            // from unread slice.
-            //
-            r.cl = new MyClass(15);
+            var su = new SUnknown("SUnknown.su", null);
+            su.Cycle = su;
+            return su;
         }
-        return r;
-    }
 
-    public override void checkPBSUnknown(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public void CheckSUnknown(AnyClass? obj, Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            TestHelper.Assert(obj is SUnknown);
+            var su = (SUnknown)obj;
+            TestHelper.Assert(su.Su.Equals("SUnknown.su"));
         }
-        else
+
+        public B OneElementCycle(Current current, CancellationToken cancel)
         {
-            PSUnknown pu = p as PSUnknown;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.psu.Equals("unknown"));
-            test(pu.graph == null);
-            test(pu.cl != null && pu.cl.i == 15);
+            var b = new B();
+            b.Sb = "B1.sb";
+            b.Pb = b;
+            return b;
         }
-    }
 
-    public override Task<Preserved>
-    PBSUnknownAsPreservedWithGraphAsync(Ice.Current current)
-    {
-        var r = new PSUnknown();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.psu = "unknown";
-        r.graph = new PNode();
-        r.graph.next = new PNode();
-        r.graph.next.next = new PNode();
-        r.graph.next.next.next = r.graph;
-        return Task.FromResult<Preserved>(r);
-    }
-
-    public override void checkPBSUnknownWithGraph(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public B TwoElementCycle(Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            var b1 = new B();
+            b1.Sb = "B1.sb";
+            var b2 = new B();
+            b2.Sb = "B2.sb";
+            b2.Pb = b1;
+            b1.Pb = b2;
+            return b1;
         }
-        else
+
+        public B D1AsB(Current current, CancellationToken cancel)
         {
-            PSUnknown pu = p as PSUnknown;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.psu.Equals("unknown"));
-            test(pu.graph != pu.graph.next);
-            test(pu.graph.next != pu.graph.next.next);
-            test(pu.graph.next.next.next == pu.graph);
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return d1;
         }
-    }
 
-    public override Task<Preserved>
-    PBSUnknown2AsPreservedWithGraphAsync( Ice.Current current)
-    {
-        var r = new PSUnknown2();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.pb = r;
-        return Task.FromResult<Preserved>(r);
-    }
-
-    public override void checkPBSUnknown2WithGraph(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public D1 D1AsD1(Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown2));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return d1;
         }
-        else
+
+        public B D2AsB(Current current, CancellationToken cancel)
         {
-            PSUnknown2 pu = p as PSUnknown2;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.pb == pu);
+            var d2 = new D2();
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            var d1 = new D1();
+            d1.Pb = d2;
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            d1.Pd1 = d2;
+            d2.Pb = d1;
+            d2.Pd2 = d1;
+            return d2;
         }
-    }
 
-    public override PNode exchangePNode(PNode pn, Ice.Current current)
-    {
-        return pn;
-    }
+        public (B, B) ParamTest1(Current current, CancellationToken cancel)
+        {
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return (d1, d2);
+        }
 
-    public override void throwBaseAsBase(Ice.Current current)
-    {
-        BaseException be = new BaseException();
-        be.sbe = "sbe";
-        be.pb = new B();
-        be.pb.sb = "sb";
-        be.pb.pb = be.pb;
-        throw be;
-    }
+        public (B, B) ParamTest2(Current current, CancellationToken cancel)
+        {
+            (B p1, B p2) = ParamTest1(current, cancel);
+            return (p2, p1);
+        }
 
-    public override void throwDerivedAsBase(Ice.Current current)
-    {
-        DerivedException de = new DerivedException();
-        de.sbe = "sbe";
-        de.pb = new B();
-        de.pb.sb = "sb1";
-        de.pb.pb = de.pb;
-        de.sde = "sde1";
-        de.pd1 = new D1();
-        de.pd1.sb = "sb2";
-        de.pd1.pb = de.pd1;
-        de.pd1.sd1 = "sd2";
-        de.pd1.pd1 = de.pd1;
-        throw de;
-    }
+        public (B, B, B) ParamTest3(Current current, CancellationToken cancel)
+        {
+            var d2 = new D2();
+            d2.Sb = "D2.sb (p1 1)";
+            d2.Pb = null;
+            d2.Sd2 = "D2.sd2 (p1 1)";
 
-    public override void throwDerivedAsDerived(Ice.Current current)
-    {
-        DerivedException de = new DerivedException();
-        de.sbe = "sbe";
-        de.pb = new B();
-        de.pb.sb = "sb1";
-        de.pb.pb = de.pb;
-        de.sde = "sde1";
-        de.pd1 = new D1();
-        de.pd1.sb = "sb2";
-        de.pd1.pb = de.pd1;
-        de.pd1.sd1 = "sd2";
-        de.pd1.pd1 = de.pd1;
-        throw de;
-    }
+            var d1 = new D1();
+            d1.Sb = "D1.sb (p1 2)";
+            d1.Pb = null;
+            d1.Sd1 = "D1.sd2 (p1 2)";
+            d1.Pd1 = null;
+            d2.Pd2 = d1;
 
-    public override void throwUnknownDerivedAsBase(Ice.Current current)
-    {
-        D2 d2 = new D2();
-        d2.sb = "sb d2";
-        d2.pb = d2;
-        d2.sd2 = "sd2 d2";
-        d2.pd2 = d2;
+            var d4 = new D2();
+            d4.Sb = "D2.sb (p2 1)";
+            d4.Pb = null;
+            d4.Sd2 = "D2.sd2 (p2 1)";
 
-        UnknownDerivedException ude = new UnknownDerivedException();
-        ude.sbe = "sbe";
-        ude.pb = d2;
-        ude.sude = "sude";
-        ude.pd2 = d2;
-        throw ude;
-    }
+            var d3 = new D1();
+            d3.Sb = "D1.sb (p2 2)";
+            d3.Pb = null;
+            d3.Sd1 = "D1.sd2 (p2 2)";
+            d3.Pd1 = null;
+            d4.Pd2 = d3;
 
-    public override Task
-    throwPreservedExceptionAsync( Ice.Current current)
-    {
-        var ue = new PSUnknownException();
-        ue.p = new PSUnknown2();
-        ue.p.pi = 5;
-        ue.p.ps = "preserved";
-        ue.p.pb = ue.p;
-        throw ue;
-    }
+            return (d3, d2, d4);
+        }
 
-    public override void useForward(out Forward f, Ice.Current current)
-    {
-        f = new Forward();
-        f.h = new Hidden();
-        f.h.f = f;
+        public (B, B) ParamTest4(Current current, CancellationToken cancel)
+        {
+            var d4 = new D4();
+            d4.Sb = "D4.sb (1)";
+            d4.Pb = null;
+            d4.P1 = new B();
+            d4.P1.Sb = "B.sb (1)";
+            d4.P2 = new B();
+            d4.P2.Sb = "B.sb (2)";
+            return (d4.P2, d4);
+        }
+
+        public (B, B, B) ReturnTest1(Current current, CancellationToken cancel)
+        {
+            (B p1, B p2) = ParamTest1(current, cancel);
+            return (p1, p1, p2);
+        }
+
+        public (B, B, B) ReturnTest2(Current current, CancellationToken cancel)
+        {
+            (B p1, B p2) = ParamTest1(current, cancel);
+            return (p2, p2, p1);
+        }
+
+        public B? ReturnTest3(B? p1, B? p2, Current current, CancellationToken cancel) => p1;
+
+        public SS3 SequenceTest(SS1? p1, SS2? p2, Current current, CancellationToken cancel)
+        {
+            var ss = new SS3();
+            ss.C1 = p1;
+            ss.C2 = p2;
+            return ss;
+        }
+
+        public (IReadOnlyDictionary<int, B?>, IReadOnlyDictionary<int, B?>) DictionaryTest(
+            Dictionary<int, B?> bin,
+            Current current,
+            CancellationToken cancel)
+        {
+            var bout = new Dictionary<int, B?>();
+            int i;
+            for (i = 0; i < 10; ++i)
+            {
+                B? b = bin[i];
+                TestHelper.Assert(b != null);
+                var d2 = new D2();
+                d2.Sb = b.Sb;
+                d2.Pb = b.Pb;
+                d2.Sd2 = "D2";
+                d2.Pd2 = d2;
+                bout[i * 10] = d2;
+            }
+            var r = new Dictionary<int, B?>();
+            for (i = 0; i < 10; ++i)
+            {
+                string s = "D1." + (i * 20).ToString();
+                var d1 = new D1();
+                d1.Sb = s;
+                d1.Pb = i == 0 ? null : r[(i - 1) * 20];
+                d1.Sd1 = s;
+                d1.Pd1 = d1;
+                r[i * 20] = d1;
+            }
+            return (r, bout);
+        }
+
+        public PBase? ExchangePBase(PBase? pb, Current current, CancellationToken cancel) => pb;
+
+        public Preserved PBSUnknownAsPreserved(Current current, CancellationToken cancel) =>
+            new PSUnknown(5, "preserved", "unknown", null, new MyClass(15));
+
+        public void CheckPBSUnknown(Preserved? p, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(p is PSUnknown);
+            var pu = (PSUnknown)p;
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Psu.Equals("unknown"));
+            TestHelper.Assert(pu.Graph == null);
+            TestHelper.Assert(pu.Cl != null && pu.Cl.I == 15);
+        }
+
+        public ValueTask<Preserved?>
+        PBSUnknownAsPreservedWithGraphAsync(Current current, CancellationToken cancel)
+        {
+            var graph = new PNode();
+            graph.Next = new PNode();
+            graph.Next.Next = new PNode();
+            graph.Next.Next.Next = graph;
+
+            var r = new PSUnknown(5, "preserved", "unknown", graph, null);
+            return new ValueTask<Preserved?>(r);
+        }
+
+        public void CheckPBSUnknownWithGraph(Preserved? p, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(p is PSUnknown);
+            var pu = (PSUnknown)p;
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Psu.Equals("unknown"));
+            TestHelper.Assert(pu.Graph != pu.Graph!.Next);
+            TestHelper.Assert(pu.Graph.Next != pu.Graph.Next!.Next);
+            TestHelper.Assert(pu.Graph.Next.Next!.Next == pu.Graph);
+        }
+
+        public ValueTask<Preserved?>
+        PBSUnknown2AsPreservedWithGraphAsync(Current current, CancellationToken cancel)
+        {
+            var r = new PSUnknown2(5, "preserved", null);
+            r.Pb = r;
+            return new ValueTask<Preserved?>(r);
+        }
+
+        public void CheckPBSUnknown2WithGraph(Preserved? p, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(p is PSUnknown2);
+            var pu = (PSUnknown2)p;
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Pb == pu);
+        }
+
+        public PNode? ExchangePNode(PNode? pn, Current current, CancellationToken cancel) => pn;
+
+        public void ThrowBaseAsBase(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb", null);
+            b.Pb = b;
+            throw new BaseException("sbe", b);
+        }
+
+        public void ThrowDerivedAsBase(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb1", null);
+            b.Pb = b;
+
+            var d = new D1("sb2", null, "sd2", null);
+            d.Pb = d;
+            d.Pd1 = d;
+
+            throw new DerivedException("sbe", b, "sde1", d);
+        }
+
+        public void ThrowDerivedAsDerived(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb1", null);
+            b.Pb = b;
+
+            var d = new D1("sb2", null, "sd2", null);
+            d.Pb = d;
+            d.Pd1 = d;
+
+            throw new DerivedException("sbe", b, "sde1", d);
+        }
+
+        public void ThrowUnknownDerivedAsBase(Current current, CancellationToken cancel)
+        {
+            var d2 = new D2();
+            d2.Sb = "sb d2";
+            d2.Pb = d2;
+            d2.Sd2 = "sd2 d2";
+            d2.Pd2 = d2;
+
+            throw new UnknownDerivedException("sbe", d2, "sude", d2);
+        }
+
+        public ValueTask ThrowPreservedExceptionAsync(Current current, CancellationToken cancel)
+        {
+            var ue = new PSUnknownException();
+            ue.P = new PSUnknown2(5, "preserved", null);
+            ue.P.Pb = ue.P;
+            throw ue;
+        }
+
+        public Forward UseForward(Current current, CancellationToken cancel)
+        {
+            var f = new Forward();
+            f.H = new Hidden();
+            f.H.F = f;
+            return f;
+        }
     }
 }

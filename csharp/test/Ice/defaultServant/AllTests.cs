@@ -1,160 +1,160 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System;
+using System.IO;
+using Test;
+
+namespace ZeroC.Ice.Test.DefaultServant
 {
-    namespace defaultServant
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static void Run(TestHelper helper)
         {
-            public static void
-            allTests(global::Test.TestHelper helper)
+            TextWriter output = helper.Output;
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            ObjectAdapter oa = communicator.CreateObjectAdapterWithEndpoints("MyOA", "tcp -h localhost");
+            oa.Activate();
+
+            output.Write("testing single category... ");
+            output.Flush();
+
+            var servant = new MyObject();
+
+            oa.AddDefaultForCategory("foo", servant);
+            try
             {
-                var output = helper.getWriter();
-                Ice.Communicator communicator = helper.communicator();
-                Ice.ObjectAdapter oa = communicator.createObjectAdapterWithEndpoints("MyOA", "tcp -h localhost");
-                oa.activate();
-
-                Ice.Object servant = new MyObjectI();
-
-                //
-                // Register default servant with category "foo"
-                //
-                oa.addDefaultServant(servant, "foo");
-
-                //
-                // Start test
-                //
-                output.Write("testing single category... ");
-                output.Flush();
-
-                Ice.Object r = oa.findDefaultServant("foo");
-                test(r == servant);
-
-                r = oa.findDefaultServant("bar");
-                test(r == null);
-
-                Ice.Identity identity = new Ice.Identity();
-                identity.category = "foo";
-
-                string[] names = new string[] { "foo", "bar", "x", "y", "abcdefg" };
-
-                Test.MyObjectPrx prx = null;
-                for(int idx = 0; idx < 5; ++idx)
-                {
-                    identity.name = names[idx];
-                    prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-                    prx.ice_ping();
-                    test(prx.getName() == names[idx]);
-                }
-
-                identity.name = "ObjectNotExist";
-                prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-                try
-                {
-                    prx.ice_ping();
-                    test(false);
-                }
-                catch(Ice.ObjectNotExistException)
-                {
-                    // Expected
-                }
-
-                try
-                {
-                    prx.getName();
-                    test(false);
-                }
-                catch(Ice.ObjectNotExistException)
-                {
-                    // Expected
-                }
-
-                identity.name = "FacetNotExist";
-                prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-                try
-                {
-                    prx.ice_ping();
-                    test(false);
-                }
-                catch(Ice.FacetNotExistException)
-                {
-                    // Expected
-                }
-
-                try
-                {
-                    prx.getName();
-                    test(false);
-                }
-                catch(Ice.FacetNotExistException)
-                {
-                    // Expected
-                }
-
-                identity.category = "bar";
-                for(int idx = 0; idx < 5; idx++)
-                {
-                    identity.name = names[idx];
-                    prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-
-                    try
-                    {
-                        prx.ice_ping();
-                        test(false);
-                    }
-                    catch(Ice.ObjectNotExistException)
-                    {
-                        // Expected
-                    }
-
-                    try
-                    {
-                        prx.getName();
-                        test(false);
-                    }
-                    catch(Ice.ObjectNotExistException)
-                    {
-                        // Expected
-                    }
-                }
-
-                oa.removeDefaultServant("foo");
-                identity.category = "foo";
-                prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-                try
-                {
-                    prx.ice_ping();
-                }
-                catch(Ice.ObjectNotExistException)
-                {
-                    // Expected
-                }
-
-                output.WriteLine("ok");
-
-                output.Write("testing default category... ");
-                output.Flush();
-
-                oa.addDefaultServant(servant, "");
-
-                r = oa.findDefaultServant("bar");
-                test(r == null);
-
-                r = oa.findDefaultServant("");
-                test(r == servant);
-
-                for(int idx = 0; idx < 5; ++idx)
-                {
-                    identity.name = names[idx];
-                    prx = Test.MyObjectPrxHelper.uncheckedCast(oa.createProxy(identity));
-                    prx.ice_ping();
-                    test(prx.getName() == names[idx]);
-                }
-
-                output.WriteLine("ok");
+                oa.AddDefaultForCategory("foo", new MyObject());
+                TestHelper.Assert(false); // duplicate registration not allowed
             }
+            catch (ArgumentException)
+            {
+                // Expected
+            }
+
+            IObject? r = oa.Find("foo");
+            TestHelper.Assert(r == null);
+            r = oa.Find("foo/someId");
+            TestHelper.Assert(r == servant);
+            r = oa.Find("bar/someId");
+            TestHelper.Assert(r == null);
+
+            var identity = new Identity("", "foo");
+            string[] names = new string[] { "foo", "bar", "x", "y", "abcdefg" };
+
+            IMyObjectPrx? prx = null;
+            foreach (string name in names)
+            {
+                identity = new Identity(name, identity.Category);
+                prx = oa.CreateProxy(identity, IMyObjectPrx.Factory);
+                prx.IcePing();
+                TestHelper.Assert(prx.GetName() == name);
+            }
+
+            identity = new Identity("ObjectNotExist", identity.Category);
+            prx = oa.CreateProxy(identity, IMyObjectPrx.Factory);
+            try
+            {
+                prx.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ObjectNotExistException)
+            {
+                // Expected
+            }
+
+            try
+            {
+                prx.GetName();
+                TestHelper.Assert(false);
+            }
+            catch (ObjectNotExistException)
+            {
+                // Expected
+            }
+
+            identity = new Identity(identity.Name, "bar");
+            foreach (string name in names)
+            {
+                identity = new Identity(name, identity.Category);
+                prx = oa.CreateProxy(identity, IMyObjectPrx.Factory);
+
+                try
+                {
+                    prx.IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch (ObjectNotExistException)
+                {
+                    // Expected
+                }
+
+                try
+                {
+                    prx.GetName();
+                    TestHelper.Assert(false);
+                }
+                catch (ObjectNotExistException)
+                {
+                    // Expected
+                }
+            }
+
+            IObject? removed = oa.RemoveDefaultForCategory("foo");
+            TestHelper.Assert(removed == servant);
+            removed = oa.RemoveDefaultForCategory("foo");
+            TestHelper.Assert(removed == null);
+            identity = new Identity(identity.Name, "foo");
+            prx = oa.CreateProxy(identity, IMyObjectPrx.Factory);
+            try
+            {
+                prx.IcePing();
+            }
+            catch (ObjectNotExistException)
+            {
+                // Expected
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("testing default servant... ");
+            output.Flush();
+
+            var defaultServant = new MyObject();
+
+            oa.AddDefault(defaultServant);
+            try
+            {
+                oa.AddDefault(servant);
+                TestHelper.Assert(false);
+            }
+            catch (ArgumentException)
+            {
+                // Expected
+            }
+
+            oa.AddDefaultForCategory("", servant); // associated with empty category
+
+            r = oa.Find("bar");
+            TestHelper.Assert(r == servant);
+
+            r = oa.Find("x/y");
+            TestHelper.Assert(r == defaultServant);
+
+            foreach (string name in names)
+            {
+                identity = new Identity(name, "");
+                prx = oa.CreateProxy(identity, IMyObjectPrx.Factory);
+                prx.IcePing();
+                TestHelper.Assert(prx.GetName() == name);
+            }
+
+            removed = oa.RemoveDefault();
+            TestHelper.Assert(removed == defaultServant);
+            removed = oa.RemoveDefault();
+            TestHelper.Assert(removed == null);
+
+            output.WriteLine("ok");
         }
     }
 }

@@ -1,13 +1,8 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+namespace ZeroC.Ice.Test.Exceptions
 {
-    namespace exceptions
+    public sealed class Empty : IEmpty
     {
-        public sealed class EmptyI : Test.EmptyDisp_
-        {
-        }
     }
 }

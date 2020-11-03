@@ -6,7 +6,7 @@
 #define ICE_UTIL_SHARED_H
 
 #include <IceUtil/Config.h>
-#include <IceUtil/Atomic.h>
+#include <atomic>
 
 //
 // Base classes for reference counted types. The IceUtil::Handle
@@ -79,8 +79,7 @@ class ICE_API Shared
 public:
 
     //
-    // Flag constant used by the Shared class. Derived classes
-    // such as GCObject define more flag constants.
+    // Flag constant used by the Shared class.
     //
     static const unsigned char NoDelete;
 
@@ -118,7 +117,7 @@ public:
 
 protected:
 
-    IceUtilInternal::Atomic _ref;
+    std::atomic<int> _ref;
     unsigned char _flags;
 };
 

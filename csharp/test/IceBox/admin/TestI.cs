@@ -1,29 +1,17 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System.Collections.Generic;
+using System.Threading;
 
-using Test;
-
-public class TestFacetI : TestFacetDisp_
+namespace ZeroC.IceBox.Test.Admin
 {
-    public TestFacetI()
+    public class TestFacet : ITestFacet
     {
-    }
+        private volatile IReadOnlyDictionary<string, string>? _changes;
 
-    override public Dictionary<string, string> getChanges(Ice.Current current)
-    {
-        return _changes;
-    }
+        public IReadOnlyDictionary<string, string> GetChanges(Ice.Current current, CancellationToken cancel) =>
+            new Dictionary<string, string>(_changes!);
 
-    public void updated(Dictionary<string, string> changes)
-    {
-        lock(this)
-        {
-            _changes = changes;
-        }
+        internal void Updated(IReadOnlyDictionary<string, string> changes) => _changes = changes;
     }
-
-    private Dictionary<string, string> _changes;
 }

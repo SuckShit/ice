@@ -75,10 +75,6 @@
         }
     }
 
-    class HI extends Test.H
-    {
-    }
-
     class II extends Ice.InterfaceByValue
     {
         constructor()
@@ -125,19 +121,6 @@
         return null;
     }
 
-    class MyObjectFactory
-    {
-
-        create(type)
-        {
-            return null;
-        }
-
-        destroy()
-        {
-        }
-    }
-
     class Client extends TestHelper
     {
         async allTests()
@@ -155,8 +138,6 @@
             communicator.getValueFactoryManager().add(MyValueFactory, "::Test::H");
             communicator.getValueFactoryManager().add(MyValueFactory, "::Test::Inner::A");
             communicator.getValueFactoryManager().add(MyValueFactory, "::Test::Inner::Sub::A");
-
-            communicator.addObjectFactory(new MyObjectFactory(), "TestOF");
 
             out.write("testing stringToProxy... ");
             let ref = "initial:" + this.getTestEndpoint();
@@ -254,15 +235,6 @@
             test(f.e2.checkValues());
             out.writeLine("ok");
 
-            out.write("getting I, J and H... ");
-            const i = await initial.getI();
-            test(i);
-            const j = await initial.getJ();
-            test(j);
-            const h = await initial.getH();
-            test(h);
-            out.writeLine("ok");
-
             out.write("getting K...");
             const k = await initial.getK();
             test(k);
@@ -271,15 +243,15 @@
 
             out.write("test Value as parameter...");
             {
-                let [v1, v2] = await initial.opValue(new Test.L("l"));
+                let [v1, v2] = await initial.opClass(new Test.L("l"));
                 test(v1.data == "l");
                 test(v2.data == "l");
 
-                [v1, v2] = await initial.opValueSeq([new Test.L("l")]);
+                [v1, v2] = await initial.opClassSeq([new Test.L("l")]);
                 test(v1[0].data == "l");
                 test(v2[0].data == "l");
 
-                [v1, v2] = await initial.opValueMap(new Map([["l", new Test.L("l")]]));
+                [v1, v2] = await initial.opClassMap(new Map([["l", new Test.L("l")]]));
                 test(v1.get("l").data == "l");
                 test(v2.get("l").data == "l");
             }
@@ -322,12 +294,6 @@
             {
                 test(ex instanceof Ice.OperationNotExistException, ex);
             }
-            out.writeLine("ok");
-
-            out.write("setting I... ");
-            await initial.setI(i);
-            await initial.setI(j);
-            await initial.setI(h);
             out.writeLine("ok");
 
             out.write("testing sequences... ");
@@ -432,10 +398,6 @@
                 test(ex instanceof Test.Inner.Sub.Ex, ex);
                 test(ex.reason == "Inner::Sub::Ex");
             }
-            out.writeLine("ok");
-
-            out.write("testing getting ObjectFactory... ");
-            test(communicator.findObjectFactory("TestOF") !== null);
             out.writeLine("ok");
 
             out.write("testing getting ObjectFactory as ValueFactory... ");

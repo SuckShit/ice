@@ -1,26 +1,19 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using Test;
+using System.Threading;
+using ZeroC.Ice;
 
-public sealed class CallbackI : Test.CallbackDisp_
+namespace ZeroC.Glacier2.Test.SessionHelper
 {
-    public override void
-    initiateCallback(CallbackReceiverPrx proxy, Ice.Current current)
+    public sealed class Callback : ICallback
     {
-        proxy.callback(current.ctx);
-    }
+        public void InitiateCallback(ICallbackReceiverPrx? proxy, Current current, CancellationToken cancel) =>
+            proxy!.Callback(current.Context, cancel: cancel);
 
-    public override void
-    initiateCallbackEx(CallbackReceiverPrx proxy, Ice.Current current)
-    {
-        proxy.callbackEx(current.ctx);
-    }
+        public void InitiateCallbackEx(ICallbackReceiverPrx? proxy, Current current, CancellationToken cancel) =>
+            proxy!.CallbackEx(current.Context, cancel: cancel);
 
-    public override void
-    shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
     }
 }

@@ -25,356 +25,322 @@ namespace controller
     {
         public static TestHelper create(string type)
         {
-            if(type.Equals("Ice.acm.Server"))
+            if (type.Equals("Ice.acm.Server"))
             {
-                return new Ice.acm.Server();
+                return new ZeroC.Ice.Test.ACM.Server();
             }
-            else if(type.Equals("Ice.acm.Client"))
+            else if (type.Equals("Ice.acm.Client"))
             {
-                return new Ice.acm.Client();
-            }
-
-            else if(type.Equals("Ice.adapterDeactivation.Server"))
-            {
-                return new Ice.adapterDeactivation.Server();
-            }
-            else if(type.Equals("Ice.adapterDeactivation.Client"))
-            {
-                return new Ice.adapterDeactivation.Client();
-            }
-            else if(type.Equals("Ice.adapterDeactivation.Collocated"))
-            {
-                return new Ice.adapterDeactivation.Collocated();
+                return new ZeroC.Ice.Test.ACM.Client();
             }
 
-            else if(type.Equals("Ice.admin.Server"))
+            else if (type.Equals("Ice.adapterDeactivation.Server"))
             {
-                return new Ice.admin.Server();
+                return new ZeroC.Ice.Test.AdapterDeactivation.Server();
             }
-            else if(type.Equals("Ice.admin.Client"))
+            else if (type.Equals("Ice.adapterDeactivation.Client"))
             {
-                return new Ice.admin.Client();
+                return new ZeroC.Ice.Test.AdapterDeactivation.Client();
             }
-
-            else if(type.Equals("Ice.ami.Server"))
+            else if (type.Equals("Ice.adapterDeactivation.Collocated"))
             {
-                return new Ice.ami.Server();
-            }
-            else if(type.Equals("Ice.ami.Client"))
-            {
-                return new Ice.ami.Client();
-            }
-            else if(type.Equals("Ice.ami.Collocated"))
-            {
-                return new Ice.ami.Collocated();
+                return new ZeroC.Ice.Test.AdapterDeactivation.Collocated();
             }
 
-            else if(type.Equals("Ice.binding.Server"))
+            else if (type.Equals("Ice.admin.Server"))
             {
-                return new Ice.binding.Server();
+                return new ZeroC.Ice.Test.Admin.Server();
             }
-            else if(type.Equals("Ice.binding.Client"))
+            else if (type.Equals("Ice.admin.Client"))
             {
-                return new Ice.binding.Client();
-            }
-
-            else if(type.Equals("Ice.checksum.Server"))
-            {
-                return new Ice.checksum.Server();
-            }
-            else if(type.Equals("Ice.checksum.Client"))
-            {
-                return new Ice.checksum.Client();
+                return new ZeroC.Ice.Test.Admin.Client();
             }
 
-            else if(type.Equals("Ice.defaultServant.Client"))
+            else if (type.Equals("Ice.ami.Server"))
             {
-                return new Ice.defaultServant.Client();
+                return new ZeroC.Ice.Test.AMI.Server();
+            }
+            else if (type.Equals("Ice.ami.Client"))
+            {
+                return new ZeroC.Ice.Test.AMI.Client();
+            }
+            else if (type.Equals("Ice.ami.Collocated"))
+            {
+                return new ZeroC.Ice.Test.AMI.Collocated();
             }
 
-            else if(type.Equals("Ice.defaultValue.Client"))
+            else if (type.Equals("Ice.binding.Server"))
             {
-                return new Ice.defaultValue.Client();
+                return new ZeroC.Ice.Test.Binding.Server();
+            }
+            else if (type.Equals("Ice.binding.Client"))
+            {
+                return new ZeroC.Ice.Test.Binding.Client();
             }
 
-            else if(type.Equals("Ice.dictMapping.Client"))
+            else if (type.Equals("Ice.defaultServant.Client"))
             {
-                return new Ice.dictMapping.Client();
-            }
-            else if(type.Equals("Ice.dictMapping.Collocated"))
-            {
-                return new Ice.dictMapping.Collocated();
-            }
-            else if(type.Equals("Ice.dictMapping.Server"))
-            {
-                return new Ice.dictMapping.Server();
-            }
-            else if(type.Equals("Ice.dictMapping.Serveramd"))
-            {
-                return new Ice.dictMapping.AMD.Server();
+                return new ZeroC.Ice.Test.DefaultServant.Client();
             }
 
-            else if(type.Equals("Ice.enums.Client"))
+            else if (type.Equals("Ice.defaultValue.Client"))
             {
-                return new Ice.enums.Client();
-            }
-            else if(type.Equals("Ice.enums.Server"))
-            {
-                return new Ice.enums.Server();
+                return new ZeroC.Ice.Test.DefaultValue.Client();
             }
 
-            else if(type.Equals("Ice.exceptions.Client"))
+            else if (type.Equals("Ice.dictMapping.Client"))
             {
-                return new Ice.exceptions.Client();
+                return new ZeroC.Ice.Test.DictMapping.Client();
             }
-            else if(type.Equals("Ice.exceptions.Collocated"))
+            else if (type.Equals("Ice.dictMapping.Collocated"))
             {
-                return new Ice.exceptions.Collocated();
+                return new ZeroC.Ice.Test.DictMapping.Collocated();
             }
-            else if(type.Equals("Ice.exceptions.Server"))
+            else if (type.Equals("Ice.dictMapping.Server"))
             {
-                return new Ice.exceptions.Server();
+                return new ZeroC.Ice.Test.DictMapping.Server();
             }
-            else if(type.Equals("Ice.exceptions.Serveramd"))
+            else if (type.Equals("Ice.dictMapping.Serveramd"))
             {
-                return new Ice.exceptions.AMD.Server();
-            }
-
-            else if(type.Equals("Ice.facets.Client"))
-            {
-                return new Ice.facets.Client();
-            }
-            else if(type.Equals("Ice.facets.Collocated"))
-            {
-                return new Ice.facets.Collocated();
-            }
-            else if(type.Equals("Ice.facets.Server"))
-            {
-                return new Ice.facets.Server();
+                return new ZeroC.Ice.Test.DictMapping.ServerAMD();
             }
 
-            else if(type.Equals("Ice.hold.Client"))
+            else if (type.Equals("Ice.enums.Client"))
             {
-                return new Ice.hold.Client();
+                return new ZeroC.Ice.Test.Enums.Client();
             }
-            else if(type.Equals("Ice.hold.Server"))
+            else if (type.Equals("Ice.enums.Server"))
             {
-                return new Ice.hold.Server();
-            }
-
-            else if(type.Equals("Ice.info.Client"))
-            {
-                return new Ice.info.Client();
-            }
-            else if(type.Equals("Ice.info.Server"))
-            {
-                return new Ice.info.Server();
+                return new ZeroC.Ice.Test.Enums.Server();
             }
 
-            else if(type.Equals("Ice.inheritance.Client"))
+            else if (type.Equals("Ice.exceptions.Client"))
             {
-                return new Ice.inheritance.Client();
+                return new ZeroC.Ice.Test.Exceptions.Client();
             }
-            else if(type.Equals("Ice.inheritance.Collocated"))
+            else if (type.Equals("Ice.exceptions.Collocated"))
             {
-                return new Ice.inheritance.Collocated();
+                return new ZeroC.Ice.Test.Exceptions.Collocated();
             }
-            else if(type.Equals("Ice.inheritance.Server"))
+            else if (type.Equals("Ice.exceptions.Server"))
             {
-                return new Ice.inheritance.Server();
+                return new ZeroC.Ice.Test.Exceptions.Server();
             }
-
-            else if(type.Equals("Ice.interceptor.Client"))
+            else if (type.Equals("Ice.exceptions.Serveramd"))
             {
-                return new Ice.interceptor.Client();
-            }
-
-            else if(type.Equals("Ice.invoke.Client"))
-            {
-                return new Ice.invoke.Client();
-            }
-            else if(type.Equals("Ice.invoke.Server"))
-            {
-                return new Ice.invoke.Server();
+                return new ZeroC.Ice.Test.Exceptions.ServerAMD();
             }
 
-            else if(type.Equals("Ice.location.Client"))
+            else if (type.Equals("Ice.facets.Client"))
             {
-                return new Ice.location.Client();
+                return new ZeroC.Ice.Test.Facets.Client();
             }
-            else if(type.Equals("Ice.location.Server"))
+            else if (type.Equals("Ice.facets.Collocated"))
             {
-                return new Ice.location.Server();
+                return new ZeroC.Ice.Test.Facets.Collocated();
             }
-
-            else if(type.Equals("Ice.objects.Client"))
+            else if (type.Equals("Ice.facets.Server"))
             {
-                return new Ice.objects.Client();
-            }
-            else if(type.Equals("Ice.objects.Collocated"))
-            {
-                return new Ice.objects.Collocated();
-            }
-            else if(type.Equals("Ice.objects.Server"))
-            {
-                return new Ice.objects.Server();
+                return new ZeroC.Ice.Test.Facets.Server();
             }
 
-            else if(type.Equals("Ice.operations.Client"))
+            else if (type.Equals("Ice.hold.Client"))
             {
-                return new Ice.operations.Client();
+                return new ZeroC.Ice.Test.Hold.Client();
             }
-            else if(type.Equals("Ice.operations.Collocated"))
+            else if (type.Equals("Ice.hold.Server"))
             {
-                return new Ice.operations.Collocated();
-            }
-            else if(type.Equals("Ice.operations.Server"))
-            {
-                return new Ice.operations.Server();
-            }
-            else if(type.Equals("Ice.operations.Serveramd"))
-            {
-                return new Ice.operations.AMD.Server();
-            }
-            else if(type.Equals("Ice.operations.Serveramdtie"))
-            {
-                return new Ice.operations.AMD.tie.Server();
-            }
-            else if(type.Equals("Ice.operations.Servertie"))
-            {
-                return new Ice.operations.tie.Server();
+                return new ZeroC.Ice.Test.Hold.Server();
             }
 
-            else if(type.Equals("Ice.optional.Client"))
+            else if (type.Equals("Ice.info.Client"))
             {
-                return new Ice.optional.Client();
+                return new ZeroC.Ice.Test.Info.Client();
             }
-            else if(type.Equals("Ice.optional.Server"))
+            else if (type.Equals("Ice.info.Server"))
             {
-                return new Ice.optional.Server();
-            }
-            else if(type.Equals("Ice.optional.Serveramd"))
-            {
-                return new Ice.optional.AMD.Server();
+                return new ZeroC.Ice.Test.Info.Server();
             }
 
-            else if(type.Equals("Ice.namespacemd.Client"))
+            else if (type.Equals("Ice.inheritance.Client"))
             {
-                return new Ice.namespacemd.Client();
+                return new ZeroC.Ice.Test.Inheritance.Client();
             }
-            else if(type.Equals("Ice.namespacemd.Server"))
+            else if (type.Equals("Ice.inheritance.Collocated"))
             {
-                return new Ice.namespacemd.Server();
+                return new ZeroC.Ice.Test.Inheritance.Collocated();
             }
-
-            else if(type.Equals("Ice.proxy.Client"))
+            else if (type.Equals("Ice.inheritance.Server"))
             {
-                return new Ice.proxy.Client();
-            }
-            else if(type.Equals("Ice.proxy.Collocated"))
-            {
-                return new Ice.proxy.Collocated();
-            }
-            else if(type.Equals("Ice.proxy.Server"))
-            {
-                return new Ice.proxy.Server();
-            }
-            else if(type.Equals("Ice.proxy.Serveramd"))
-            {
-                return new Ice.proxy.AMD.Server();
+                return new ZeroC.Ice.Test.Inheritance.Server();
             }
 
-            else if(type.Equals("Ice.retry.Client"))
+            else if (type.Equals("Ice.interceptor.Client"))
             {
-                return new Ice.retry.Client();
-            }
-            else if(type.Equals("Ice.retry.Collocated"))
-            {
-                return new Ice.retry.Collocated();
-            }
-            else if(type.Equals("Ice.retry.Server"))
-            {
-                return new Ice.retry.Server();
+                return new ZeroC.Ice.Test.Interceptor.Client();
             }
 
-            else if(type.Equals("Ice.scope.Client"))
+            else if (type.Equals("Ice.invoke.Client"))
             {
-                return new Ice.scope.Client();
+                return new ZeroC.Ice.Test.Invoke.Client();
             }
-            else if(type.Equals("Ice.scope.Server"))
+            else if (type.Equals("Ice.invoke.Server"))
             {
-                return new Ice.scope.Server();
-            }
-
-            else if(type.Equals("Ice.seqMapping.Client"))
-            {
-                return new Ice.seqMapping.Client();
-            }
-            else if(type.Equals("Ice.seqMapping.Collocated"))
-            {
-                return new Ice.seqMapping.Collocated();
-            }
-            else if(type.Equals("Ice.seqMapping.Server"))
-            {
-                return new Ice.seqMapping.Server();
-            }
-            else if(type.Equals("Ice.seqMapping.Serveramd"))
-            {
-                return new Ice.seqMapping.AMD.Server();
+                return new ZeroC.Ice.Test.Invoke.Server();
             }
 
-            else if(type.Equals("Ice.serialize.Client"))
+            else if (type.Equals("Ice.location.Client"))
             {
-                return new Ice.serialize.Client();
+                return new ZeroC.Ice.Test.Location.Client();
+            }
+            else if (type.Equals("Ice.location.Server"))
+            {
+                return new ZeroC.Ice.Test.Location.Server();
             }
 
-            else if(type.Equals("Ice.servantLocator.Client"))
+            else if (type.Equals("Ice.objects.Client"))
             {
-                return new Ice.servantLocator.Client();
+                return new ZeroC.Ice.Test.Objects.Client();
             }
-            else if(type.Equals("Ice.servantLocator.Collocated"))
+            else if (type.Equals("Ice.objects.Collocated"))
             {
-                return new Ice.servantLocator.Collocated();
+                return new ZeroC.Ice.Test.Objects.Collocated();
             }
-            else if(type.Equals("Ice.servantLocator.Server"))
+            else if (type.Equals("Ice.objects.Server"))
             {
-                return new Ice.servantLocator.Server();
-            }
-            else if(type.Equals("Ice.servantLocator.Serveramd"))
-            {
-                return new Ice.servantLocator.AMD.Server();
+                return new ZeroC.Ice.Test.Objects.Server();
             }
 
-            else if(type.Equals("Ice.stream.Client"))
+            else if (type.Equals("Ice.operations.Client"))
             {
-                return new Ice.stream.Client();
+                return new ZeroC.Ice.Test.Operations.Client();
+            }
+            else if (type.Equals("Ice.operations.Collocated"))
+            {
+                return new ZeroC.Ice.Test.Operations.Collocated();
+            }
+            else if (type.Equals("Ice.operations.Server"))
+            {
+                return new ZeroC.Ice.Test.Operations.Server();
+            }
+            else if (type.Equals("Ice.operations.Serveramd"))
+            {
+                return new ZeroC.Ice.Test.Operations.ServerAMD();
             }
 
-            else if(type.Equals("Ice.threadPoolPriority.Client"))
+            else if (type.Equals("Ice.tagged.Client"))
             {
-                return new Ice.threadPoolPriority.Client();
+                return new ZeroC.Ice.Test.Tagged.Client();
             }
-            else if(type.Equals("Ice.threadPoolPriority.Server"))
+            else if (type.Equals("Ice.tagged.Server"))
             {
-                return new Ice.threadPoolPriority.Server();
+                return new ZeroC.Ice.Test.Tagged.Server();
             }
-
-            else if(type.Equals("Ice.timeout.Client"))
+            else if (type.Equals("Ice.tagged.Serveramd"))
             {
-                return new Ice.timeout.Client();
-            }
-            else if(type.Equals("Ice.timeout.Server"))
-            {
-                return new Ice.timeout.Server();
+                return new ZeroC.Ice.Test.Tagged.ServerAMD();
             }
 
-            else if(type.Equals("Ice.udp.Client"))
+            else if (type.Equals("Ice.namespacemd.Client"))
             {
-                return new Ice.udp.Client();
+                return new ZeroC.Ice.Test.NamespaceMD.Client();
             }
-            else if(type.Equals("Ice.udp.Server"))
+            else if (type.Equals("Ice.namespacemd.Server"))
             {
-                return new Ice.udp.Server();
+                return new ZeroC.Ice.Test.NamespaceMD.Server();
+            }
+
+            else if (type.Equals("Ice.proxy.Client"))
+            {
+                return new ZeroC.Ice.Test.Proxy.Client();
+            }
+            else if (type.Equals("Ice.proxy.Collocated"))
+            {
+                return new ZeroC.Ice.Test.Proxy.Collocated();
+            }
+            else if (type.Equals("Ice.proxy.Server"))
+            {
+                return new ZeroC.Ice.Test.Proxy.Server();
+            }
+            else if (type.Equals("Ice.proxy.Serveramd"))
+            {
+                return new ZeroC.Ice.Test.Proxy.ServerAMD();
+            }
+
+            else if (type.Equals("Ice.retry.Client"))
+            {
+                return new ZeroC.Ice.Test.Retry.Client();
+            }
+            else if (type.Equals("Ice.retry.Collocated"))
+            {
+                return new ZeroC.Ice.Test.Retry.Collocated();
+            }
+            else if (type.Equals("Ice.retry.Server"))
+            {
+                return new ZeroC.Ice.Test.Retry.Server();
+            }
+
+            else if (type.Equals("Ice.scope.Client"))
+            {
+                return new ZeroC.Ice.Test.Scope.Client();
+            }
+            else if (type.Equals("Ice.scope.Server"))
+            {
+                return new ZeroC.Ice.Test.Scope.Server();
+            }
+
+            else if (type.Equals("Ice.seqMapping.Client"))
+            {
+                return new ZeroC.Ice.Test.SeqMapping.Client();
+            }
+            else if (type.Equals("Ice.seqMapping.Collocated"))
+            {
+                return new ZeroC.Ice.Test.SeqMapping.Collocated();
+            }
+            else if (type.Equals("Ice.seqMapping.Server"))
+            {
+                return new ZeroC.Ice.Test.SeqMapping.Server();
+            }
+            else if (type.Equals("Ice.seqMapping.Serveramd"))
+            {
+                return new ZeroC.Ice.Test.SeqMapping.ServerAMD();
+            }
+
+            else if (type.Equals("Ice.serialize.Client"))
+            {
+                return new ZeroC.Ice.Test.Serialize.Client();
+            }
+
+            else if (type.Equals("Ice.stream.Client"))
+            {
+                return new ZeroC.Ice.Test.Stream.Client();
+            }
+
+            else if (type.Equals("Ice.threading.Client"))
+            {
+                return new ZeroC.Ice.Test.Threading.Client();
+            }
+            else if (type.Equals("Ice.threading.Server"))
+            {
+                return new ZeroC.Ice.Test.Threading.Server();
+            }
+
+            else if (type.Equals("Ice.timeout.Client"))
+            {
+                return new ZeroC.Ice.Test.Timeout.Client();
+            }
+            else if (type.Equals("Ice.timeout.Server"))
+            {
+                return new ZeroC.Ice.Test.Timeout.Server();
+            }
+
+            else if (type.Equals("Ice.udp.Client"))
+            {
+                return new ZeroC.Ice.Test.UDP.Client();
+            }
+            else if (type.Equals("Ice.udp.Server"))
+            {
+                return new ZeroC.Ice.Test.UDP.Server();
             }
 
             else
@@ -398,15 +364,15 @@ namespace controller
         public void communicatorInitialized(Communicator communicator)
         {
             var properties = communicator.getProperties();
-            if(properties.getProperty("Ice.Plugin.IceSSL").Equals("IceSSL.dll:IceSSL.PluginFactory"))
+            if (properties.getProperty("Ice.Plugin.IceSSL").Equals("IceSSL.dll:IceSSL.PluginFactory"))
             {
-                var plugin =(IceSSL.Plugin)communicator.getPluginManager().getPlugin("IceSSL");
+                var plugin = (IceSSL.Plugin)communicator.getPluginManager().getPlugin("IceSSL");
                 plugin.setCertificates(loadCertificate(properties.getProperty("IceSSL.CertFile"),
                                                        properties.getProperty("IceSSL.Password")));
                 plugin.setCACertificates(loadCertificate(properties.getProperty("IceSSL.CAs")));
                 communicator.getPluginManager().initializePlugins();
 
-                if(communicator.getProperties().getPropertyWithDefault("Ice.Admin.DelayCreation", "0").Equals("1"))
+                if (communicator.getProperties().getPropertyWithDefault("Ice.Admin.DelayCreation", "0").Equals("1"))
                 {
                     communicator.getAdmin();
                 }
@@ -420,7 +386,7 @@ namespace controller
             var memoryStream = new MemoryStream();
             stream.CopyTo(memoryStream);
             var cert = new X509Certificate2Collection();
-            if(string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(password))
             {
                 cert.Import(memoryStream.ToArray());
             }
@@ -433,12 +399,12 @@ namespace controller
 
         public string getOutput()
         {
-            return _helper.getWriter().ToString();
+            return _helper.Output.ToString();
         }
 
         public void join()
         {
-            if(_thread != null)
+            if (_thread != null)
             {
                 _thread.Join();
             }
@@ -446,7 +412,7 @@ namespace controller
 
         public void completed(int status)
         {
-            lock(this)
+            lock (this)
             {
                 _completed = true;
                 _status = status;
@@ -461,14 +427,14 @@ namespace controller
                 try
                 {
                     _helper = TestFactory.create(_typename);
-                    _helper.setControllerHelper(this);
-                    _helper.setWriter(new StringWriter());
+                    _helper.ControllerHelper = this;
+                    _helper.Output = new StringWriter();
                     _helper.run(_args);
                     completed(0);
                 }
-                catch(System.Exception ex)
+                catch (System.Exception ex)
                 {
-                    _helper.getWriter().WriteLine("unexpected unknown exception while running `{0}':\n", ex);
+                    _helper.Output.WriteLine("unexpected unknown exception while running `{0}':\n", ex);
                     completed(1);
                 }
             });
@@ -482,7 +448,7 @@ namespace controller
 
         public void serverReady()
         {
-            lock(this)
+            lock (this)
             {
                 _ready = true;
                 Monitor.PulseAll(this);
@@ -491,17 +457,17 @@ namespace controller
 
         public void shutdown()
         {
-            lock(this)
+            lock (this)
             {
-                if(_completed)
+                if (_completed)
                 {
                     return;
                 }
 
-                if(_helper != null)
+                if (_helper != null)
                 {
-                    var communicator = _helper.communicator();
-                    if(communicator != null)
+                    var communicator = _helper.Communicator;
+                    if (communicator != null)
                     {
                         communicator.shutdown();
                     }
@@ -511,11 +477,11 @@ namespace controller
 
         public void waitReady(int msec)
         {
-            lock(this)
+            lock (this)
             {
-                while(!_ready && !_completed)
+                while (!_ready && !_completed)
                 {
-                    if(!Monitor.Wait(this, msec * 1000))
+                    if (!Monitor.Wait(this, msec * 1000))
                     {
                         throw new ProcessFailedException("timed out waiting for the process to be ready");
                     }
@@ -525,11 +491,11 @@ namespace controller
 
         public int waitSuccess(int msec)
         {
-            lock(this)
+            lock (this)
             {
-                while(!_completed)
+                while (!_completed)
                 {
-                    if(!Monitor.Wait(this, msec * 1000))
+                    if (!Monitor.Wait(this, msec * 1000))
                     {
                         throw new ProcessFailedException("timed out waiting for the process to be ready");
                     }
@@ -550,27 +516,27 @@ namespace controller
         private string _typename;
     }
 
-    public class ProccessI : Test.Common.ProcessDisp_
+    public class ProccessI : Test.Common.Process
     {
         public ProccessI(ControllerHelperI controllerHelper)
         {
             _controllerHelper = controllerHelper;
         }
 
-        public override void waitReady(int timeout, Current current)
+        public void waitReady(int timeout, Current current)
         {
             _controllerHelper.waitReady(timeout);
         }
 
-        public override int waitSuccess(int timeout, Current current)
+        public int waitSuccess(int timeout, Current current)
         {
             return _controllerHelper.waitSuccess(timeout);
         }
 
-        public override string terminate(Current current)
+        public string terminate(Current current)
         {
             _controllerHelper.shutdown();
-            current.adapter.remove(current.id);
+            current.adapter.Remove(current.id);
             _controllerHelper.join();
             return _controllerHelper.getOutput();
         }
@@ -578,14 +544,14 @@ namespace controller
         private ControllerHelperI _controllerHelper;
     }
 
-    public class ProcessControllerI : Test.Common.ProcessControllerDisp_
+    public class ProcessControllerI : Test.Common.ProcessController
     {
         public ProcessControllerI(MainPage mainPage)
         {
             _mainPage = mainPage;
         }
 
-        public override Test.Common.ProcessPrx start(string testsuite, string exe, string[] args, Current current)
+        public Test.Common.ProcessPrx start(string testsuite, string exe, string[] args, Current current)
         {
             var test = testsuite.Replace("/", ".") + "." + char.ToUpper(exe[0]) + exe.Substring(1);
             _mainPage.print("starting test." + test + "... ");
@@ -594,12 +560,12 @@ namespace controller
             Array.Copy(args, 0, newArgs, 1, args.Length);
             var helper = new ControllerHelperI(test, newArgs, _mainPage, _mainPage.platformAdapter);
             helper.run();
-            return Test.Common.ProcessPrxHelper.uncheckedCast(current.adapter.addWithUUID(new ProccessI(helper)));
+            return current.adapter.AddWithUUID(new ProccessI(helper));
         }
 
-        public override string getHost(string protocol, bool ipv6, Current current)
+        public string getHost(string transport, bool ipv6, Current current)
         {
-            if(_mainPage.platformAdapter.isEmulator())
+            if (_mainPage.platformAdapter.isEmulator())
             {
                 return "127.0.0.1";
             }
@@ -621,15 +587,13 @@ namespace controller
             _mainPage = mainPage;
             var initData = new InitializationData();
             initData.properties = Util.createProperties();
-            initData.properties.setProperty("Ice.ThreadPool.Client.SizeMax", "10");
-            initData.properties.setProperty("Ice.ThreadPool.Server.SizeMax", "10");
             initData.properties.setProperty("ControllerAdapter.Endpoints", "tcp");
             initData.properties.setProperty("Ice.Override.ConnectTimeout", "1000");
             //initData.properties.setProperty("Ice.Trace.Network", "3");
             //initData.properties.setProperty("Ice.Trace.Protocol", "1");
             initData.properties.setProperty("ControllerAdapter.AdapterId", new Guid().ToString());
 
-            if(!mainPage.platformAdapter.isEmulator())
+            if (!mainPage.platformAdapter.isEmulator())
             {
                 initData.properties.setProperty("Ice.Plugin.IceDiscovery", "IceDiscovery:IceDiscovery.PluginFactory");
                 initData.properties.setProperty("IceDiscovery.DomainId", "TestController");
@@ -638,10 +602,9 @@ namespace controller
             _communicator = Util.initialize(initData);
 
             _adapter = _communicator.createObjectAdapter("ControllerAdapter");
-            _processController = ProcessControllerPrxHelper.uncheckedCast(
-                _adapter.add(new ProcessControllerI(mainPage),
-                             Util.stringToIdentity(mainPage.platformAdapter.processControllerIdentity())));
-            _adapter.activate();
+            _processController = _adapter.Add(mainPage.platformAdapter.processControllerIdentity(),
+                new ProcessControllerI(mainPage));
+            _adapter.Activate();
 
             registerProcessController();
             _mainPage.print(mainPage.platformAdapter.processControllerIdentity());
@@ -650,27 +613,25 @@ namespace controller
         public void
         registerProcessController()
         {
-            Task.Run(async() =>
+            Task.Run(async () =>
                 {
                     try
                     {
-                        if(_mainPage.RegisterProcessControllerEnabled())
+                        if (_mainPage.RegisterProcessControllerEnabled())
                         {
                             ProcessControllerRegistryPrx registry;
-                            if(_mainPage.processControllerRegistryHost().Length == 0)
+                            if (_mainPage.processControllerRegistryHost().Length == 0)
                             {
-                                registry = ProcessControllerRegistryPrxHelper.uncheckedCast(
-                                    _communicator.stringToProxy("Util/ProcessControllerRegistry"));
+                                registry = ProcessControllerRegistryPrx.Parse("Util/ProcessControllerRegistry", _communicator);
                             }
                             else
                             {
-                                registry = ProcessControllerRegistryPrxHelper.uncheckedCast(
-                                    _communicator.stringToProxy(string.Format(
-                                        "Util/ProcessControllerRegistry:tcp -h {0} -p 15001",
-                                        _mainPage.processControllerRegistryHost())));
+                                registry = ProcessControllerRegistryPrx.Parse(
+                                    $"Util/ProcessControllerRegistry:tcp -h {_mainPage.processControllerRegistryHost()} -p 15001",
+                                    _communicator);
                             }
-                            await registry.ice_pingAsync();
-                            var connection = registry.ice_getConnection();
+                            await registry.IcePingAsync();
+                            var connection = registry.GetConnection();
                             connection.setAdapter(_adapter);
                             connection.setACM(5, ACMClose.CloseOff, ACMHeartbeat.HeartbeatAlways);
                             connection.setCloseCallback(conn =>
@@ -682,22 +643,22 @@ namespace controller
                             await registry.setProcessControllerAsync(_processController);
                         }
                     }
-                    catch(ConnectFailedException)
+                    catch (ConnectFailedException)
                     {
                         Thread.Sleep(500);
                         registerProcessController();
                     }
-                    catch(Ice.TimeoutException)
+                    catch (Ice.ConnectionClosedException)
                     {
                         Thread.Sleep(500);
                         registerProcessController();
                     }
-                    catch(DNSException)
+                    catch (DNSException)
                     {
                         Thread.Sleep(500);
                         registerProcessController();
                     }
-                    catch(System.Exception ex)
+                    catch (System.Exception ex)
                     {
                         _mainPage.print(ex.ToString());
                     }
@@ -729,22 +690,22 @@ namespace controller
             RegisterProcessController.Clicked += RegisterProcessController_Clicked;
 
             NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
-            foreach(NetworkInterface ni in nics)
+            foreach (NetworkInterface ni in nics)
             {
                 IPInterfaceProperties ipProps = ni.GetIPProperties();
                 UnicastIPAddressInformationCollection uniColl = ipProps.UnicastAddresses;
-                foreach(UnicastIPAddressInformation uni in uniColl)
+                foreach (UnicastIPAddressInformation uni in uniColl)
                 {
-                    if(uni.Address.AddressFamily == AddressFamily.InterNetwork)
+                    if (uni.Address.AddressFamily == AddressFamily.InterNetwork)
                     {
-                        if(!uni.Address.Equals(IPAddress.Loopback))
+                        if (!uni.Address.Equals(IPAddress.Loopback))
                         {
                             IPv4Address.Items.Add(uni.Address.ToString());
                         }
                     }
-                    else if(uni.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                    else if (uni.Address.AddressFamily == AddressFamily.InterNetworkV6)
                     {
-                        if(!uni.Address.Equals(IPAddress.IPv6Loopback))
+                        if (!uni.Address.Equals(IPAddress.IPv6Loopback))
                         {
                             IPv6Address.Items.Add(uni.Address.ToString());
                         }
@@ -756,13 +717,7 @@ namespace controller
             {
                 _controllerI = new ControllerI(this);
             }
-            catch(PluginInitializationException ex)
-            {
-                print(ex.ToString());
-                print(ex.reason);
-                print(ex.StackTrace);
-            }
-            catch(System.Exception ex)
+            catch (System.Exception ex)
             {
                 print(ex.ToString());
             }

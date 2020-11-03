@@ -6,12 +6,12 @@
 
 #include <Ice/Locator.ice>
 
-[["js:es6-module"]]
+[[js:es6-module]]
 
 module Test
 {
 
-interface TestLocatorRegistry extends ::Ice::LocatorRegistry
+interface TestLocatorRegistry : ::Ice::LocatorRegistry
 {
     //
     // Allow remote addition of objects to the locator registry.
@@ -19,7 +19,7 @@ interface TestLocatorRegistry extends ::Ice::LocatorRegistry
     void addObject(Object* obj);
 }
 
-interface TestLocator extends ::Ice::Locator
+interface TestLocator : ::Ice::Locator
 {
     //
     // Returns the number of request on the locator interface.

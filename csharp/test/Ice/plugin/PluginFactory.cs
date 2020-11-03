@@ -1,59 +1,49 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Threading.Tasks;
 
-public class PluginFactory : Ice.PluginFactory
+namespace ZeroC.Ice.Test.Plugin
 {
-    public Ice.Plugin create(Ice.Communicator communicator, string name, string[] args)
+    public class PluginFactory : IPluginFactory
     {
-        return new Plugin(communicator, args);
-    }
+        public IPlugin Create(Communicator communicator, string name, string[] args) => new Plugin(args);
 
-    internal class Plugin : Ice.Plugin
-    {
-        public Plugin(Ice.Communicator communicator, string[] args)
+        internal class Plugin : IPlugin
         {
-            _args = args;
-        }
+            private readonly string[] _args;
+            private bool _destroyed;
+            private bool _initialized;
 
-        public void initialize()
-        {
-            _initialized = true;
-            test(_args.Length == 3);
-            test(_args[0] == "C:\\Program Files\\");
-            test(_args[1] == "--DatabasePath");
-            test(_args[2] == "C:\\Program Files\\Application\\db");
-        }
+            public Plugin(string[] args) => _args = args;
 
-        public void destroy()
-        {
-            _destroyed = true;
-        }
-
-        ~Plugin()
-        {
-            if(!_initialized)
+            public void Initialize(PluginInitializationContext context)
             {
-                Console.WriteLine("Plugin not initialized");
+                _initialized = true;
+                TestHelper.Assert(_args.Length == 3);
+                TestHelper.Assert(_args[0] == "C:\\Program Files\\");
+                TestHelper.Assert(_args[1] == "--DatabasePath");
+                TestHelper.Assert(_args[2] == "C:\\Program Files\\Application\\db");
             }
-            if(!_destroyed)
-            {
-                Console.WriteLine("Plugin not destroyed");
-            }
-        }
 
-        private static void test(bool b)
-        {
-            if(!b)
+            public ValueTask DisposeAsync()
             {
-                throw new System.Exception();
+                GC.SuppressFinalize(this);
+                _destroyed = true;
+                return new ValueTask(Task.CompletedTask);
+            }
+
+            ~Plugin()
+            {
+                if (!_initialized)
+                {
+                    Console.WriteLine("Plugin not initialized");
+                }
+                if (!_destroyed)
+                {
+                    Console.WriteLine("Plugin not destroyed");
+                }
             }
         }
-
-        private bool _initialized = false;
-        private bool _destroyed = false;
-        private string[] _args;
     }
 }

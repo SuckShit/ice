@@ -1,54 +1,44 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Linq;
-using System.IO;
-using System.Reflection;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Assemblies
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        Console.Out.Write("testing preloading assemblies... ");
-        Console.Out.Flush();
-        User.UserInfo info = new User.UserInfo();
-
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.PreloadAssemblies", "0");
-
-        string assembly =
-            String.Format("{0}/core.dll",
-                          Path.GetFileName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase)));
-        using(var communicator = initialize(properties))
+        public override async Task RunAsync(string[] args)
         {
-            test(AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault((e) =>
-                    {
-                        return e.CodeBase.EndsWith(assembly, StringComparison.InvariantCultureIgnoreCase);
-                    }) == null);
-        }
-        properties.setProperty("Ice.PreloadAssemblies", "1");
-        using(var communicator = initialize(properties))
-        {
-            test(AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault((e) =>
-                    {
-                        return e.CodeBase.EndsWith(assembly, StringComparison.InvariantCultureIgnoreCase);
-                    }) != null);
+            Console.Out.Write("testing preloading assemblies... ");
+            Console.Out.Flush();
+            var info = new User.UserInfo();
+
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.PreloadAssemblies"] = "0";
+
+            string assembly =
+                Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "core.dll");
+
+            await using (Communicator communicator = Initialize(properties))
+            {
+                Assert(AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
+                    e => e.Location.EndsWith(assembly, StringComparison.InvariantCultureIgnoreCase)) == null);
+            }
+            properties["Ice.PreloadAssemblies"] = "1";
+            await using (Communicator communicator = Initialize(properties))
+            {
+                Assert(AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
+                    e => e.Location.EndsWith(assembly, StringComparison.InvariantCultureIgnoreCase)) != null);
+            }
+
+            Console.Out.WriteLine("ok");
         }
 
-        Console.Out.WriteLine("ok");
-    }
-
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

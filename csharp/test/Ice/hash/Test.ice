@@ -4,19 +4,22 @@
 
 #pragma once
 
-module Test
+[[3.7]]
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Hash
 {
 
 exception BaseException
 {
 }
 
-exception InvalidPointException extends BaseException
+exception InvalidPointException : BaseException
 {
     int index;
 }
 
-exception InvalidLengthException extends BaseException
+exception InvalidLengthException : BaseException
 {
     int length;
 }
@@ -73,13 +76,13 @@ struct ColorPalette
 class Pen
 {
     int thickness;
-    Test::Color color;
+    Color color;
 }
 
 struct Draw
 {
-    Test::Color backgroundColor;
-    Test::Pen pen;
+    Color backgroundColor;
+    Pen pen;
     bool shared;
 }
 

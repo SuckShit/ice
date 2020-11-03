@@ -1,292 +1,89 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Diagnostics;
 using System.Threading;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Operations
 {
-    namespace operations
+    public static class OnewaysAMI
     {
-        public class OnewaysAMI
+        private class CallbackBase
         {
-            private static void test(bool b)
-            {
-                if (!b)
-                {
-                    throw new System.Exception();
-                }
-            }
+            private bool _called;
+            private readonly object _mutex = new object();
 
-            private class CallbackBase
+            public virtual void Check()
             {
-                internal CallbackBase()
+                lock (_mutex)
                 {
+                    while (!_called)
+                    {
+                        Monitor.Wait(_mutex);
+                    }
                     _called = false;
                 }
-
-                public virtual void check()
-                {
-                    lock (this)
-                    {
-                        while (!_called)
-                        {
-                            Monitor.Wait(this);
-                        }
-                        _called = false;
-                    }
-                }
-
-                public virtual void called()
-                {
-                    lock (this)
-                    {
-                        Debug.Assert(!_called);
-                        _called = true;
-                        Monitor.Pulse(this);
-                    }
-                }
-
-                private bool _called;
             }
 
-            private class Callback : CallbackBase
+            public virtual void Called()
             {
-                public Callback()
+                lock (_mutex)
                 {
-                }
-
-                public void
-                sent(bool sentSynchronously)
-                {
-                    called();
-                }
-
-                public void noException(Ice.Exception ex)
-                {
-                    test(false);
+                    TestHelper.Assert(!_called);
+                    _called = true;
+                    Monitor.Pulse(_mutex);
                 }
             }
 
-            internal static void onewaysAMI(global::Test.TestHelper helper, Test.MyClassPrx proxy)
+            internal CallbackBase() => _called = false;
+        }
+
+        private class Callback : CallbackBase
+        {
+            public void Sent() => Called();
+        }
+
+        internal static void Run(TestHelper helper, IMyClassPrx proxy)
+        {
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            IMyClassPrx p = proxy.Clone(oneway: true);
+
             {
-                Ice.Communicator communicator = helper.communicator();
-                Test.MyClassPrx p = Test.MyClassPrxHelper.uncheckedCast(proxy.ice_oneway());
-
-                {
-                    Callback cb = new Callback();
-                    p.ice_pingAsync(progress: new Progress<bool>(
-                        sentSynchronously =>
-                        {
-                            cb.sent(sentSynchronously);
-                        }));
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_ice_ping().whenCompleted(cb.noException).whenSent(cb.sent);
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_ice_ping().whenCompleted(
-                        (Ice.Exception ex) =>
-                        {
-                            cb.noException(ex);
-                        }
-                    ).whenSent(
-                        (bool sentSynchronously) =>
-                        {
-                            cb.sent(sentSynchronously);
-                        });
-                    cb.check();
-                }
-
-                {
-                    try
-                    {
-                        p.ice_isAAsync("::Test::MyClass");
-                        test(false);
-                    }
-                    catch (Ice.TwowayOnlyException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.begin_ice_isA("::Test::MyClass");
-                        test(false);
-                    }
-                    catch (System.ArgumentException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.ice_idAsync();
-                        test(false);
-                    }
-                    catch (Ice.TwowayOnlyException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.begin_ice_id();
-                        test(false);
-                    }
-                    catch (ArgumentException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.ice_idsAsync();
-                        test(false);
-                    }
-                    catch (Ice.TwowayOnlyException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.begin_ice_ids();
-                        test(false);
-                    }
-                    catch (ArgumentException)
-                    {
-                    }
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.opVoidAsync(progress: new Progress<bool>(
-                        sentSynchronously =>
-                        {
-                            cb.sent(sentSynchronously);
-                        }));
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opVoid().whenCompleted(cb.noException).whenSent(cb.sent);
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opVoid().whenCompleted(
-                        (Ice.Exception ex) =>
-                        {
-                            cb.noException(ex);
-                        }
-                    ).whenSent(
-                        (bool sentSynchronously) =>
-                        {
-                            cb.sent(sentSynchronously);
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.opIdempotentAsync(progress: new Progress<bool>(
-                        sentSynchronously =>
-                        {
-                            cb.sent(sentSynchronously);
-                        }));
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opIdempotent().whenCompleted(cb.noException).whenSent(cb.sent);
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opIdempotent().whenCompleted(
-                        (Ice.Exception ex) =>
-                        {
-                            cb.noException(ex);
-                        }
-                    ).whenSent(
-                        (bool sentSynchronously) =>
-                        {
-                            cb.sent(sentSynchronously);
-                        });
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.opNonmutatingAsync(progress: new Progress<bool>(
-                        sentSynchronously =>
-                        {
-                            cb.sent(sentSynchronously);
-                        }));
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opNonmutating().whenCompleted(cb.noException).whenSent(cb.sent);
-                    cb.check();
-                }
-
-                {
-                    Callback cb = new Callback();
-                    p.begin_opNonmutating().whenCompleted(
-                        (Ice.Exception ex) =>
-                        {
-                            cb.noException(ex);
-                        }
-                    ).whenSent(
-                        (bool sentSynchronously) =>
-                        {
-                            cb.sent(sentSynchronously);
-                        });
-                    cb.check();
-                }
-
-                {
-                    try
-                    {
-                        p.opByteAsync(0xff, 0x0f);
-                        test(false);
-                    }
-                    catch (Ice.TwowayOnlyException)
-                    {
-                    }
-                }
-
-                {
-                    try
-                    {
-                        p.begin_opByte(0xff, 0x0f);
-                        test(false);
-                    }
-                    catch (ArgumentException)
-                    {
-                    }
-                }
+                var cb = new Callback();
+                p.IcePingAsync(progress: new Progress<bool>(sentSynchronously => cb.Sent()));
+                cb.Check();
             }
+
+            bool b = p.IceIsAAsync("::ZeroC::Ice::Test::Operations::MyClass").Result;
+            string id = p.IceIdAsync().Result;
+            string[] ids = p.IceIdsAsync().Result;
+
+            {
+                var cb = new Callback();
+                p.OpVoidAsync(progress: new Progress<bool>(sentSynchronously => cb.Sent()));
+                cb.Check();
+            }
+
+            {
+                var cb = new Callback();
+                p.OpIdempotentAsync(progress: new Progress<bool>(sentSynchronously => cb.Sent()));
+                cb.Check();
+            }
+
+            {
+                var cb = new Callback();
+                p.OpOnewayAsync(progress: new Progress<bool>(sentSynchronously => cb.Sent()));
+                cb.Check();
+            }
+
+            {
+                var cb = new Callback();
+                p.OpOnewayMetadataAsync(progress: new Progress<bool>(sentSynchronously => cb.Sent()));
+                cb.Check();
+            }
+
+            (byte ReturnValue, byte p3) = p.OpByteAsync(0xff, 0x0f).Result;
         }
     }
 }

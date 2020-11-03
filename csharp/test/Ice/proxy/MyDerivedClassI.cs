@@ -1,41 +1,28 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Proxy
 {
-    namespace proxy
+    public sealed class MyDerivedClass : IMyDerivedClass
     {
-        public sealed class MyDerivedClassI : Test.MyDerivedClassDisp_
+        public IObjectPrx? Echo(IObjectPrx? obj, Current c, CancellationToken cancel) => obj;
+
+        public IEnumerable<string> GetLocation(Current current, CancellationToken cancel) => current.Location;
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        public IReadOnlyDictionary<string, string> GetContext(Current current, CancellationToken cancel) => _ctx!;
+
+        public bool IceIsA(string typeId, Current current, CancellationToken cancel)
         {
-            public MyDerivedClassI()
-            {
-            }
-
-            public override Ice.ObjectPrx echo(Ice.ObjectPrx obj, Ice.Current c)
-            {
-                return obj;
-            }
-
-            public override void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            public override Dictionary<string, string> getContext(Ice.Current current)
-            {
-                return _ctx;
-            }
-
-            public override bool ice_isA(string s, Ice.Current current)
-            {
-                _ctx = current.ctx;
-                return base.ice_isA(s, current);
-            }
-
-            private Dictionary<string, string> _ctx;
+            _ctx = current.Context;
+            return typeof(IMyDerivedClass).GetAllIceTypeIds().Contains(typeId);
         }
+
+        private Dictionary<string, string>? _ctx;
     }
 }

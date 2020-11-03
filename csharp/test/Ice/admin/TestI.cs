@@ -1,172 +1,117 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Threading;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Admin
 {
-    namespace admin
+    public class TestFacet : ITestFacet
     {
-        public class TestFacetI : Test.TestFacetDisp_
+        public void Op(Current current, CancellationToken cancel)
         {
-            override public void op(Ice.Current current)
+        }
+    }
+
+    public class RemoteCommunicator : IRemoteCommunicator
+    {
+        private volatile IReadOnlyDictionary<string, string>? _changes;
+        private readonly Communicator _communicator;
+
+        public RemoteCommunicator(Communicator communicator) => _communicator = communicator;
+
+        public IObjectPrx? GetAdmin(Current current, CancellationToken cancel) => _communicator.GetAdmin();
+
+        public IReadOnlyDictionary<string, string> GetChanges(Current current, CancellationToken cancel) =>
+            new Dictionary<string, string>(_changes!);
+
+        public void Print(string message, Current current, CancellationToken cancel) =>
+            _communicator.Logger.Print(message);
+
+        public void Trace(string category, string message, Current current, CancellationToken cancel) =>
+            _communicator.Logger.Trace(category, message);
+
+        public void Warning(string message, Current current, CancellationToken cancel) =>
+            _communicator.Logger.Warning(message);
+
+        public void Error(string message, Current current, CancellationToken cancel) =>
+            _communicator.Logger.Error(message);
+
+        public void Shutdown(Current current, CancellationToken cancel) => _ = _communicator.ShutdownAsync();
+
+        // Note that we are executing in a thread of the *main* communicator, not the one that is being shut down.
+        public void WaitForShutdown(Current current, CancellationToken cancel) =>
+            _communicator.WaitForShutdownAsync().Wait(cancel);
+
+        public void Destroy(Current current, CancellationToken cancel) => _communicator.Dispose();
+
+        public void Updated(IReadOnlyDictionary<string, string> changes) => _changes = changes;
+    }
+
+    public class RemoteCommunicatorFactoryI : IRemoteCommunicatorFactory
+    {
+        public IRemoteCommunicatorPrx CreateCommunicator(
+            Dictionary<string, string> props,
+            Current current,
+            CancellationToken cancel)
+        {
+            // Prepare the property set using the given properties.
+            ILogger? logger = null;
+            if (props.TryGetValue("NullLogger", out string? value) &&
+                int.TryParse(value, out int nullLogger) && nullLogger > 0)
+            {
+                logger = new NullLogger();
+            }
+
+            props.Add("Test.Protocol", TestHelper.GetTestProtocol(current.Communicator.GetProperties()).GetName());
+
+            // Initialize a new communicator.
+            var communicator = new Communicator(props, logger: logger);
+
+            // Install a custom admin facet.
+            try
+            {
+                var testFacet = new TestFacet();
+                communicator.AddAdminFacet("TestFacet", testFacet);
+            }
+            catch (System.ArgumentException)
             {
             }
+
+            // The RemoteCommunicator servant also implements PropertiesAdminUpdateCallback.
+            var servant = new RemoteCommunicator(communicator);
+
+            if (communicator.FindAdminFacet("Properties") is IPropertiesAdmin admin)
+            {
+                admin.Updated += (_, updates) => servant.Updated(updates);
+            }
+
+            return current.Adapter.AddWithUUID(servant, IRemoteCommunicatorPrx.Factory);
         }
 
-        public class RemoteCommunicatorI : Test.RemoteCommunicatorDisp_
+        public void Shutdown(Current current, CancellationToken cancel) => current.Adapter.Communicator.ShutdownAsync();
+
+        private class NullLogger : ILogger
         {
-            public RemoteCommunicatorI(Ice.Communicator communicator)
+            public void Print(string message)
             {
-                _communicator = communicator;
             }
 
-            override public Ice.ObjectPrx getAdmin(Ice.Current current)
+            public void Trace(string category, string message)
             {
-                return _communicator.getAdmin();
             }
 
-            override public Dictionary<string, string> getChanges(Ice.Current current)
+            public void Warning(string message)
             {
-                lock(this)
-                {
-                    return _changes;
-                }
             }
 
-            override public void print(string message, Ice.Current current)
+            public void Error(string message)
             {
-                _communicator.getLogger().print(message);
             }
 
-            override public void trace(string category, string message, Ice.Current current)
-            {
-                _communicator.getLogger().trace(category, message);
-            }
+            public string Prefix => "NullLogger";
 
-            override public void warning(string message, Ice.Current current)
-            {
-                _communicator.getLogger().warning(message);
-            }
-
-            override public void error(string message, Ice.Current current)
-            {
-                _communicator.getLogger().error(message);
-            }
-
-            override public void shutdown(Ice.Current current)
-            {
-                _communicator.shutdown();
-            }
-
-            override public void waitForShutdown(Ice.Current current)
-            {
-                //
-                // Note that we are executing in a thread of the *main* communicator,
-                // not the one that is being shut down.
-                //
-                _communicator.waitForShutdown();
-            }
-
-            override public void destroy(Ice.Current current)
-            {
-                _communicator.destroy();
-            }
-
-            public void updated(Dictionary<string, string> changes)
-            {
-                lock(this)
-                {
-                    _changes = changes;
-                }
-            }
-
-            private Ice.Communicator _communicator;
-            private Dictionary<string, string> _changes;
-        }
-
-        public class RemoteCommunicatorFactoryI : Test.RemoteCommunicatorFactoryDisp_
-        {
-            override public Test.RemoteCommunicatorPrx createCommunicator(Dictionary<string, string> props, Ice.Current current)
-            {
-                //
-                // Prepare the property set using the given properties.
-                //
-                Ice.InitializationData init = new Ice.InitializationData();
-                init.properties = Ice.Util.createProperties();
-                foreach(KeyValuePair<string, string> e in props)
-                {
-                    init.properties.setProperty(e.Key, e.Value);
-                }
-
-                if(init.properties.getPropertyAsInt("NullLogger") > 0)
-                {
-                    init.logger = new NullLogger();
-                }
-
-                //
-                // Initialize a new communicator.
-                //
-                Ice.Communicator communicator = Ice.Util.initialize(init);
-
-                //
-                // Install a custom admin facet.
-                //
-                communicator.addAdminFacet(new TestFacetI(), "TestFacet");
-
-                //
-                // The RemoteCommunicator servant also implements PropertiesAdminUpdateCallback.
-                // Set the callback on the admin facet.
-                //
-                RemoteCommunicatorI servant = new RemoteCommunicatorI(communicator);
-                Ice.Object propFacet = communicator.findAdminFacet("Properties");
-
-                if(propFacet != null)
-                {
-                    Ice.NativePropertiesAdmin admin =(Ice.NativePropertiesAdmin)propFacet;
-                    Debug.Assert(admin != null);
-                    admin.addUpdateCallback(servant.updated);
-                }
-
-                Ice.ObjectPrx proxy = current.adapter.addWithUUID(servant);
-                return Test.RemoteCommunicatorPrxHelper.uncheckedCast(proxy);
-            }
-
-            override public void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            private class NullLogger : Ice.Logger
-            {
-                public void print(string message)
-                {
-                }
-
-                public void trace(string category, string message)
-                {
-                }
-
-                public void warning(string message)
-                {
-                }
-
-                public void error(string message)
-                {
-                }
-
-                public string getPrefix()
-                {
-                    return "NullLogger";
-                }
-
-                public Ice.Logger cloneWithPrefix(string prefix)
-                {
-                    return this;
-                }
-            }
+            public ILogger CloneWithPrefix(string prefix) => this;
         }
     }
 }

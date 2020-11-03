@@ -20,13 +20,13 @@ interface i2
 class c1
 {
     long l;
-    void l();
+    long l;
 }
 
 class c2
 {
     long l;
-    void L();
+    long L;
 }
 
 module m1
@@ -61,12 +61,12 @@ interface i6
     void op();
 }
 
-interface i7 extends i6
+interface i7 : i6
 {
     void op();
 }
 
-interface i8 extends i6
+interface i8 : i6
 {
     void OP();
 }
@@ -76,35 +76,35 @@ class c3
     long l;
 }
 
-class c4 extends c3
+class c4 : c3
 {
-    void l();
+    long l;
 }
 
-class c5 extends c3
+class c5 : c3
 {
-    void L();
+    long L;
 }
 
 class c6
 {
     long l;
-    void L();
+    int L;
 }
 
-class c7 extends c3
+class c7 : c3
 {
     long l;
 }
 
-class c8 extends c3
+class c8 : c3
 {
     long L;
 }
 
 class c9
 {
-     void L();
+     int L;
      long l;
 }
 
@@ -135,12 +135,12 @@ exception e5
     long l;
 }
 
-exception e6 extends e5
+exception e6 : e5
 {
     string l;
 }
 
-exception e7 extends e5
+exception e7 : e5
 {
     string L;
 }
@@ -185,10 +185,7 @@ enum m1 { green }
 enum M1 { blue }
 enum en2 { yellow, en1, EN1}
 
-module xxx
-{
-
-module xx
+module xxx::xx
 {
 
 interface Base
@@ -196,11 +193,11 @@ interface Base
     void op();
 }
 
-interface Derived extends Base
+interface Derived : Base
 {
 }
 
-interface Derived extends base
+interface Derived : base
 {
 }
 
@@ -208,7 +205,7 @@ exception e1
 {
 }
 
-exception e2 extends E1
+exception e2 : E1
 {
 }
 
@@ -225,8 +222,6 @@ struct s2
 {
     Derived* blah;
     derived* bletch;
-}
-
 }
 
 }
@@ -260,7 +255,7 @@ module CI
         void OP();
     }
 
-    interface derived extends base1, base2
+    interface derived : base1, base2
     {
     }
 }
@@ -276,9 +271,7 @@ module DI
     class base1
     {
         int base1;
-        void aa(int BASE1);
-
-        void bb(int base1, string BASE1);
+        int BASE1;
     }
 
     struct Foo
@@ -306,7 +299,7 @@ module DI
         int X;
     }
 
-    class derived2 extends base2
+    class derived2 : base2
     {
         string x;
     }

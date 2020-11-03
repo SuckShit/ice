@@ -1,41 +1,42 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Threading.Tasks;
 
-public class PluginThreeFailFactory : Ice.PluginFactory
+namespace ZeroC.Ice.Test.Plugin
 {
-    public Ice.Plugin create(Ice.Communicator communicator, string name, string[] args)
+    public class PluginThreeFailFactory : IPluginFactory
     {
-        return new PluginThreeFail(communicator);
-    }
+        public IPlugin Create(Communicator communicator, string name, string[] args) =>
+            new PluginThreeFail(communicator);
 
-    internal class PluginThreeFail : BasePluginFail
-    {
-        public PluginThreeFail(Ice.Communicator communicator) : base(communicator)
+        internal class PluginThreeFail : BasePluginFail
         {
-        }
-
-        public override void initialize()
-        {
-            throw new PluginInitializeFailException();
-        }
-
-        public override void destroy()
-        {
-            test(false);
-        }
-
-        ~PluginThreeFail()
-        {
-            if(_initialized)
+            public PluginThreeFail(Communicator communicator)
+                : base(communicator)
             {
-                Console.WriteLine("PluginThreeFail was initialized");
             }
-            if(_destroyed)
+
+            public override void Initialize(PluginInitializationContext context) =>
+                throw new PluginInitializeFailException();
+
+            public override ValueTask DisposeAsync()
             {
-                Console.WriteLine("PluginThreeFail was destroyed");
+                GC.SuppressFinalize(this);
+                TestHelper.Assert(false);
+                return new ValueTask(Task.CompletedTask);
+            }
+
+            ~PluginThreeFail()
+            {
+                if (_initialized)
+                {
+                    Console.WriteLine("PluginThreeFail was initialized");
+                }
+                if (_destroyed)
+                {
+                    Console.WriteLine("PluginThreeFail was destroyed");
+                }
             }
         }
     }

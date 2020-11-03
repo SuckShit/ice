@@ -46,7 +46,7 @@ class Twoways
     static void twoways(test.TestHelper helper, MyClassPrx p)
     {
         Communicator communicator = helper.communicator();
-        final boolean bluetooth = communicator.getProperties().getProperty("Ice.Default.Protocol").indexOf("bt") == 0;
+        final boolean bluetooth = communicator.getProperties().getProperty("Ice.Default.Transport").indexOf("bt") == 0;
 
         String[] literals = p.opStringLiterals();
 
@@ -1487,19 +1487,15 @@ class Twoways
         MyStruct1 s = new MyStruct1();
         s.tesT = "Test.MyStruct1.s";
         s.myClass = null;
-        s.myStruct1 = "Test.MyStruct1.myStruct1";
         s = d.opMyStruct1(s);
         test(s.tesT.equals("Test.MyStruct1.s"));
         test(s.myClass == null);
-        test(s.myStruct1.equals("Test.MyStruct1.myStruct1"));
         MyClass1 c = new MyClass1();
         c.tesT = "Test.MyClass1.testT";
         c.myClass = null;
-        c.myClass1 = "Test.MyClass1.myClass1";
         c = d.opMyClass1(c);
         test(c.tesT.equals("Test.MyClass1.testT"));
         test(c.myClass == null);
-        test(c.myClass1.equals("Test.MyClass1.myClass1"));
 
         {
             Structure p1 = p.opMStruct1();
@@ -1524,12 +1520,6 @@ class Twoways
             p1.put("test", "test");
             MyClass.OpMDict2Result r = p.opMDict2(p1);
             test(r.p2.equals(p1) && r.returnValue.equals(p1));
-        }
-
-        {
-            BPrx b = BPrx.uncheckedCast(communicator.stringToProxy("b:" + helper.getTestEndpoint()));
-            b.opB();
-            b.opIntf();
         }
     }
 }

@@ -4,7 +4,9 @@
 
 #pragma once
 
-[["java:package:test.Ice.slicing.objects.server"]]
+[[3.7]]
+
+[[java:package(test.Ice.slicing.objects.server)]]
 module Test
 {
 
@@ -18,7 +20,7 @@ class SBase
     string sb;
 }
 
-class SBSKnownDerived extends SBase
+class SBSKnownDerived : SBase
 {
     string sbskd;
 }
@@ -29,7 +31,7 @@ class B
     B pb;
 }
 
-class D1 extends B
+class D1 : B
 {
     string sd1;
     B pd1;
@@ -61,7 +63,7 @@ exception BaseException
     B pb;
 }
 
-exception DerivedException extends BaseException
+exception DerivedException : BaseException
 {
     string sde;
     D1 pd1;
@@ -76,34 +78,34 @@ class PBase
 
 sequence<PBase> PBaseSeq;
 
-["preserve-slice"]
-class Preserved extends PBase
+[preserve-slice]
+class Preserved : PBase
 {
     string ps;
 }
 
-class PDerived extends Preserved
+class PDerived : Preserved
 {
     PBase pb;
 }
 
-class CompactPDerived(56) extends Preserved
+class CompactPDerived(56) : Preserved
 {
     PBase pb;
 }
 
-["preserve-slice"]
+[preserve-slice]
 class PNode
 {
     PNode next;
 }
 
-["preserve-slice"]
+[preserve-slice]
 exception PreservedException
 {
 }
 
-["format:sliced"]
+[format(sliced)]
 interface TestIntf
 {
     Object SBaseAsObject();
@@ -113,7 +115,7 @@ interface TestIntf
 
     SBase SBSUnknownDerivedAsSBase();
 
-    ["format:compact"] SBase SBSUnknownDerivedAsSBaseCompact();
+    [format(compact)] SBase SBSUnknownDerivedAsSBaseCompact();
 
     Object SUnknownAsObject();
     void checkSUnknown(Object o);
@@ -142,10 +144,10 @@ interface TestIntf
     Preserved PBSUnknownAsPreserved();
     void checkPBSUnknown(Preserved p);
 
-    ["amd"] Preserved PBSUnknownAsPreservedWithGraph();
+    [amd] Preserved PBSUnknownAsPreservedWithGraph();
     void checkPBSUnknownWithGraph(Preserved p);
 
-    ["amd"] Preserved PBSUnknown2AsPreservedWithGraph();
+    [amd] Preserved PBSUnknown2AsPreservedWithGraph();
     void checkPBSUnknown2WithGraph(Preserved p);
 
     PNode exchangePNode(PNode pn);
@@ -154,7 +156,7 @@ interface TestIntf
     void throwDerivedAsBase() throws BaseException;
     void throwDerivedAsDerived() throws DerivedException;
     void throwUnknownDerivedAsBase() throws BaseException;
-    ["amd"] void throwPreservedException() throws PreservedException;
+    [amd] void throwPreservedException() throws PreservedException;
 
     void useForward(out Forward f); /* Use of forward-declared class to verify that code is generated correctly. */
 
@@ -165,7 +167,7 @@ interface TestIntf
 // Types private to the server.
 //
 
-class SBSUnknownDerived extends SBase
+class SBSUnknownDerived : SBase
 {
     string sbsud;
 }
@@ -176,19 +178,19 @@ class SUnknown
     SUnknown cycle;
 }
 
-class D2 extends B
+class D2 : B
 {
     string sd2;
     B pd2;
 }
 
-class D4 extends B
+class D4 : B
 {
     B p1;
     B p2;
 }
 
-exception UnknownDerivedException extends BaseException
+exception UnknownDerivedException : BaseException
 {
     string sude;
     D2 pd2;
@@ -199,19 +201,19 @@ class MyClass
     int i;
 }
 
-class PSUnknown extends Preserved
+class PSUnknown : Preserved
 {
     string psu;
     PNode graph;
     MyClass cl;
 }
 
-class PSUnknown2 extends Preserved
+class PSUnknown2 : Preserved
 {
     PBase pb;
 }
 
-exception PSUnknownException extends PreservedException
+exception PSUnknownException : PreservedException
 {
     PSUnknown2 p;
 }

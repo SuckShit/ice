@@ -1,55 +1,37 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                //
-                // Register the server manager. The server manager creates a new
-                // 'server'(a server isn't a different process, it's just a new
-                // communicator and object adapter).
-                //
-                Ice.Properties properties = createTestProperties(ref args);
-                properties.setProperty("Ice.ThreadPool.Server.Size", "2");
+            // Register the server manager. The server manager creates a new 'server'(a server isn't a different
+            // process, it's just a new communicator and object adapter).
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
 
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("ServerManagerAdapter.Endpoints", getTestEndpoint(0));
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("ServerManagerAdapter");
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("ServerManagerAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("ServerManagerAdapter");
 
-                    //
-                    // We also register a sample server locator which implements the
-                    // locator interface, this locator is used by the clients and the
-                    // 'servers' created with the server manager interface.
-                    //
-                    ServerLocatorRegistry registry = new ServerLocatorRegistry();
-                    Ice.Object @object = new ServerManagerI(registry, this);
-                    adapter.add(@object, Ice.Util.stringToIdentity("ServerManager"));
-                    registry.addObject(adapter.createProxy(Ice.Util.stringToIdentity("ServerManager")));
-                    Ice.LocatorRegistryPrx registryPrx =
-                        Ice.LocatorRegistryPrxHelper.uncheckedCast(adapter.add(registry, Ice.Util.stringToIdentity("registry")));
+            // We also register a sample server locator which implements the locator interface, this locator is used by
+            // the clients and the 'servers' created with the server manager interface.
+            var registry = new ServerLocatorRegistry();
+            var obj = new ServerManager(registry, this);
+            adapter.Add("ServerManager", obj);
+            registry.AddObject(adapter.CreateProxy("ServerManager", IObjectPrx.Factory));
+            ILocatorRegistryPrx registryPrx = adapter.Add("registry", registry, ILocatorRegistryPrx.Factory);
+            adapter.Add("locator", new ServerLocator(registry, registryPrx));
 
-                    ServerLocator locator = new ServerLocator(registry, registryPrx);
-                    adapter.add(locator, Ice.Util.stringToIdentity("locator"));
-
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

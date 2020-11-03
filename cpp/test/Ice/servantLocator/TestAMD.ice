@@ -15,7 +15,7 @@ exception TestImpossibleException
 {
 }
 
-["amd"] interface TestIntf
+[amd] interface TestIntf
 {
     void requestFailedException();
     void unknownUserException();
@@ -40,11 +40,6 @@ exception TestImpossibleException
 interface TestActivation
 {
     void activateServantLocator(bool activate);
-}
-
-local class Cookie
-{
-    ["cpp:const"] string message();
 }
 
 }

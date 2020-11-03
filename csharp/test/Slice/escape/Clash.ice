@@ -2,9 +2,11 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-[["underscore"]]
+[[suppress-warning(reserved-identifier)]]
 
-module Clash
+[[preserve-case]]
+
+module ZeroC::Slice::Test::Escape::Clash
 {
 
 interface Intf
@@ -21,10 +23,11 @@ interface Intf
     void obj();
 
     void op(string context, string current, string response, string ex, string sent, string cookie,
-            string sync, string result, string istr, string ostr, optional(1) string proxy, optional(2) int obj);
-    void opOut(out string context, out string current, out string response, out string ex,
-               out string sent, out string cookie, out string sync, out string result, out string istr,
-               out string ostr, out optional(1) string proxy, out optional(2) int obj);
+            string sync, string result, string istr, string ostr, tag(1) string? proxy, tag(2) int? obj);
+    (string context, string current, string response,
+            string ex, string sent, string cookie,
+            string sync, string result, string istr,
+            string ostr, tag(1) string? proxy, tag(2) int? obj) opReturn();
 }
 
 class Cls
@@ -35,7 +38,7 @@ class Cls
     short response;
     int typeId;
     short del;
-    optional(1) short cookie;
+    tag(1) short? cookie;
     string ex;
     int result;
     string istr;

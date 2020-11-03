@@ -1,83 +1,43 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
-using Test;
 
-public sealed class ControllerI : ControllerDisp_
+namespace ZeroC.Ice.Test.Metrics
 {
-    public ControllerI(Ice.ObjectAdapter adapter)
+    public sealed class AsyncMetrics : IAsyncMetrics
     {
-        _adapter = adapter;
-    }
+        public ValueTask OpAsync(Current current, CancellationToken cancel) => default;
 
-    override public void hold(Ice.Current current)
-    {
-        _adapter.hold();
-        _adapter.waitForHold();
-    }
+        public ValueTask FailAsync(Current current, CancellationToken cancel)
+        {
+            current.Connection.AbortAsync();
+            return default;
+        }
 
-    override public void resume(Ice.Current current)
-    {
-        _adapter.activate();
-    }
+        public ValueTask OpWithUserExceptionAsync(Current current, CancellationToken cancel) =>
+            throw new UserEx("custom UserEx message");
 
-    readonly private Ice.ObjectAdapter _adapter;
-};
+        public ValueTask OpWithRequestFailedExceptionAsync(Current current, CancellationToken cancel) =>
+            throw new ObjectNotExistException();
 
-public sealed class MetricsI : MetricsDisp_
-{
-    override public Task opAsync(Ice.Current current)
-    {
-        return null;
-    }
+        public ValueTask OpWithLocalExceptionAsync(Current current, CancellationToken cancel) =>
+            throw new InvalidConfigurationException("fake");
 
-    override public Task failAsync(Ice.Current current)
-    {
-        current.con.close(Ice.ConnectionClose.Forcefully);
-        return null;
-    }
+        public ValueTask OpWithUnknownExceptionAsync(Current current, CancellationToken cancel) =>
+            throw new ArgumentOutOfRangeException();
 
-    override public Task opWithUserExceptionAsync(Ice.Current current)
-    {
-        throw new UserEx();
-    }
+        public ValueTask OpByteSAsync(byte[] bs, Current current, CancellationToken cancel) =>
+            new ValueTask(Task.CompletedTask);
 
-    override public Task
-    opWithRequestFailedExceptionAsync(Ice.Current current)
-    {
-        throw new Ice.ObjectNotExistException();
-    }
+        public ValueTask<IObjectPrx?> GetAdminAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<IObjectPrx?>(current.Adapter.Communicator.GetAdmin());
 
-    override public Task
-    opWithLocalExceptionAsync(Ice.Current current)
-    {
-        throw new Ice.SyscallException();
-    }
-
-    override public Task
-    opWithUnknownExceptionAsync(Ice.Current current)
-    {
-        throw new ArgumentOutOfRangeException();
-    }
-
-    override public Task
-    opByteSAsync(byte[] bs, Ice.Current current)
-    {
-        return null;
-    }
-
-    override public Ice.ObjectPrx
-    getAdmin(Ice.Current current)
-    {
-        return current.adapter.getCommunicator().getAdmin();
-    }
-
-    override public void
-    shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
+        public ValueTask ShutdownAsync(Current current, CancellationToken cancel)
+        {
+            current.Adapter.Communicator.ShutdownAsync();
+            return new ValueTask(Task.CompletedTask);
+        }
     }
 }

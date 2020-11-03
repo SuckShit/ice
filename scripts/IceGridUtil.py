@@ -6,7 +6,6 @@ import sys, os
 from Util import *
 from IceBoxUtil import *
 from Glacier2Util import *
-from IcePatch2Util import *
 
 class IceGridProcess:
 
@@ -81,15 +80,17 @@ class IceGridNode(ProcessFromBinDir, Server):
     def teardown(self, current, success):
         Server.teardown(self, current, success)
         # Remove the database directory tree
-        try:
-            shutil.rmtree(self.dbdir)
-        except:
-            pass
+        if success or current.driver.isInterrupted():
+            try:
+                shutil.rmtree(self.dbdir)
+            except:
+                pass
 
     def getProps(self, current):
+        host = current.driver.getHost(current.config.transport, current.config.ipv6)
         props = {
             'IceGrid.InstanceName' : 'TestIceGrid',
-            'IceGrid.Node.Endpoints' : 'default',
+            'IceGrid.Node.Endpoints' : f'default -h {host}',
             'IceGrid.Node.WaitTime' : 240,
             'Ice.ProgramName' : 'icegridnode',
             'IceGrid.Node.Trace.Replica' : 0,
@@ -140,24 +141,26 @@ class IceGridRegistry(ProcessFromBinDir, Server):
     def teardown(self, current, success):
         Server.teardown(self, current, success)
         # Remove the database directory tree
-        try:
-            shutil.rmtree(self.dbdir)
-        except:
-            pass
+        if success or current.driver.isInterrupted():
+            try:
+                shutil.rmtree(self.dbdir)
+            except:
+                pass
 
     def getProps(self, current):
+        host = current.driver.getHost(current.config.transport, current.config.ipv6)
         props = {
             'IceGrid.InstanceName' : 'TestIceGrid',
             'IceGrid.Registry.PermissionsVerifier' : 'TestIceGrid/NullPermissionsVerifier',
             'IceGrid.Registry.AdminPermissionsVerifier' : 'TestIceGrid/NullPermissionsVerifier',
             'IceGrid.Registry.SSLPermissionsVerifier' : 'TestIceGrid/NullSSLPermissionsVerifier',
             'IceGrid.Registry.AdminSSLPermissionsVerifier' : 'TestIceGrid/NullSSLPermissionsVerifier',
-            'IceGrid.Registry.Server.Endpoints' : 'default',
-            'IceGrid.Registry.Internal.Endpoints' : 'default',
+            'IceGrid.Registry.Server.Endpoints' : f'default -h {host}',
+            'IceGrid.Registry.Internal.Endpoints' : f'default -h {host}',
             'IceGrid.Registry.Client.Endpoints' : self.getEndpoints(current),
             'IceGrid.Registry.Discovery.Port' : current.driver.getTestPort(99),
-            'IceGrid.Registry.SessionManager.Endpoints' : 'default',
-            'IceGrid.Registry.AdminSessionManager.Endpoints' : 'default',
+            'IceGrid.Registry.SessionManager.Endpoints' : f'default -h {host}',
+            'IceGrid.Registry.AdminSessionManager.Endpoints' : f'default -h {host}',
             'IceGrid.Registry.SessionTimeout' : 60,
             'IceGrid.Registry.ReplicaName' : self.name,
             'Ice.ProgramName' : self.name,
@@ -175,7 +178,7 @@ class IceGridRegistry(ProcessFromBinDir, Server):
         return props
 
     def getEndpoints(self, current):
-        return current.getTestEndpoint(self.portnum)
+        return current.getTestEndpoint(self.portnum, current.config.transport)
 
     def getLocator(self, current):
         return "TestIceGrid/Locator:{0}".format(self.getEndpoints(current))
@@ -233,15 +236,21 @@ class IceGridTestCase(TestCase):
 
     def setupClientSide(self, current):
         if self.application:
+            try:
+                self.runadmin(current, "application remove Test", quiet=True)
+            except:
+                pass
+
             javaHome = os.environ.get("JAVA_HOME", None)
             serverProps = Server().getProps(current)
             variables = {
                 "test.dir" : self.getPath(current),
+                "test.host": current.driver.getHost(current.config.transport, current.config.ipv6),
+                "test.transport": current.config.transport,
                 "java.exe" : os.path.join(javaHome, "bin", "java") if javaHome else "java",
                 "icebox.exe" : IceBox().getCommandLine(current),
                 "icegridnode.exe" : IceGridNode().getCommandLine(current),
                 "glacier2router.exe" : Glacier2Router().getCommandLine(current),
-                "icepatch2server.exe" : IcePatch2Server().getCommandLine(current),
                 "icegridregistry.exe" : IceGridRegistryMaster().getCommandLine(current),
                 "properties-override" : self.icegridnode[0].getPropertiesOverride(current),
             }
@@ -257,12 +266,12 @@ class IceGridTestCase(TestCase):
             varStr = " ".join(["{0}={1}".format(k, val(v)) for k,v in variables.items()])
             targets = " ".join(self.targets)
             application = self.application
-            if isinstance(self.mapping, CSharpMapping) and current.config.dotnetcore:
+            if isinstance(self.mapping, CSharpMapping):
                 application = application.replace(".xml", ".netcoreapp.xml")
-            self.runadmin(current, "application add -n {0} {1} {2}".format(application, varStr, targets))
+            self.runadmin(current, "application add {0} {1} {2}".format(application, varStr, targets))
 
     def teardownClientSide(self, current, success):
-        if self.application:
+        if (success or current.driver.isInterrupted()) and self.application:
             self.runadmin(current, "application remove Test")
 
         for p in self.icegridnode + self.icegridregistry:

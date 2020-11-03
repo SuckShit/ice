@@ -1,37 +1,26 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Exceptions
 {
-    namespace exceptions
+    public class Collocated : TestHelper
     {
-        public class Collocated : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var initData = new InitializationData();
-                initData.typeIdNamespaces = new string[]{"Ice.exceptions.TypeId"};
-                initData.properties = createTestProperties(ref args);
-                initData.properties.setProperty("Ice.Warn.Connections", "0");
-                initData.properties.setProperty("Ice.Warn.Dispatch", "0");
-                initData.properties.setProperty("Ice.MessageSizeMax", "10"); // 10KB max
-                using(var communicator = initialize(initData))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    Ice.Object obj = new ThrowerI();
-                    adapter.add(obj, Ice.Util.stringToIdentity("thrower"));
-                    AllTests.allTests(this);
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Collocated>(args);
-            }
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.Warn.Dispatch"] = "0";
+            properties["Ice.IncomingFrameSizeMax"] = "10K";
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("thrower", new Thrower());
+            AllTests.Run(this);
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Collocated>(args);
     }
 }

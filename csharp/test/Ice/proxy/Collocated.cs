@@ -1,37 +1,26 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Proxy
 {
-    namespace proxy
+    public class Collocated : TestHelper
     {
-        public class Collocated : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                properties.setProperty("Ice.ThreadPool.Client.Size", "2"); // For nested AMI.
-                properties.setProperty("Ice.ThreadPool.Client.SizeWarn", "0");
-                properties.setProperty("Ice.Warn.Dispatch", "0");
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Dispatch"] = "0";
 
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new MyDerivedClassI(), Ice.Util.stringToIdentity("test"));
-                    //adapter.activate(); // Don't activate OA to ensure collocation is used.
-                    AllTests.allTests(this);
-                }
-            }
-
-            public static int Main(String[] args)
-            {
-                return TestDriver.runTest<Collocated>(args);
-            }
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new MyDerivedClass());
+            // Don't activate OA to ensure collocation is used.
+            AllTests.Run(this);
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Collocated>(args);
     }
 }

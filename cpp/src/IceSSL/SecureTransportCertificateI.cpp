@@ -225,7 +225,7 @@ private:
 
 #endif
 
-class SecureTransportCertificateI ICE_FINAL : public IceSSL::SecureTransport::Certificate,
+class SecureTransportCertificateI final : public IceSSL::SecureTransport::Certificate,
                                               public IceSSL::CertificateI
 {
 public:
@@ -239,13 +239,8 @@ public:
     virtual bool verify(const IceSSL::CertificatePtr&) const;
     virtual string encode() const;
 
-#ifdef ICE_CPP11_MAPPING
     virtual chrono::system_clock::time_point getNotAfter() const;
     virtual chrono::system_clock::time_point getNotBefore() const;
-#else
-    virtual IceUtil::Time getNotAfter() const;
-    virtual IceUtil::Time getNotBefore() const;
-#endif
 
     virtual string getSerialNumber() const;
     virtual DistinguishedName getIssuerDN() const;
@@ -372,11 +367,7 @@ getX509AltName(SecCertificateRef cert, CFTypeRef key)
     return pairs;
 }
 
-#ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#else
-IceUtil::Time
-#endif
 getX509Date(SecCertificateRef cert, CFTypeRef key)
 {
     assert(key == kSecOIDX509V1ValidityNotAfter || key == kSecOIDX509V1ValidityNotBefore);
@@ -390,11 +381,7 @@ getX509Date(SecCertificateRef cert, CFTypeRef key)
 
     IceUtil::Time time = IceUtil::Time::secondsDouble(kCFAbsoluteTimeIntervalSince1970 + seconds);
 
-#ifdef ICE_CPP11_MAPPING
     return chrono::system_clock::time_point(chrono::microseconds(time.toMicroSeconds()));
-#else
-    return time;
-#endif
 }
 
 string
@@ -413,11 +400,7 @@ SecureTransportCertificateI::SecureTransportCertificateI(SecCertificateRef cert)
 {
     if(!_cert)
     {
-#ifdef ICE_CPP11_MAPPING
         throw invalid_argument("Invalid certificate reference");
-#else
-        throw IceUtil::IllegalArgumentException(__FILE__, __LINE__, "Invalid certificate reference");
-#endif
     }
 }
 
@@ -598,11 +581,7 @@ SecureTransportCertificateI::encode() const
 #endif
 }
 
-#ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#else
-IceUtil::Time
-#endif
 SecureTransportCertificateI::getNotAfter() const
 {
 #ifdef ICE_USE_SECURE_TRANSPORT_IOS
@@ -612,11 +591,7 @@ SecureTransportCertificateI::getNotAfter() const
 #endif
 }
 
-#ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#else
-IceUtil::Time
-#endif
 SecureTransportCertificateI::getNotBefore() const
 {
 #ifdef ICE_USE_SECURE_TRANSPORT_IOS
@@ -795,7 +770,7 @@ SecureTransportCertificateI::initializeAttributes() const
 IceSSL::SecureTransport::CertificatePtr
 IceSSL::SecureTransport::Certificate::create(SecCertificateRef cert)
 {
-    return ICE_MAKE_SHARED(SecureTransportCertificateI, cert);
+    return std::make_shared<SecureTransportCertificateI>(cert);
 }
 
 IceSSL::SecureTransport::CertificatePtr
@@ -804,7 +779,7 @@ IceSSL::SecureTransport::Certificate::load(const std::string& file)
     string resolved;
     if(checkPath(file, "", false, resolved))
     {
-        return ICE_MAKE_SHARED(SecureTransportCertificateI, loadCertificate(resolved));
+        return std::make_shared<SecureTransportCertificateI>(loadCertificate(resolved));
     }
     else
     {
@@ -839,7 +814,7 @@ IceSSL::SecureTransport::Certificate::decode(const std::string& encoding)
         assert(false);
         throw CertificateEncodingException(__FILE__, __LINE__, "certificate is not a valid PEM-encoded certificate");
     }
-    return ICE_MAKE_SHARED(SecureTransportCertificateI, cert);
+    return std::make_shared<SecureTransportCertificateI>(cert);
 #else // macOS
     UniqueRef<CFDataRef> data(
         CFDataCreateWithBytesNoCopy(kCFAllocatorDefault,
@@ -863,6 +838,6 @@ IceSSL::SecureTransport::Certificate::decode(const std::string& encoding)
     UniqueRef<SecKeychainItemRef> item;
     item.retain(static_cast<SecKeychainItemRef>(const_cast<void*>(CFArrayGetValueAtIndex(items.get(), 0))));
     assert(SecCertificateGetTypeID() == CFGetTypeID(item.get()));
-    return ICE_MAKE_SHARED(SecureTransportCertificateI, reinterpret_cast<SecCertificateRef>(item.release()));
+    return std::make_shared<SecureTransportCertificateI>(reinterpret_cast<SecCertificateRef>(item.release()));
 #endif
 }

@@ -1,46 +1,38 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.UDP
 {
-    namespace udp
+    public class Client : TestHelper
     {
-        public class Client : global::Test.TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.UDP.SndSize"] = "16K";
+            await using Communicator communicator = Initialize(properties);
+            AllTests.Run(this);
+
+            int num;
+            try
             {
-                var properties = createTestProperties(ref args);
-                properties.setProperty("Ice.Warn.Connections", "0");
-                properties.setProperty("Ice.UDP.SndSize", "16384");
-                using(var communicator = initialize(properties))
-                {
-                    AllTests.allTests(this);
-
-                    int num;
-                    try
-                    {
-                        num = args.Length == 1 ? Int32.Parse(args[0]) : 1;
-                    }
-                    catch(FormatException)
-                    {
-                        num = 1;
-                    }
-
-                    for(int i = 0; i < num; ++i)
-                    {
-                        var prx = communicator.stringToProxy("control:" + getTestEndpoint(i, "tcp"));
-                        Test.TestIntfPrxHelper.uncheckedCast(prx).shutdown();
-                    }
-                }
+                num = args.Length == 1 ? int.Parse(args[0]) : 1;
+            }
+            catch (FormatException)
+            {
+                num = 1;
             }
 
-            public static int Main(string[] args)
+            for (int i = 0; i < num; ++i)
             {
-                return global::Test.TestDriver.runTest<Client>(args);
+                ITestIntfPrx.Parse(GetTestProxy("control", i, "tcp"), communicator).Shutdown();
             }
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

@@ -1,62 +1,37 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.NamespaceMD
 {
-    namespace namespacemd
+    public class Initial : IInitial
     {
-        public class InitialI : Test.InitialDisp_
-        {
-            public override NoNamespace.C1 getNoNamespaceC2AsC1(Current current = null)
-            {
-                return new NoNamespace.C2();
-            }
+        public NoNamespace.C1 GetNoNamespaceC2AsC1(Current current, CancellationToken cancel) =>
+            new NoNamespace.C2();
 
-            public override NoNamespace.C2 getNoNamespaceC2AsC2(Current current = null)
-            {
-                return new NoNamespace.C2();
-            }
+        public NoNamespace.C2 GetNoNamespaceC2AsC2(Current current, CancellationToken cancel) =>
+            new NoNamespace.C2();
 
-            public override WithNamespace.C1 getWithNamespaceC2AsC1(Current current = null)
-            {
-                return new WithNamespace.C2();
-            }
+        public WithNamespace.C1 GetWithNamespaceC2AsC1(Current current, CancellationToken cancel) =>
+            new WithNamespace.C2();
 
-            public override WithNamespace.C2 getWithNamespaceC2AsC2(Current current = null)
-            {
-                return new WithNamespace.C2();
-            }
+        public WithNamespace.C2 GetWithNamespaceC2AsC2(Current current, CancellationToken cancel) =>
+            new WithNamespace.C2();
 
-            public override void shutdown(Current current = null)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
 
-            public override void throwNoNamespaceE2AsE1(Current current = null)
-            {
-                throw new NoNamespace.E2();
-            }
+        public void ThrowNoNamespaceE2AsE1(Current current, CancellationToken cancel) => throw new NoNamespace.E2();
 
-            public override void throwNoNamespaceE2AsE2(Current current = null)
-            {
-                throw new NoNamespace.E2();
-            }
+        public void ThrowNoNamespaceE2AsE2(Current current, CancellationToken cancel) => throw new NoNamespace.E2();
 
-            public override void throwNoNamespaceNotify(Current current = null)
-            {
-                throw new NoNamespace.@notify();
-            }
+        public void ThrowNoNamespaceNotify(Current current, CancellationToken cancel) =>
+            throw new NoNamespace.@notify();
 
-            public override void throwWithNamespaceE2AsE1(Current current = null)
-            {
-                throw new WithNamespace.E2();
-            }
+        public void ThrowWithNamespaceE2AsE1(Current current, CancellationToken cancel) =>
+            throw new WithNamespace.E2();
 
-            public override void throwWithNamespaceE2AsE2(Current current = null)
-            {
-                throw new WithNamespace.E2();
-            }
-        }
+        public void ThrowWithNamespaceE2AsE2(Current current, CancellationToken cancel) =>
+            throw new WithNamespace.E2();
     }
 }

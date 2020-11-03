@@ -1,69 +1,67 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
+using System.Threading;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.UDP
 {
-    namespace udp
+    public sealed class TestIntf : ITestIntf
     {
-        public sealed class TestIntfI : Test.TestIntfDisp_
+        public int GetValue(Current current, CancellationToken cancel)
         {
-            public override void ping(Test.PingReplyPrx reply, Ice.Current current)
+            TestHelper.Assert(false); // a two-way operation cannot be reached through UDP
+            return 42;
+        }
+
+        public void Ping(IPingReplyPrx? reply, Current current, CancellationToken cancel)
+        {
+            try
             {
-                try
-                {
-                    reply.reply();
-                }
-                catch(Ice.LocalException)
-                {
-                    Debug.Assert(false);
-                }
+                reply!.Reply(cancel: cancel);
             }
-
-            public override void sendByteSeq(byte[] seq, Test.PingReplyPrx reply, Ice.Current current)
+            catch
             {
-                try
-                {
-                    reply.reply();
-                }
-                catch(Ice.LocalException)
-                {
-                    Debug.Assert(false);
-                }
-            }
-
-            public override void pingBiDir(Ice.Identity id, Ice.Current current)
-            {
-                try
-                {
-                    //
-                    // Ensure sending too much data doesn't cause the UDP connection
-                    // to be closed.
-                    //
-                    try
-                    {
-                        byte[] seq = new byte[32 * 1024];
-                        Test.TestIntfPrxHelper.uncheckedCast(current.con.createProxy(id)).sendByteSeq(seq, null);
-                    }
-                    catch(Ice.DatagramLimitException)
-                    {
-                        // Expected.
-                    }
-
-                    Test.PingReplyPrxHelper.uncheckedCast(current.con.createProxy(id)).reply();
-                }
-                catch(Ice.LocalException)
-                {
-                    Debug.Assert(false);
-                }
-            }
-
-            public override void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
+                TestHelper.Assert(false);
             }
         }
+
+        public void SendByteSeq(byte[] seq, IPingReplyPrx? reply, Current current, CancellationToken cancel)
+        {
+            try
+            {
+                reply!.Reply(cancel: cancel);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+        }
+
+        public void PingBiDir(Identity id, Current current, CancellationToken cancel)
+        {
+            try
+            {
+                // Ensure sending too much data doesn't cause the UDP connection to be closed.
+                TestHelper.Assert(current.Connection != null);
+                try
+                {
+                    byte[] seq = new byte[32 * 1024];
+                    current.Connection.CreateProxy(id, ITestIntfPrx.Factory).SendByteSeq(seq, null, cancel: cancel);
+                }
+                catch (DatagramLimitException)
+                {
+                    // Expected.
+                }
+
+                current.Connection.CreateProxy(id, IPingReplyPrx.Factory).Reply(cancel: cancel);
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+        }
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            _ = current.Adapter.Communicator.ShutdownAsync();
     }
 }

@@ -1,152 +1,128 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using Test;
+using System;
+using System.Threading;
+
+namespace ZeroC.Ice.Test.ACM
 {
-    namespace acm
+    public class RemoteCommunicator : IRemoteCommunicator
     {
-        public class RemoteCommunicatorI : Test.RemoteCommunicatorDisp_
+        public IRemoteObjectAdapterPrx CreateObjectAdapter(
+            int timeout,
+            string? close,
+            string? heartbeat,
+            Current current,
+            CancellationToken cancel)
         {
-            public override Test.RemoteObjectAdapterPrx
-            createObjectAdapter(int timeout, int close, int heartbeat, Ice.Current current)
-            {
-                Ice.Communicator com = current.adapter.getCommunicator();
-                Ice.Properties properties = com.getProperties();
-                string protocol = properties.getPropertyWithDefault("Ice.Default.Protocol", "tcp");
-                string host = properties.getPropertyWithDefault("Ice.Default.Host", "127.0.0.1");
+            Communicator communicator = current.Adapter.Communicator;
+            string transport = communicator.GetProperty("Test.Transport")!;
+            string host = communicator.GetProperty("Test.Host")!;
 
-                string name = System.Guid.NewGuid().ToString();
-                if(timeout >= 0)
-                {
-                    properties.setProperty(name + ".ACM.Timeout", timeout.ToString());
-                }
-                if(close >= 0)
-                {
-                    properties.setProperty(name + ".ACM.Close", close.ToString());
-                }
-                if(heartbeat >= 0)
-                {
-                    properties.setProperty(name + ".ACM.Heartbeat", heartbeat.ToString());
-                }
-                properties.setProperty(name + ".ThreadPool.Size", "2");
-                Ice.ObjectAdapter adapter = com.createObjectAdapterWithEndpoints(name, protocol + " -h \"" + host + "\"");
-                return Test.RemoteObjectAdapterPrxHelper.uncheckedCast(
-                    current.adapter.addWithUUID(new RemoteObjectAdapterI(adapter)));
+            string name = Guid.NewGuid().ToString();
+            if (timeout >= 0)
+            {
+                communicator.SetProperty($"{name}.ACM.Timeout", $"{timeout}s");
             }
 
-            public override void
-            shutdown(Ice.Current current)
+            if (close is string closeValue)
             {
-                current.adapter.getCommunicator().shutdown();
+                communicator.SetProperty($"{name}.ACM.Close", Enum.Parse<AcmClose>(closeValue).ToString());
+            }
+
+            if (heartbeat is string heartbeatValue)
+            {
+                communicator.SetProperty($"{name}.ACM.Heartbeat", Enum.Parse<AcmHeartbeat>(heartbeatValue).ToString());
+            }
+
+            bool ice1 = TestHelper.GetTestProtocol(communicator.GetProperties()) == Protocol.Ice1;
+            if (!ice1 && host.Contains(':'))
+            {
+                host = $"[{host}]";
+            }
+            ObjectAdapter adapter = communicator.CreateObjectAdapterWithEndpoints(name,
+                ice1 ? $"{transport} -h \"{host}\"" : $"ice+{transport}://{host}:0");
+
+            return current.Adapter.AddWithUUID(new RemoteObjectAdapter(adapter), IRemoteObjectAdapterPrx.Factory);
+        }
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            _ = current.Adapter.Communicator.ShutdownAsync();
+    }
+
+    public class RemoteObjectAdapter : IRemoteObjectAdapter
+    {
+        private readonly ObjectAdapter _adapter;
+        private readonly ITestIntfPrx _testIntf;
+
+        public RemoteObjectAdapter(ObjectAdapter adapter)
+        {
+            _adapter = adapter;
+            _testIntf = _adapter.Add("test", new TestIntf(), ITestIntfPrx.Factory);
+            _adapter.Activate();
+        }
+
+        public ITestIntfPrx GetTestIntf(Current current, CancellationToken cancel) => _testIntf;
+
+        public void Deactivate(Current current, CancellationToken cancel) => _adapter.Dispose();
+    }
+
+    public class TestIntf : ITestIntf
+    {
+        private HeartbeatCallback? _callback;
+        private readonly object _mutex = new object();
+        public void Sleep(int delay, Current current, CancellationToken cancel)
+        {
+            lock (_mutex)
+            {
+                Monitor.Wait(_mutex, TimeSpan.FromSeconds(delay));
             }
         }
 
-        public class RemoteObjectAdapterI : Test.RemoteObjectAdapterDisp_
+        public void InterruptSleep(Current current, CancellationToken cancel)
         {
-            public RemoteObjectAdapterI(Ice.ObjectAdapter adapter)
+            lock (_mutex)
             {
-                _adapter = adapter;
-                _testIntf = Test.TestIntfPrxHelper.uncheckedCast(_adapter.add(new TestI(), Util.stringToIdentity("test")));
-                _adapter.activate();
+                Monitor.PulseAll(_mutex);
             }
-
-            public override Test.TestIntfPrx getTestIntf(Ice.Current current)
-            {
-                return _testIntf;
-            }
-
-            public override void activate(Ice.Current current)
-            {
-                _adapter.activate();
-            }
-
-            public override void hold(Ice.Current current)
-            {
-                _adapter.hold();
-            }
-
-            public override void deactivate(Ice.Current current)
-            {
-                try
-                {
-                    _adapter.destroy();
-                }
-                catch(Ice.ObjectAdapterDeactivatedException)
-                {
-                }
-            }
-
-            private Ice.ObjectAdapter _adapter;
-            private Test.TestIntfPrx _testIntf;
         }
 
-        public class TestI : Test.TestIntfDisp_
+        public class HeartbeatCallback
         {
-            public override void sleep(int delay, Ice.Current current)
+            private int _count;
+            private readonly object _mutex = new object();
+
+            public void Heartbeat()
             {
-                lock(this)
+                lock (_mutex)
                 {
-                    System.Threading.Monitor.Wait(this, delay * 1000);
+                    ++_count;
+                    Monitor.PulseAll(_mutex);
                 }
             }
 
-            public override void sleepAndHold(int delay, Ice.Current current)
+            public void WaitForCount(int count)
             {
-                lock(this)
+                lock (_mutex)
                 {
-                    current.adapter.hold();
-                    System.Threading.Monitor.Wait(this, delay * 1000);
-                }
-            }
-
-            public override void interruptSleep(Ice.Current current)
-            {
-                lock(this)
-                {
-                    System.Threading.Monitor.PulseAll(this);
-                }
-            }
-
-            class HeartbeatCallbackI
-            {
-                public void heartbeat(Ice.Connection c)
-                {
-                    lock(this)
+                    while (_count < count)
                     {
-                        ++_count;
-                        System.Threading.Monitor.PulseAll(this);
+                        Monitor.Wait(_mutex);
                     }
                 }
-
-                public void waitForCount(int count)
-                {
-                    lock(this)
-                    {
-                        while(_count < count)
-                        {
-                            System.Threading.Monitor.Wait(this);
-                        }
-                    }
-                }
-
-                private int _count = 0;
             }
-
-            public override void startHeartbeatCount(Ice.Current current)
-            {
-                _callback = new HeartbeatCallbackI();
-                current.con.setHeartbeatCallback(_callback.heartbeat);
-            }
-
-            public override void waitForHeartbeatCount(int count, Ice.Current current)
-            {
-                System.Diagnostics.Debug.Assert(_callback != null);
-                _callback.waitForCount(count);
-            }
-
-            private HeartbeatCallbackI _callback;
         }
 
+        public void StartHeartbeatCount(Current current, CancellationToken cancel)
+        {
+            _callback = new HeartbeatCallback();
+            current.Connection.PingReceived += (sender, args) => _callback.Heartbeat();
+        }
+
+        public void WaitForHeartbeatCount(int count, Current current, CancellationToken cancel)
+        {
+            TestHelper.Assert(_callback != null);
+            _callback.WaitForCount(count);
+        }
     }
 }

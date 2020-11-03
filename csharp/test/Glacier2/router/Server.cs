@@ -1,52 +1,38 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Diagnostics;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
+using ZeroC.Ice;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Glacier2.Test.Router
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            communicator.getProperties().setProperty("CallbackAdapter.Endpoints", getTestEndpoint(0));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("CallbackAdapter");
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Test.Protocol"] = "ice1";
 
-            //
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("CallbackAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("CallbackAdapter");
+
             // The test allows "c1" as category.
-            //
-            adapter.add(new CallbackI(), Ice.Util.stringToIdentity("c1/callback"));
+            adapter.Add("c1/callback", new Callback());
 
-            //
             // The test allows "c2" as category.
-            //
-            adapter.add(new CallbackI(), Ice.Util.stringToIdentity("c2/callback"));
+            adapter.Add("c2/callback", new Callback());
 
-            //
             // The test rejects "c3" as category.
-            //
-            adapter.add(new CallbackI(), Ice.Util.stringToIdentity("c3/callback"));
+            adapter.Add("c3/callback", new Callback());
 
-            //
             // The test allows the prefixed userid.
-            //
-            adapter.add(new CallbackI(), Ice.Util.stringToIdentity("_userid/callback"));
-            adapter.activate();
-            communicator.waitForShutdown();
+            adapter.Add("_userid/callback", new Callback());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

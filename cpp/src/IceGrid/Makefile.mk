@@ -7,7 +7,8 @@ local_node_srcs         = Activator.cpp \
                           NodeI.cpp \
                           NodeSessionManager.cpp \
                           ServerAdapterI.cpp \
-                          ServerI.cpp
+                          ServerI.cpp \
+                          SynchronizationException.cpp
 
 local_registry_srcs     = Internal.ice \
                           AdminRouter.cpp \
@@ -43,6 +44,7 @@ local_registry_srcs     = Internal.ice \
                           ServerCache.cpp \
                           SessionI.cpp \
                           SessionServantManager.cpp \
+                          SynchronizationException.cpp \
                           Topics.cpp \
                           Util.cpp \
                           WellKnownObjectsManager.cpp
@@ -66,15 +68,15 @@ $(project)_targetdir            := $(bindir)
 
 icegridnode_sources             := $(addprefix $(currentdir)/,$(local_node_srcs) $(local_registry_srcs) IceGridNode.cpp) \
                                    $(slicedir)/IceLocatorDiscovery/IceLocatorDiscovery.ice
-icegridnode_dependencies        := IceBox IceStormService IceStorm IceXML IceSSL IcePatch2 IceDB
+icegridnode_dependencies        := IceBox IceStormService IceStorm IceXML IceSSL IceDB
 icegridnode_cppflags            := $(if $(lmdb_includedir),-I$(lmdb_includedir))
 
 icegridregistry_sources         := $(addprefix $(currentdir)/,$(local_registry_srcs) IceGridRegistry.cpp) \
                                    $(slicedir)/IceLocatorDiscovery/IceLocatorDiscovery.ice
-icegridregistry_dependencies    := IceBox IceStormService IceStorm IceXML IceSSL IcePatch2 IceDB $(local_dependencies)
+icegridregistry_dependencies    := IceBox IceStormService IceStorm IceXML IceSSL IceDB $(local_dependencies)
 icegridregistry_cppflags        := $(if $(lmdb_includedir),-I$(lmdb_includedir))
 
-icegridadmin_dependencies       := IcePatch2 IceBox IceXML IceLocatorDiscovery
+icegridadmin_dependencies       := IceBox IceXML IceLocatorDiscovery
 icegridadmin_sources            := $(addprefix $(currentdir)/,$(local_admin_srcs))
 
 projects += $(project)

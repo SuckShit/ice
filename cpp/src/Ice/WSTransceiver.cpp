@@ -17,12 +17,7 @@
 #include <IceUtil/StringUtil.h>
 
 // Python 2.7 under Windows.
-#if _MSC_VER == 1500
-typedef unsigned short uint16_t;
-#else
 #include <stdint.h>
-#endif
-
 #include <climits>
 
 using namespace std;
@@ -128,49 +123,6 @@ Long ice_nlltoh(const Byte* src)
     return v;
 }
 
-#if defined(ICE_OS_UWP)
-Short htons(Short v)
-{
-    Short result;
-    Byte* dest = reinterpret_cast<Byte*>(&result);
-
-    //
-    // Transfer a short in network (big-endian) order.
-    //
-#ifdef ICE_BIG_ENDIAN
-    const Byte* src = reinterpret_cast<const Byte*>(&v);
-    *dest++ = *src++;
-    *dest = *src;
-#else
-    const Byte* src = reinterpret_cast<const Byte*>(&v) + sizeof(Short) - 1;
-    *dest++ = *src--;
-    *dest = *src;
-#endif
-    return result;
-}
-
-Short ntohs(Short value)
-{
-    const Byte* src = reinterpret_cast<Byte*>(&value);
-    Short v;
-
-    //
-    // Extract a 64-bit integer in network (big-endian) order.
-    //
-#ifdef ICE_BIG_ENDIAN
-    Byte* dest = reinterpret_cast<Byte*>(&v);
-    *dest++ = *src++;
-    *dest = *src;
-#else
-    Byte* dest = reinterpret_cast<Byte*>(&v) + sizeof(Short) - 1;
-    *dest-- = *src++;
-    *dest = *src;
-#endif
-
-    return v;
-}
-#endif
-
 }
 
 NativeInfoPtr
@@ -179,7 +131,7 @@ IceInternal::WSTransceiver::getNativeInfo()
     return _delegate->getNativeInfo();
 }
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
 AsyncInfo*
 IceInternal::WSTransceiver::getAsyncInfo(SocketOperation status)
 {
@@ -641,7 +593,7 @@ IceInternal::WSTransceiver::read(Buffer& buf)
     return s;
 }
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
 bool
 IceInternal::WSTransceiver::startWrite(Buffer& buf)
 {
@@ -829,7 +781,7 @@ IceInternal::WSTransceiver::toDetailedString() const
 Ice::ConnectionInfoPtr
 IceInternal::WSTransceiver::getInfo() const
 {
-    WSConnectionInfoPtr info = ICE_MAKE_SHARED(WSConnectionInfo);
+    WSConnectionInfoPtr info = std::make_shared<WSConnectionInfo>();
     info->underlying = _delegate->getInfo();
     info->headers = _parser->getHeaders();
     return info;

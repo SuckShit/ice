@@ -1,77 +1,77 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading;
 using Test;
-using System.Diagnostics;
+using ZeroC.Ice;
 
-public sealed class CallbackI : Test.CallbackDisp_
+namespace ZeroC.Glacier2.Test.Router
 {
-    public CallbackI()
+    public sealed class Callback : ICallback
     {
-    }
-
-    public override void
-    initiateCallback(CallbackReceiverPrx proxy, Ice.Current current)
-    {
-        proxy.callback(current.ctx);
-    }
-
-    public override void
-    initiateCallbackEx(CallbackReceiverPrx proxy, Ice.Current current)
-    {
-        proxy.callbackEx(current.ctx);
-    }
-
-    public override void
-    shutdown(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
-    }
-}
-
-public sealed class CallbackReceiverI : CallbackReceiverDisp_
-{
-    public CallbackReceiverI()
-    {
-        _callback = false;
-    }
-
-    public override void
-    callback(Ice.Current current)
-    {
-        lock(this)
+        public void InitiateCallback(ICallbackReceiverPrx? proxy, Current current, CancellationToken cancel)
         {
-            Debug.Assert(!_callback);
-            _callback = true;
-            System.Threading.Monitor.Pulse(this);
-        }
-    }
-
-    public override void
-    callbackEx(Ice.Current current)
-    {
-        callback(current);
-        CallbackException ex = new CallbackException();
-        ex.someValue = 3.14;
-        ex.someString = "3.14";
-        throw ex;
-    }
-
-    public void
-    callbackOK()
-    {
-        lock(this)
-        {
-            while(!_callback)
+            try
             {
-                System.Threading.Monitor.Wait(this, 30000);
-                TestHelper.test(_callback);
+                proxy!.Callback(current.Context, cancel: cancel);
             }
-
-            _callback = false;
+            catch (RemoteException ex)
+            {
+                ex.ConvertToUnhandled = false;
+                throw;
+            }
         }
+        public void InitiateCallbackEx(ICallbackReceiverPrx? proxy, Current current, CancellationToken cancel)
+        {
+            try
+            {
+                proxy!.CallbackEx(current.Context, cancel: cancel);
+            }
+            catch (RemoteException ex)
+            {
+                ex.ConvertToUnhandled = false;
+                throw;
+            }
+        }
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
     }
 
-    private bool _callback;
+    public sealed class CallbackReceiver : ICallbackReceiver
+    {
+        private readonly object _mutex = new object();
+        private bool _callback;
+
+        public CallbackReceiver() => _callback = false;
+
+        public void Callback(Current current, CancellationToken cancel)
+        {
+            lock (_mutex)
+            {
+                TestHelper.Assert(!_callback);
+                _callback = true;
+                Monitor.Pulse(_mutex);
+            }
+        }
+
+        public void CallbackEx(Current current, CancellationToken cancel)
+        {
+            Callback(current, cancel);
+            throw new CallbackException(3.14, "3.14");
+        }
+
+        public void CallbackOK()
+        {
+            lock (_mutex)
+            {
+                while (!_callback)
+                {
+                    Monitor.Wait(_mutex, 30000);
+                    TestHelper.Assert(_callback);
+                }
+
+                _callback = false;
+            }
+        }
+    }
 }

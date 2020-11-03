@@ -12,7 +12,7 @@ using namespace IceInternal;
 
 int run(const Ice::StringSeq&);
 
-Ice::CommunicatorPtr communicator;
+shared_ptr<Ice::Communicator> communicator;
 
 void
 destroyCommunicator(int)
@@ -31,7 +31,7 @@ wmain(int argc, wchar_t* argv[])
 
     try
     {
-        Ice::CtrlCHandler ctrlCHandler;
+        IceUtil::CtrlCHandler ctrlCHandler;
         Ice::InitializationData id;
         id.properties = Ice::createProperties();
         id.properties->setProperty("Ice.Plugin.IceSSL", "IceSSL:createIceSSL");

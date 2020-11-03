@@ -6,7 +6,7 @@
 
 #include <DoubleModuleWithPackage.ice>
 
-[["java:package:dmwpTest6"]]
+[[java:package(dmwpTest6)]]
 
 module M1
 {
@@ -27,9 +27,9 @@ sequence<::M1::M2::dmwpStruct> dmwpTest6StructSeq;
 
 dictionary<::M1::M2::dmwpStruct, ::M1::M2::dmwpBaseClass> dmwpTest6StructClassSeq;
 
-interface dmwpTest6Interface extends ::M1::M2::dmwpInterface {}
+interface dmwpTest6Interface : ::M1::M2::dmwpInterface {}
 
-exception dmwpTest6Exception extends ::M1::M2::dmwpException
+exception dmwpTest6Exception : ::M1::M2::dmwpException
 {
     ::M1::M2::dmwpEnum e1;
     ::M1::M2::dmwpStruct s1;
@@ -39,7 +39,7 @@ exception dmwpTest6Exception extends ::M1::M2::dmwpException
     ::M1::M2::dmwpInterface i1;
 }
 
-class dmwpTest6Class extends ::M1::M2::dmwpBaseClass implements ::M1::M2::dmwpBaseInterface
+class dmwpTest6Class : ::M1::M2::dmwpBaseClass implements ::M1::M2::dmwpBaseInterface
 {
     ::M1::M2::dmwpStruct
     dmwpTest6Op1(::M1::M2::dmwpEnum i1,
@@ -56,7 +56,7 @@ class dmwpTest6Class extends ::M1::M2::dmwpBaseClass implements ::M1::M2::dmwpBa
                  out ::M1::M2::dmwpClass o6)
         throws ::M1::M2::dmwpException;
 
-    ["amd"]
+    [amd]
     ::M1::M2::dmwpStruct
     dmwpTest6Op3(::M1::M2::dmwpEnum i1,
                  ::M1::M2::dmwpStruct i2,

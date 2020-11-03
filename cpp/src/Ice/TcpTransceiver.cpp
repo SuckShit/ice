@@ -55,7 +55,7 @@ IceInternal::TcpTransceiver::read(Buffer& buf)
     return _stream->read(buf);
 }
 
-#if defined(ICE_USE_IOCP) || defined(ICE_OS_UWP)
+#if defined(ICE_USE_IOCP)
 bool
 IceInternal::TcpTransceiver::startWrite(Buffer& buf)
 {
@@ -102,7 +102,7 @@ IceInternal::TcpTransceiver::toDetailedString() const
 Ice::ConnectionInfoPtr
 IceInternal::TcpTransceiver::getInfo() const
 {
-    TCPConnectionInfoPtr info = ICE_MAKE_SHARED(TCPConnectionInfo);
+    TCPConnectionInfoPtr info = std::make_shared<TCPConnectionInfo>();
     fdToAddressAndPort(_stream->fd(), info->localAddress, info->localPort, info->remoteAddress, info->remotePort);
     if(_stream->fd() != INVALID_SOCKET)
     {

@@ -1,92 +1,65 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System.Collections.Generic;
+using System.Threading;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Info
 {
-    namespace info
+    public class TestIntf : ITestIntf
     {
-        public class TestI : Test.TestIntfDisp_
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        public IReadOnlyDictionary<string, string> GetEndpointInfoAsContext(Current current, CancellationToken cancel)
         {
-            private static Ice.IPEndpointInfo getIPEndpointInfo(Ice.EndpointInfo info)
+            TestHelper.Assert(current.Connection != null);
+            var ctx = new Dictionary<string, string>();
+            Endpoint endpoint = current.Connection.Endpoint;
+            ctx["timeout"] = endpoint["timeout"] ?? "infinite";
+            ctx["compress"] = endpoint["compress"] ?? "false";
+            ctx["datagram"] = endpoint.IsDatagram ? "true" : "false";
+            ctx["secure"] = endpoint.IsSecure ? "true" : "false";
+            ctx["scheme"] = endpoint.Scheme;
+
+            ctx["host"] = endpoint.Host;
+            ctx["port"] = endpoint.Port.ToString();
+
+            if (endpoint.Transport == Transport.UDP)
             {
-                for(; info != null; info = info.underlying)
+                ctx["mcastInterface"] = endpoint["interface"]!;
+                ctx["mcastTtl"] = endpoint["ttl"]!;
+            }
+
+            return ctx;
+        }
+
+        public IReadOnlyDictionary<string, string> GetConnectionInfoAsContext(
+            Current current,
+            CancellationToken cancel)
+        {
+            TestHelper.Assert(current.Connection != null);
+            var ctx = new Dictionary<string, string>
+            {
+                ["adapterName"] = current.Connection.Adapter?.Name ?? "",
+                ["incoming"] = current.Connection.IsIncoming ? "true" : "false"
+            };
+
+            var ipConnection = current.Connection as IPConnection;
+            TestHelper.Assert(ipConnection != null);
+            ctx["localAddress"] = ipConnection.LocalEndpoint?.Address.ToString() ?? "";
+            ctx["localPort"] = ipConnection.LocalEndpoint?.Port.ToString() ?? "";
+            ctx["remoteAddress"] = ipConnection.RemoteEndpoint?.Address.ToString() ?? "";
+            ctx["remotePort"] = ipConnection.RemoteEndpoint?.Port.ToString() ?? "";
+
+            if ((current.Connection as WSConnection)?.Headers is IReadOnlyDictionary<string, string> headers)
+            {
+                foreach ((string key, string value) in headers)
                 {
-                    if(info is Ice.IPEndpointInfo)
-                    {
-                        return info as Ice.IPEndpointInfo;
-                    }
+                    ctx[$"ws.{key}"] = value;
                 }
-                return null;
             }
-
-            private static Ice.IPConnectionInfo getIPConnectionInfo(Ice.ConnectionInfo info)
-            {
-                for(; info != null; info = info.underlying)
-                {
-                    if(info is Ice.IPConnectionInfo)
-                    {
-                        return info as Ice.IPConnectionInfo;
-                    }
-                }
-                return null;
-            }
-
-            override public void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            override public Dictionary<string, string> getEndpointInfoAsContext(Ice.Current c)
-            {
-                Dictionary<string, string> ctx = new Dictionary<string, string>();
-                Ice.EndpointInfo info = c.con.getEndpoint().getInfo();
-                ctx["timeout"] = info.timeout.ToString();
-                ctx["compress"] = info.compress ? "true" : "false";
-                ctx["datagram"] = info.datagram() ? "true" : "false";
-                ctx["secure"] = info.datagram() ? "true" : "false";
-                ctx["type"] = info.type().ToString();
-
-                Ice.IPEndpointInfo ipinfo = getIPEndpointInfo(info);
-                ctx["host"] = ipinfo.host;
-                ctx["port"] = ipinfo.port.ToString();
-
-                if(ipinfo is Ice.UDPEndpointInfo)
-                {
-                    Ice.UDPEndpointInfo udp =(Ice.UDPEndpointInfo)ipinfo;
-                    ctx["mcastInterface"] = udp.mcastInterface;
-                    ctx["mcastTtl"] = udp.mcastTtl.ToString();
-                }
-
-                return ctx;
-            }
-
-            override public Dictionary<string, string> getConnectionInfoAsContext(Ice.Current c)
-            {
-                Dictionary<string, string> ctx = new Dictionary<string, string>();
-                Ice.ConnectionInfo info = c.con.getInfo();
-                ctx["adapterName"] = info.adapterName;
-                ctx["incoming"] = info.incoming ? "true" : "false";
-
-                Ice.IPConnectionInfo ipinfo = getIPConnectionInfo(info);
-                ctx["localAddress"] = ipinfo.localAddress;
-                ctx["localPort"] = ipinfo.localPort.ToString();
-                ctx["remoteAddress"] = ipinfo.remoteAddress;
-                ctx["remotePort"] = ipinfo.remotePort.ToString();
-
-                if(info is Ice.WSConnectionInfo)
-                {
-                    Ice.WSConnectionInfo wsinfo =(Ice.WSConnectionInfo)info;
-                    foreach(KeyValuePair<string, string> e in wsinfo.headers)
-                    {
-                        ctx["ws." + e.Key] = e.Value;
-                    }
-                }
-
-                return ctx;
-            }
+            return ctx;
         }
     }
 }

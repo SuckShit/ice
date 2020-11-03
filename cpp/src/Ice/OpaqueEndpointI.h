@@ -12,9 +12,7 @@ namespace IceInternal
 {
 
 class OpaqueEndpointI : public EndpointI
-#ifdef ICE_CPP11_MAPPING
                       , public std::enable_shared_from_this<OpaqueEndpointI>
-#endif
 {
 public:
 
@@ -22,7 +20,7 @@ public:
     OpaqueEndpointI(Ice::Short, Ice::InputStream*);
 
     virtual void streamWrite(Ice::OutputStream*) const;
-    virtual Ice::EndpointInfoPtr getInfo() const ICE_NOEXCEPT;
+    virtual Ice::EndpointInfoPtr getInfo() const noexcept;
     virtual Ice::Short type() const;
     virtual const std::string& protocol() const;
 
@@ -44,13 +42,8 @@ public:
     virtual Ice::Int hash() const;
     virtual std::string options() const;
 
-#ifdef ICE_CPP11_MAPPING
     virtual bool operator==(const Ice::Endpoint&) const;
     virtual bool operator<(const Ice::Endpoint&) const;
-#else
-    virtual bool operator==(const Ice::LocalObject&) const;
-    virtual bool operator<(const Ice::LocalObject&) const;
-#endif
 
     using EndpointI::connectionId;
 

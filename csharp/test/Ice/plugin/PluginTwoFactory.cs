@@ -1,31 +1,38 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-public class PluginTwoFactory : Ice.PluginFactory
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice.Test.Plugin
 {
-    public Ice.Plugin create(Ice.Communicator communicator, string name, string[] args)
+    public class PluginTwoFactory : IPluginFactory
     {
-        return new PluginTwo(communicator);
-    }
+        public IPlugin Create(Communicator communicator, string name, string[] args) => new PluginTwo(communicator);
 
-    internal class PluginTwo : BasePlugin
-    {
-        public PluginTwo(Ice.Communicator communicator) : base(communicator)
+        internal class PluginTwo : BasePlugin
         {
-        }
+            public PluginTwo(Communicator communicator)
+                : base(communicator)
+            {
+            }
 
-        public override void initialize()
-        {
-            _other = (BasePlugin)_communicator.getPluginManager().getPlugin("PluginOne");
-            test(_other.isInitialized());
-            _initialized = true;
-        }
+            public override void Initialize(PluginInitializationContext context)
+            {
+                var other = (BasePlugin?)Communicator.GetPlugin("PluginOne");
+                TestHelper.Assert(other != null);
+                Other = other;
+                TestHelper.Assert(Other.IsInitialized());
+                Initialized = true;
+            }
 
-        public override void destroy()
-        {
-            _destroyed = true;
-            test(!_other.isDestroyed());
+            public override async ValueTask DisposeAsync()
+            {
+                if (!Destroyed)
+                {
+                    Destroyed = true;
+                    await base.DisposeAsync();
+                    TestHelper.Assert(Other != null);
+                }
+            }
         }
     }
 }

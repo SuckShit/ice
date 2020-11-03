@@ -1,39 +1,26 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
+using ZeroC.Ice;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.IceGrid.Test.Simple
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            communicator.getProperties().parseCommandLineOptions("TestAdapter", args);
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            string id = communicator.getProperties().getPropertyWithDefault("Identity", "test");
-            adapter.add(new TestI(), Ice.Util.stringToIdentity(id));
-            try
-            {
-                adapter.activate();
-            }
-            catch(Ice.ObjectAdapterDeactivatedException)
-            {
-            }
-            communicator.waitForShutdown();
-        }
-    }
+            var properties = new Dictionary<string, string>();
+            properties.ParseArgs(ref args, "TestAdapter");
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+            await using Communicator communicator = Initialize(ref args, properties);
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add(communicator.GetProperty("Identity") ?? "test", new TestIntf());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
+        }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

@@ -19,37 +19,20 @@ public:
 
 protected:
 
-#ifdef ICE_CPP11_MAPPING
     virtual shared_ptr<::Ice::Object>
     newServantAndCookie(shared_ptr<void>& cookie) const
     {
-        cookie = make_shared<CookieI>();
+        cookie = make_shared<Cookie>();
         return make_shared<TestI>();
     }
 
     virtual void
     checkCookie(const shared_ptr<void>& cookie) const
     {
-        auto co = static_pointer_cast<Test::Cookie>(cookie);
+        auto co = static_pointer_cast<Cookie>(cookie);
         test(co);
         test(co->message() == "blahblah");
     }
-#else
-    virtual Ice::ObjectPtr
-    newServantAndCookie(Ice::LocalObjectPtr& cookie) const
-    {
-        cookie = new CookieI();
-        return new TestI();
-    }
-
-    virtual void
-    checkCookie(const Ice::LocalObjectPtr& cookie) const
-    {
-        Test::CookiePtr co = Test::CookiePtr::dynamicCast(cookie);
-        test(co);
-        test(co->message() == "blahblah");
-    }
-#endif
 
     virtual void
     throwTestIntfUserException() const
@@ -66,8 +49,8 @@ public:
     {
         if(activate)
         {
-            current.adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, ""), "");
-            current.adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, "category"), "category");
+            current.adapter->addServantLocator(std::make_shared<ServantLocatorI>(""), "");
+            current.adapter->addServantLocator(std::make_shared<ServantLocatorI>("category"), "category");
         }
         else
         {
@@ -95,10 +78,10 @@ Server::run(int argc, char** argv)
 
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
 
-    adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, ""), "");
-    adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, "category"), "category");
-    adapter->add(ICE_MAKE_SHARED(TestI), Ice::stringToIdentity("asm"));
-    adapter->add(ICE_MAKE_SHARED(TestActivationI), Ice::stringToIdentity("test/activation"));
+    adapter->addServantLocator(std::make_shared<ServantLocatorI>(""), "");
+    adapter->addServantLocator(std::make_shared<ServantLocatorI>("category"), "category");
+    adapter->add(std::make_shared<TestI>(), Ice::stringToIdentity("asm"));
+    adapter->add(std::make_shared<TestActivationI>(), Ice::stringToIdentity("test/activation"));
     adapter->activate();
     serverReady();
     adapter->waitForDeactivate();

@@ -16,11 +16,7 @@ template<typename T = Ice::Instrumentation::Observer> class ObserverHelperT
 {
 public:
 
-#ifdef ICE_CPP11_MAPPING
     using TPtr = ::std::shared_ptr<T>;
-#else
-    typedef IceInternal::Handle<T> TPtr;
-#endif
 
     ObserverHelperT()
     {
@@ -36,7 +32,7 @@ public:
 
     operator bool() const
     {
-        return _observer != ICE_NULLPTR;
+        return _observer != nullptr;
     }
 
     T* operator->() const
@@ -62,17 +58,10 @@ public:
         }
     }
 
-#ifdef ICE_CPP11_MAPPING
     TPtr get() const
     {
         return _observer;
     }
-#else
-    T* get() const
-    {
-        return _observer.get();
-    }
-#endif
     void adopt(ObserverHelperT& other)
     {
         _observer = other._observer;
@@ -150,7 +139,7 @@ public:
         {
             return _observer->getRemoteObserver(con, endpt, requestId, size);
         }
-        return ICE_NULLPTR;
+        return nullptr;
     }
 
     ::Ice::Instrumentation::ChildInvocationObserverPtr
@@ -160,7 +149,7 @@ public:
         {
             return _observer->getCollocatedObserver(adapter, requestId, size);
         }
-        return ICE_NULLPTR;
+        return nullptr;
     }
 
     void

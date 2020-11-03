@@ -4,14 +4,15 @@
 
 #pragma once
 
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::FaultTolerance
 {
 
 interface TestIntf
 {
     void shutdown();
     void abort();
-    idempotent void idempotentAbort();
     idempotent int pid();
 }
 

@@ -6,10 +6,66 @@
 #define CS_UTIL_H
 
 #include <Slice/Parser.h>
+#include <Slice/Util.h>
 #include <IceUtil/OutputUtil.h>
+#include <functional>
 
 namespace Slice
 {
+
+enum CSharpBaseType { ObjectType = 1, ExceptionType = 2 };
+
+std::string fixId(const std::string&, unsigned int = 0);
+
+// Returns the namespace of a Contained entity.
+std::string getNamespace(const ContainedPtr&);
+
+// Returns the namespace prefix of a Contained entity.
+std::string getNamespacePrefix(const ContainedPtr&);
+
+std::string getUnqualified(const std::string&, const std::string&, bool builtin = false);
+std::string getUnqualified(const ContainedPtr&,
+                           const std::string& package = "",
+                           const std::string& prefix = "",
+                           const std::string& suffix = "");
+
+bool normalizeCase(const ContainedPtr&);
+std::string operationName(const OperationPtr&);
+std::string paramName(const MemberPtr& param, const std::string& prefix = "");
+std::string paramTypeStr(const MemberPtr& param, bool readOnly = false);
+
+std::string fieldName(const MemberPtr&);
+std::string interfaceName(const InterfaceDeclPtr&, bool isAsync = false);
+std::string interfaceName(const InterfaceDefPtr&, bool isAsync = false);
+
+std::string helperName(const TypePtr&, const std::string&);
+
+std::string builtinSuffix(const BuiltinPtr&);
+
+std::string returnTypeStr(const OperationPtr& operation, const std::string& ns, bool dispatch);
+std::string returnTaskStr(const OperationPtr& operation, const std::string& ns, bool dispatch);
+
+bool isCollectionType(const TypePtr&);
+bool isValueType(const TypePtr&); // value with C# "struct" meaning
+bool isReferenceType(const TypePtr&); // opposite of value
+bool isFixedSizeNumericSequence(const SequencePtr& seq);
+
+std::vector<std::string> getNames(const MemberList& params, const std::string& prefix = "");
+std::vector<std::string> getNames(const MemberList& params, std::function<std::string (const MemberPtr&)> fn);
+
+std::string toTuple(const MemberList& params, const std::string& prefix = "");
+std::string toTupleType(const MemberList& params, bool readOnly);
+
+template<typename T> inline std::vector<std::string>
+mapfn(const std::list<T>& items, std::function<std::string (const T&)> fn)
+{
+    std::vector<std::string> result;
+    for(const auto& item : items)
+    {
+        result.push_back(fn(item));
+    }
+    return result;
+}
 
 class CsGenerator : private ::IceUtil::noncopyable
 {
@@ -17,85 +73,101 @@ public:
 
     virtual ~CsGenerator() {};
 
-    //
-    // Convert a dimension-less array declaration to one with a dimension.
-    //
-    static std::string toArrayAlloc(const std::string& decl, const std::string& sz);
-
-    //
     // Validate all metadata in the unit with a "cs:" prefix.
-    //
-    static void validateMetaData(const UnitPtr&);
+    static void validateMetadata(const UnitPtr&);
 
-    //
-    // Returns the namespace of a Contained entity.
-    //
-    static std::string getNamespace(const ContainedPtr&);
-
-    static std::string getUnqualified(const std::string&, const std::string&, bool builtin = false);
-    static std::string getUnqualified(const ContainedPtr&,
-                                      const std::string& package = "",
-                                      const std::string& prefix = "",
-                                      const std::string& suffix = "");
+    static std::string typeToString(
+        const TypePtr& type,
+        const std::string& package,
+        bool readOnly = false,
+        bool readOnlyParam = false);
 
 protected:
 
-    //
-    // Returns the namespace prefix of a Contained entity.
-    //
-    static std::string getNamespacePrefix(const ContainedPtr&);
-    static std::string getCustomTypeIdNamespace(const UnitPtr&);
+    std::string outputStreamWriter(
+        const TypePtr& type,
+        const std::string& scope,
+        bool readOnly = false,
+        bool readOnlyParam = false);
 
-    static std::string resultStructName(const std::string&, const std::string&, bool = false);
-    static std::string resultType(const OperationPtr&, const std::string&, bool = false);
-    static std::string taskResultType(const OperationPtr&, const std::string&, bool = false);
-    static std::string fixId(const std::string&, unsigned int = 0, bool = false);
-    static std::string fixId(const ContainedPtr&, unsigned int = 0, bool = false);
-    static std::string getOptionalFormat(const TypePtr&, const std::string&);
-    static std::string getStaticId(const TypePtr&);
-    static std::string typeToString(const TypePtr&, const std::string&, bool = false, bool = false,
-                                    const StringList& = StringList());
-    static bool isClassType(const TypePtr&);
-    static bool isValueType(const TypePtr&);
+    void writeMarshalCode(
+        ::IceUtilInternal::Output& out,
+        const TypePtr& type,
+        int& bitSequenceIndex,
+        bool forNestedType,
+        const std::string& scope,
+        const std::string& param);
 
-    //
-    // Generate code to marshal or unmarshal a type
-    //
-    void writeMarshalUnmarshalCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&, const std::string&,
-                                   bool, const std::string& = "");
-    void writeOptionalMarshalUnmarshalCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&,
-                                           const std::string&, int, bool, const std::string& = "");
-    void writeSequenceMarshalUnmarshalCode(::IceUtilInternal::Output&, const SequencePtr&, const std::string&,
-                                           const std::string&, bool, bool, const std::string& = "");
-    void writeOptionalSequenceMarshalUnmarshalCode(::IceUtilInternal::Output&, const SequencePtr&, const std::string&,
-                                                   const std::string&, int, bool, const std::string& = "");
+    std::string inputStreamReader(const TypePtr& type, const std::string& scope);
 
-    void writeSerializeDeserializeCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&,
-                                       const std::string&, bool, int, bool);
+    void writeUnmarshalCode(
+        ::IceUtilInternal::Output& out,
+        const TypePtr& type,
+        int& bitSequenceIndex,
+        const std::string& scope,
+        const std::string& param);
+
+    void writeTaggedMarshalCode(
+        ::IceUtilInternal::Output& out,
+        const OptionalPtr& optionalType,
+        bool isDataMember,
+        const std::string& scope,
+        const std::string& param,
+        int tag);
+
+    void writeTaggedUnmarshalCode(
+        ::IceUtilInternal::Output& out,
+        const OptionalPtr& optionaType,
+        const std::string& scope,
+        const std::string& param,
+        int tag,
+        const MemberPtr& dataMember);
+
+    void writeConstantValue(
+        ::IceUtilInternal::Output& out,
+        const TypePtr& type,
+        const SyntaxTreeBasePtr& valueType,
+        const std::string& value,
+        const std::string& scope);
 
 private:
 
-    class MetaDataVisitor : public ParserVisitor
+    std::string sequenceMarshalCode(
+        const SequencePtr& seq,
+        const std::string& scope,
+        const std::string& value,
+        bool readOnly = false,
+        bool readOnlyParam = false);
+
+    std::string sequenceUnmarshalCode(const SequencePtr& seq, const std::string& scope);
+
+    std::string dictionaryMarshalCode(
+        const DictionaryPtr& dict,
+        const std::string& scope,
+        const std::string& param);
+
+    std::string dictionaryUnmarshalCode(const DictionaryPtr& dict, const std::string& scope);
+    class MetadataVisitor : public ParserVisitor
     {
     public:
 
-        virtual bool visitUnitStart(const UnitPtr&);
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual void visitClassDecl(const ClassDeclPtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitExceptionEnd(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitStructEnd(const StructPtr&);
-        virtual void visitOperation(const OperationPtr&);
-        virtual void visitParamDecl(const ParamDeclPtr&);
-        virtual void visitDataMember(const DataMemberPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
+        bool visitUnitStart(const UnitPtr&) override;
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        void visitClassDecl(const ClassDeclPtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        void visitClassDefEnd(const ClassDefPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitExceptionEnd(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitStructEnd(const StructPtr&) override;
+        void visitOperation(const OperationPtr&) override;
+        void visitParameter(const MemberPtr&) override;
+        void visitDataMember(const MemberPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
 
     private:
 

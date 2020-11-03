@@ -41,11 +41,7 @@ ICE_API bool isEmptyDirectory(const std::string&);
 
 #ifdef _WIN32
 
-#if defined(__MINGW32__)
-typedef struct _stat structstat;
-#else
 typedef struct _stat64i32 structstat;
-#endif
 
 #ifdef _MSC_VER
 #ifndef O_RDONLY
@@ -84,10 +80,7 @@ ICE_API int mkdir(const std::string&, int);
 ICE_API FILE* fopen(const std::string&, const std::string&);
 ICE_API FILE* freopen(const std::string&, const std::string&, FILE*);
 ICE_API int open(const std::string&, int);
-
-#ifndef ICE_OS_UWP
 ICE_API int getcwd(std::string&);
-#endif
 
 ICE_API int unlink(const std::string&);
 ICE_API int close(int);
@@ -130,7 +123,7 @@ typedef IceUtil::Handle<FileLock> FileLockPtr;
 // Use streamFilename to construct the filename given to std stream classes
 // like ifstream and ofstream.
 //
-#if defined(_WIN32) && !defined(__MINGW32__)
+#ifdef _WIN32
 ICE_API std::wstring streamFilename(const std::string&);
 #else
 inline std::string streamFilename(const std::string& filename)

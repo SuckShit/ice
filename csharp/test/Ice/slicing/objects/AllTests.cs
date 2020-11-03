@@ -1,3220 +1,1900 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.IO;
 using Test;
 
-public class AllTests : Test.AllTests
+namespace ZeroC.Ice.Test.Slicing.Objects
 {
-    private class Callback
+    public partial class PNode
     {
-        internal Callback()
-        {
-            _called = false;
-        }
+        internal static int Counter;
+#pragma warning disable CA1822 // Mark members as static
+        partial void Initialize() => ++Counter;
+#pragma warning restore CA1822 // Mark members as static
+    }
 
-        public virtual void check()
+    public partial class Preserved
+    {
+        internal static int Counter;
+
+#pragma warning disable CA1822 // Mark members as static
+        partial void Initialize() => ++Counter;
+#pragma warning restore CA1822 // Mark members as static
+    }
+
+    public static class AllTests
+    {
+        public static ITestIntfPrx Run(TestHelper helper)
         {
-            lock(this)
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            TextWriter? output = helper.Output;
+            output.Write("testing stringToProxy... ");
+            output.Flush();
+            var testPrx = ITestIntfPrx.Parse(helper.GetTestProxy("Test", 0), communicator);
+            output.WriteLine("ok");
+
+            output.Write("testing basic slicing... ");
+            // server to client
+            try
             {
-                while(!_called)
+                SBase? sb = testPrx.SBSUnknownDerivedAsSBase();
+                TestHelper.Assert(sb != null && sb.Sb.Equals("SBSUnknownDerived.sb"));
+            }
+            catch (Exception ex)
+            {
+                output.WriteLine(ex.ToString());
+                TestHelper.Assert(false);
+            }
+
+            // client to server
+            try
+            {
+                testPrx.CUnknownAsSBase(new CUnknown("CUnknown.sb", "CUnknown.cu"));
+            }
+            catch (Exception ex)
+            {
+                output.WriteLine(ex.ToString());
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
+
+            output.Write("base as Object... ");
+            output.Flush();
+            {
+                AnyClass? o;
+                SBase? sb = null;
+                try
                 {
-                    System.Threading.Monitor.Wait(this);
+                    o = testPrx.SBaseAsObject();
+                    TestHelper.Assert(o != null);
+                    TestHelper.Assert(TypeExtensions.GetIceTypeId(o.GetType())!.Equals("::ZeroC::Ice::Test::Slicing::Objects::SBase"));
+                    sb = (SBase)o;
                 }
-
-                _called = false;
-            }
-        }
-
-        public virtual void called()
-        {
-            lock(this)
-            {
-                Debug.Assert(!_called);
-                _called = true;
-                System.Threading.Monitor.Pulse(this);
-            }
-        }
-
-        private bool _called;
-    }
-
-    private class PNodeI : PNode
-    {
-        public PNodeI()
-        {
-            ++counter;
-        }
-
-        internal static int counter = 0;
-    }
-
-    private class PreservedI : Preserved
-    {
-        public PreservedI()
-        {
-            ++counter;
-        }
-
-        internal static int counter = 0;
-    }
-
-    private static Ice.Value PreservedFactoryI(string id)
-    {
-        if(id.Equals(Preserved.ice_staticId()))
-        {
-            return new PreservedI();
-        }
-        return null;
-    }
-
-    public static TestIntfPrx allTests(Test.TestHelper helper, bool collocated)
-    {
-        Ice.Communicator communicator = helper.communicator();
-        var output = helper.getWriter();
-        output.Write("testing stringToProxy... ");
-        output.Flush();
-        Ice.ObjectPrx basePrx = communicator.stringToProxy("Test:" + helper.getTestEndpoint(0) + " -t 2000");
-        test(basePrx != null);
-        output.WriteLine("ok");
-
-        output.Write("testing checked cast... ");
-        output.Flush();
-        TestIntfPrx testPrx = TestIntfPrxHelper.checkedCast(basePrx);
-        test(testPrx != null);
-        test(testPrx.Equals(basePrx));
-        output.WriteLine("ok");
-
-        output.Write("base as Object... ");
-        output.Flush();
-        {
-            Ice.Value o;
-            SBase sb = null;
-            try
-            {
-                o = testPrx.SBaseAsObject();
-                test(o != null);
-                test(o.ice_id().Equals("::Test::SBase"));
-                sb = (SBase) o;
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-            test(sb != null);
-            test(sb.sb.Equals("SBase.sb"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("base as Object (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_SBaseAsObject().whenCompleted(
-                (Ice.Value o) =>
-                {
-                    test(o != null);
-                    test(o.ice_id().Equals("::Test::SBase"));
-                    SBase sb = (SBase) o;
-                    test(sb != null);
-                    test(sb.sb.Equals("SBase.sb"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            Ice.Value o = testPrx.SBaseAsObjectAsync().Result;
-            test(o != null);
-            test(o.ice_id().Equals("::Test::SBase"));
-            SBase sb = (SBase)o;
-            test(sb != null);
-            test(sb.sb.Equals("SBase.sb"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("base as base... ");
-        output.Flush();
-        {
-            SBase sb;
-            try
-            {
-                sb = testPrx.SBaseAsSBase();
-                test(sb.sb.Equals("SBase.sb"));
+                    TestHelper.Assert(false);
+                }
+                TestHelper.Assert(sb != null && sb.Sb.Equals("SBase.sb"));
             }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("base as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_SBaseAsSBase().whenCompleted(
-                (SBase sb) =>
+            output.Write("base as Object (AMI)... ");
+            output.Flush();
+            {
+                AnyClass? o = testPrx.SBaseAsObjectAsync().Result;
+                TestHelper.Assert(o != null);
+                TestHelper.Assert(o.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::SBase"));
+                var sb = (SBase)o;
+                TestHelper.Assert(sb != null);
+                TestHelper.Assert(sb.Sb.Equals("SBase.sb"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("base as base... ");
+            output.Flush();
+            {
+                SBase? sb;
+                try
                 {
-                    test(sb.sb.Equals("SBase.sb"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    sb = testPrx.SBaseAsSBase();
+                    TestHelper.Assert(sb != null && sb.Sb.Equals("SBase.sb"));
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            SBase sb = testPrx.SBaseAsSBaseAsync().Result;
-            test(sb.sb.Equals("SBase.sb"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("base with known derived as base... ");
-        output.Flush();
-        {
-            SBase sb;
-            SBSKnownDerived sbskd = null;
-            try
-            {
-                sb = testPrx.SBSKnownDerivedAsSBase();
-                test(sb.sb.Equals("SBSKnownDerived.sb"));
-                sbskd = (SBSKnownDerived) sb;
+                    TestHelper.Assert(false);
+                }
             }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-            test(sbskd != null);
-            test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("base with known derived as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_SBSKnownDerivedAsSBase().whenCompleted(
-                (SBase sb) =>
+            output.Write("base as base (AMI)... ");
+            output.Flush();
+            {
+                SBase? sb = testPrx.SBaseAsSBaseAsync().Result;
+                TestHelper.Assert(sb != null && sb.Sb.Equals("SBase.sb"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("base with known derived as base... ");
+            output.Flush();
+            {
+                SBase? sb;
+                SBSKnownDerived? sbskd = null;
+                try
                 {
-                    test(sb.sb.Equals("SBSKnownDerived.sb"));
-                    SBSKnownDerived sbskd = (SBSKnownDerived) sb;
-                    test(sbskd != null);
-                    test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    sb = testPrx.SBSKnownDerivedAsSBase();
+                    TestHelper.Assert(sb != null && sb.Sb.Equals("SBSKnownDerived.sb"));
+                    sbskd = (SBSKnownDerived)sb;
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            SBase sb = testPrx.SBSKnownDerivedAsSBaseAsync().Result;
-            test(sb.sb.Equals("SBSKnownDerived.sb"));
-            SBSKnownDerived sbskd = (SBSKnownDerived)sb;
-            test(sbskd != null);
-            test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("base with known derived as known derived... ");
-        output.Flush();
-        {
-            SBSKnownDerived sbskd;
-            try
-            {
-                sbskd = testPrx.SBSKnownDerivedAsSBSKnownDerived();
-                test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
+                    TestHelper.Assert(false);
+                }
+                TestHelper.Assert(sbskd != null && sbskd.Sbskd.Equals("SBSKnownDerived.sbskd"));
             }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("base with known derived as known derived (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_SBSKnownDerivedAsSBSKnownDerived().whenCompleted(
-                (SBSKnownDerived sbskd) =>
+            output.Write("base with known derived as base (AMI)... ");
+            output.Flush();
+            {
+                SBase? sb = testPrx.SBSKnownDerivedAsSBaseAsync().Result;
+                TestHelper.Assert(sb != null && sb.Sb.Equals("SBSKnownDerived.sb"));
+                var sbskd = (SBSKnownDerived)sb;
+                TestHelper.Assert(sbskd != null);
+                TestHelper.Assert(sbskd.Sbskd.Equals("SBSKnownDerived.sbskd"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("base with known derived as known derived... ");
+            output.Flush();
+            {
+                SBSKnownDerived? sbskd;
+                try
                 {
-                    test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    sbskd = testPrx.SBSKnownDerivedAsSBSKnownDerived();
+                    TestHelper.Assert(sbskd != null && sbskd.Sbskd.Equals("SBSKnownDerived.sbskd"));
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            SBSKnownDerived sbskd = testPrx.SBSKnownDerivedAsSBSKnownDerivedAsync().Result;
-            test(sbskd.sbskd.Equals("SBSKnownDerived.sbskd"));
-        }
-        output.WriteLine("ok");
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
 
-        output.Write("base with unknown derived as base... ");
-        output.Flush();
-        {
-            SBase sb;
+            output.Write("base with known derived as known derived (AMI)... ");
+            output.Flush();
+            {
+                SBSKnownDerived? sbskd = testPrx.SBSKnownDerivedAsSBSKnownDerivedAsync().Result;
+                TestHelper.Assert(sbskd != null && sbskd.Sbskd.Equals("SBSKnownDerived.sbskd"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("base with unknown derived as base... ");
+            output.Flush();
+            {
+                SBase? sb;
+                try
+                {
+                    sb = testPrx.SBSUnknownDerivedAsSBase();
+                    TestHelper.Assert(sb != null && sb.Sb.Equals("SBSUnknownDerived.sb"));
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
             try
             {
-                sb = testPrx.SBSUnknownDerivedAsSBase();
-                test(sb.sb.Equals("SBSUnknownDerived.sb"));
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-        {
-            try
-            {
-                SBase sb = testPrx.SBSUnknownDerivedAsSBaseCompact();
-                test(sb.sb.Equals("SBSUnknownDerived.sb"));
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        else
-        {
-            try
-            {
-                //
                 // This test fails when using the compact format because the instance cannot
                 // be sliced to a known type.
-                //
                 testPrx.SBSUnknownDerivedAsSBaseCompact();
-                test(false);
+                TestHelper.Assert(false);
             }
-            catch(Ice.NoValueFactoryException)
+            catch (InvalidDataException ex)
             {
-                // Expected.
+                TestHelper.Assert(ex.Message.Contains("::ZeroC::Ice::Test::Slicing::Objects::SBSUnknownDerived"));
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 output.WriteLine(ex.ToString());
-                test(false);
+                TestHelper.Assert(false);
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("base with unknown derived as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_SBSUnknownDerivedAsSBase().whenCompleted(
-                (SBase sb) =>
-                {
-                    test(sb.sb.Equals("SBSUnknownDerived.sb"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            SBase sb = testPrx.SBSUnknownDerivedAsSBaseAsync().Result;
-            test(sb.sb.Equals("SBSUnknownDerived.sb"));
-        }
-        if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-        {
-            //
-            // This test succeeds for the 1.0 encoding.
-            //
+            output.Write("base with unknown derived as base (AMI)... ");
+            output.Flush();
             {
-                Callback cb = new Callback();
-                testPrx.begin_SBSUnknownDerivedAsSBaseCompact().whenCompleted(
-                    (SBase sb) =>
-                    {
-                        test(sb.sb.Equals("SBSUnknownDerived.sb"));
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-                cb.check();
+                SBase? sb = testPrx.SBSUnknownDerivedAsSBaseAsync().Result;
+                TestHelper.Assert(sb != null && sb.Sb.Equals("SBSUnknownDerived.sb"));
             }
-            {
-                SBase sb = testPrx.SBSUnknownDerivedAsSBaseCompactAsync().Result;
-                test(sb.sb.Equals("SBSUnknownDerived.sb"));
-            }
-        }
-        else
-        {
-            //
+
             // This test fails when using the compact format because the instance cannot
             // be sliced to a known type.
-            //
-            {
-                Callback cb = new Callback();
-                testPrx.begin_SBSUnknownDerivedAsSBaseCompact().whenCompleted(
-                    (SBase sb) =>
-                    {
-                        test(false);
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        test(ex is Ice.NoValueFactoryException);
-                        cb.called();
-                    });
-                cb.check();
-            }
-
             try
             {
-                SBase sb = testPrx.SBSUnknownDerivedAsSBaseCompactAsync().Result;
+                SBase? sb = testPrx.SBSUnknownDerivedAsSBaseCompactAsync().Result;
             }
-            catch(AggregateException ae)
+            catch (AggregateException ae)
             {
-                test(ae.InnerException is Ice.NoValueFactoryException);
+                TestHelper.Assert(ae.InnerException is InvalidDataException);
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("unknown with Object as Object... ");
-        output.Flush();
-        {
-            try
+            output.Write("unknown with Object as Object... ");
+            output.Flush();
             {
-                Ice.Value o = testPrx.SUnknownAsObject();
-                test(!testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-                test(o is Ice.UnknownSlicedValue);
-                test((o as Ice.UnknownSlicedValue).ice_id().Equals("::Test::SUnknown"));
-                test((o as Ice.UnknownSlicedValue).ice_getSlicedData() != null);
-                testPrx.checkSUnknown(o);
-            }
-            catch(Ice.NoValueFactoryException)
-            {
-                test(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("unknown with Object as Object (AMI)... ");
-        output.Flush();
-        {
-            try
-            {
-                if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
+                try
                 {
-                    {
-                        Callback cb = new Callback();
-                        testPrx.begin_SUnknownAsObject().whenCompleted(
-                            (Ice.Value o) =>
-                            {
-                                test(false);
-                            },
-                            (Ice.Exception ex) =>
-                            {
-                                test(ex.GetType().FullName.Equals("Ice.NoValueFactoryException"));
-                                cb.called();
-                            });
-                        cb.check();
-                    }
-
-                    try
-                    {
-                        var o = testPrx.SUnknownAsObjectAsync().Result;
-                    }
-                    catch(AggregateException ae)
-                    {
-                        try
-                        {
-                            throw ae.InnerException;
-                        }
-                        catch(Ice.Exception ex)
-                        {
-                            test(ex.GetType().FullName.Equals("Ice.NoValueFactoryException"));
-                        }
-                    }
+                    AnyClass? o = testPrx.SUnknownAsObject();
+                    var unknown = o as UnknownSlicedClass;
+                    TestHelper.Assert(unknown != null);
+                    TestHelper.Assert(unknown.TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Objects::SUnknown"));
+                    TestHelper.Assert(unknown.GetSlicedData() != null);
+                    testPrx.CheckSUnknown(o);
                 }
-                else
+                catch (Exception ex)
                 {
-                    {
-                        Callback cb = new Callback();
-                        testPrx.begin_SUnknownAsObject().whenCompleted(
-                            (Ice.Value o) =>
-                            {
-                                test(o is Ice.UnknownSlicedValue);
-                                test((o as Ice.UnknownSlicedValue).ice_id().Equals("::Test::SUnknown"));
-                                cb.called();
-                            },
-                            (Ice.Exception ex) =>
-                            {
-                                output.WriteLine(ex.ToString());
-                                test(false);
-                            });
-                        cb.check();
-                    }
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
 
+            output.Write("unknown with Object as Object (AMI)... ");
+            output.Flush();
+            {
+                try
+                {
                     try
                     {
-                        var o = testPrx.SUnknownAsObjectAsync().Result;
-                        test(o is Ice.UnknownSlicedValue);
-                        test((o as Ice.UnknownSlicedValue).ice_id().Equals("::Test::SUnknown"));
+                        var unknown = (UnknownSlicedClass?)testPrx.SUnknownAsObjectAsync().Result;
+                        TestHelper.Assert(unknown != null);
+                        TestHelper.Assert(unknown.TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Objects::SUnknown"));
                     }
-                    catch(AggregateException ex)
+                    catch (AggregateException ex)
                     {
                         output.WriteLine(ex.ToString());
-                        test(false);
+                        TestHelper.Assert(false);
                     }
                 }
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("one-element cycle... ");
-        output.Flush();
-        {
-            try
-            {
-                B b = testPrx.oneElementCycle();
-                test(b != null);
-                test(b.ice_id().Equals("::Test::B"));
-                test(b.sb.Equals("B1.sb"));
-                test(b.pb == b);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("one-element cycle (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_oneElementCycle().whenCompleted(
-                (B b) =>
-                {
-                    test(b != null);
-                    test(b.ice_id().Equals("::Test::B"));
-                    test(b.sb.Equals("B1.sb"));
-                    test(b.pb == b);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            var b = testPrx.oneElementCycleAsync().Result;
-            test(b != null);
-            test(b.ice_id().Equals("::Test::B"));
-            test(b.sb.Equals("B1.sb"));
-            test(b.pb == b);
-        }
-        output.WriteLine("ok");
-
-        output.Write("two-element cycle... ");
-        output.Flush();
-        {
-            try
-            {
-                B b1 = testPrx.twoElementCycle();
-                test(b1 != null);
-                test(b1.ice_id().Equals("::Test::B"));
-                test(b1.sb.Equals("B1.sb"));
-
-                B b2 = b1.pb;
-                test(b2 != null);
-                test(b2.ice_id().Equals("::Test::B"));
-                test(b2.sb.Equals("B2.sb"));
-                test(b2.pb == b1);
+                    TestHelper.Assert(false);
+                }
             }
-            catch(Exception ex)
+            output.WriteLine("ok");
+
+            output.Write("one-element cycle... ");
+            output.Flush();
             {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("two-element cycle (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_twoElementCycle().whenCompleted(
-                (B b1) =>
-                {
-                    test(b1 != null);
-                    test(b1.ice_id().Equals("::Test::B"));
-                    test(b1.sb.Equals("B1.sb"));
-
-                    B b2 = b1.pb;
-                    test(b2 != null);
-                    test(b2.ice_id().Equals("::Test::B"));
-                    test(b2.sb.Equals("B2.sb"));
-                    test(b2.pb == b1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            B b1 = testPrx.twoElementCycleAsync().Result;
-            test(b1 != null);
-            test(b1.ice_id().Equals("::Test::B"));
-            test(b1.sb.Equals("B1.sb"));
-
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.ice_id().Equals("::Test::B"));
-            test(b2.sb.Equals("B2.sb"));
-            test(b2.pb == b1);
-        }
-        output.WriteLine("ok");
-
-        output.Write("known derived pointer slicing as base... ");
-        output.Flush();
-        {
-            try
-            {
-                B b1;
-                b1 = testPrx.D1AsB();
-                test(b1 != null);
-                test(b1.ice_id().Equals("::Test::D1"));
-                test(b1.sb.Equals("D1.sb"));
-                test(b1.pb != null);
-                test(b1.pb != b1);
-                D1 d1 = (D1) b1;
-                test(d1 != null);
-                test(d1.sd1.Equals("D1.sd1"));
-                test(d1.pd1 != null);
-                test(d1.pd1 != b1);
-                test(b1.pb == d1.pd1);
-
-                B b2 = b1.pb;
-                test(b2 != null);
-                test(b2.pb == b1);
-                test(b2.sb.Equals("D2.sb"));
-                test(b2.ice_id().Equals("::Test::B"));
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("known derived pointer slicing as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_D1AsB().whenCompleted(
-                (B b1) =>
-                {
-                    test(b1 != null);
-                    test(b1.ice_id().Equals("::Test::D1"));
-                    test(b1.sb.Equals("D1.sb"));
-                    test(b1.pb != null);
-                    test(b1.pb != b1);
-                    D1 d1 = (D1) b1;
-                    test(d1 != null);
-                    test(d1.sd1.Equals("D1.sd1"));
-                    test(d1.pd1 != null);
-                    test(d1.pd1 != b1);
-                    test(b1.pb == d1.pd1);
-
-                    B b2 = b1.pb;
-                    test(b2 != null);
-                    test(b2.pb == b1);
-                    test(b2.sb.Equals("D2.sb"));
-                    test(b2.ice_id().Equals("::Test::B"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            B b1 = testPrx.D1AsBAsync().Result;
-            test(b1 != null);
-            test(b1.ice_id().Equals("::Test::D1"));
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.pb != null);
-            test(b1.pb != b1);
-            D1 d1 = (D1)b1;
-            test(d1 != null);
-            test(d1.sd1.Equals("D1.sd1"));
-            test(d1.pd1 != null);
-            test(d1.pd1 != b1);
-            test(b1.pb == d1.pd1);
-
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.pb == b1);
-            test(b2.sb.Equals("D2.sb"));
-            test(b2.ice_id().Equals("::Test::B"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("known derived pointer slicing as derived... ");
-        output.Flush();
-        {
-            try
-            {
-                D1 d1;
-                d1 = testPrx.D1AsD1();
-                test(d1 != null);
-                test(d1.ice_id().Equals("::Test::D1"));
-                test(d1.sb.Equals("D1.sb"));
-                test(d1.pb != null);
-                test(d1.pb != d1);
-
-                B b2 = d1.pb;
-                test(b2 != null);
-                test(b2.ice_id().Equals("::Test::B"));
-                test(b2.sb.Equals("D2.sb"));
-                test(b2.pb == d1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("known derived pointer slicing as derived (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_D1AsD1().whenCompleted(
-                (D1 d1) =>
-                {
-                    test(d1 != null);
-                    test(d1.ice_id().Equals("::Test::D1"));
-                    test(d1.sb.Equals("D1.sb"));
-                    test(d1.pb != null);
-                    test(d1.pb != d1);
-
-                    B b2 = d1.pb;
-                    test(b2 != null);
-                    test(b2.ice_id().Equals("::Test::B"));
-                    test(b2.sb.Equals("D2.sb"));
-                    test(b2.pb == d1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            D1 d1 = testPrx.D1AsD1Async().Result;
-            test(d1 != null);
-            test(d1.ice_id().Equals("::Test::D1"));
-            test(d1.sb.Equals("D1.sb"));
-            test(d1.pb != null);
-            test(d1.pb != d1);
-
-            B b2 = d1.pb;
-            test(b2 != null);
-            test(b2.ice_id().Equals("::Test::B"));
-            test(b2.sb.Equals("D2.sb"));
-            test(b2.pb == d1);
-        }
-        output.WriteLine("ok");
-
-        output.Write("unknown derived pointer slicing as base... ");
-        output.Flush();
-        {
-            try
-            {
-                B b2;
-                b2 = testPrx.D2AsB();
-                test(b2 != null);
-                test(b2.ice_id().Equals("::Test::B"));
-                test(b2.sb.Equals("D2.sb"));
-                test(b2.pb != null);
-                test(b2.pb != b2);
-
-                B b1 = b2.pb;
-                test(b1 != null);
-                test(b1.ice_id().Equals("::Test::D1"));
-                test(b1.sb.Equals("D1.sb"));
-                test(b1.pb == b2);
-                D1 d1 = (D1) b1;
-                test(d1 != null);
-                test(d1.sd1.Equals("D1.sd1"));
-                test(d1.pd1 == b2);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("unknown derived pointer slicing as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_D2AsB().whenCompleted(
-                (B b2) =>
-                {
-                    test(b2 != null);
-                    test(b2.ice_id().Equals("::Test::B"));
-                    test(b2.sb.Equals("D2.sb"));
-                    test(b2.pb != null);
-                    test(b2.pb != b2);
-
-                    B b1 = b2.pb;
-                    test(b1 != null);
-                    test(b1.ice_id().Equals("::Test::D1"));
-                    test(b1.sb.Equals("D1.sb"));
-                    test(b1.pb == b2);
-                    D1 d1 = (D1) b1;
-                    test(d1 != null);
-                    test(d1.sd1.Equals("D1.sd1"));
-                    test(d1.pd1 == b2);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            B b2 = testPrx.D2AsBAsync().Result;
-            test(b2 != null);
-            test(b2.ice_id().Equals("::Test::B"));
-            test(b2.sb.Equals("D2.sb"));
-            test(b2.pb != null);
-            test(b2.pb != b2);
-
-            B b1 = b2.pb;
-            test(b1 != null);
-            test(b1.ice_id().Equals("::Test::D1"));
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.pb == b2);
-            D1 d1 = (D1)b1;
-            test(d1 != null);
-            test(d1.sd1.Equals("D1.sd1"));
-            test(d1.pd1 == b2);
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing with known first... ");
-        output.Flush();
-        {
-            try
-            {
-                B b1;
-                B b2;
-                testPrx.paramTest1(out b1, out b2);
-
-                test(b1 != null);
-                test(b1.ice_id().Equals("::Test::D1"));
-                test(b1.sb.Equals("D1.sb"));
-                test(b1.pb == b2);
-                D1 d1 = (D1) b1;
-                test(d1 != null);
-                test(d1.sd1.Equals("D1.sd1"));
-                test(d1.pd1 == b2);
-
-                test(b2 != null);
-                test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-                test(b2.sb.Equals("D2.sb"));
-                test(b2.pb == b1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing with known first (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_paramTest1().whenCompleted(
-                (B b1, B b2) =>
-                {
-                    test(b1 != null);
-                    test(b1.ice_id().Equals("::Test::D1"));
-                    test(b1.sb.Equals("D1.sb"));
-                    test(b1.pb == b2);
-                    D1 d1 = (D1) b1;
-                    test(d1 != null);
-                    test(d1.sd1.Equals("D1.sd1"));
-                    test(d1.pd1 == b2);
-
-                    test(b2 != null);
-                    test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-                    test(b2.sb.Equals("D2.sb"));
-                    test(b2.pb == b1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            var result = testPrx.paramTest1Async().Result;
-            B b1 = result.p1;
-            B b2 = result.p2;
-
-            test(b1 != null);
-            test(b1.ice_id().Equals("::Test::D1"));
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.pb == b2);
-            D1 d1 = (D1)b1;
-            test(d1 != null);
-            test(d1.sd1.Equals("D1.sd1"));
-            test(d1.pd1 == b2);
-
-            test(b2 != null);
-            test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-            test(b2.sb.Equals("D2.sb"));
-            test(b2.pb == b1);
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing with unknown first... ");
-        output.Flush();
-        {
-            try
-            {
-                B b2;
-                B b1;
-                testPrx.paramTest2(out b2, out b1);
-
-                test(b1 != null);
-                test(b1.ice_id().Equals("::Test::D1"));
-                test(b1.sb.Equals("D1.sb"));
-                test(b1.pb == b2);
-                D1 d1 = (D1) b1;
-                test(d1 != null);
-                test(d1.sd1.Equals("D1.sd1"));
-                test(d1.pd1 == b2);
-
-                test(b2 != null);
-                test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-                test(b2.sb.Equals("D2.sb"));
-                test(b2.pb == b1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing with unknown first (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_paramTest2().whenCompleted(
-                (B b2, B b1) =>
-                {
-                    test(b1 != null);
-                    test(b1.ice_id().Equals("::Test::D1"));
-                    test(b1.sb.Equals("D1.sb"));
-                    test(b1.pb == b2);
-                    D1 d1 = (D1) b1;
-                    test(d1 != null);
-                    test(d1.sd1.Equals("D1.sd1"));
-                    test(d1.pd1 == b2);
-
-                    test(b2 != null);
-                    test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-                    test(b2.sb.Equals("D2.sb"));
-                    test(b2.pb == b1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            var result = testPrx.paramTest2Async().Result;
-            B b2 = result.p2;
-            B b1 = result.p1;
-            test(b1 != null);
-            test(b1.ice_id().Equals("::Test::D1"));
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.pb == b2);
-            D1 d1 = (D1)b1;
-            test(d1 != null);
-            test(d1.sd1.Equals("D1.sd1"));
-            test(d1.pd1 == b2);
-
-            test(b2 != null);
-            test(b2.ice_id().Equals("::Test::B")); // No factory, must be sliced
-            test(b2.sb.Equals("D2.sb"));
-            test(b2.pb == b1);
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity with known first... ");
-        output.Flush();
-        {
-            try
-            {
-                B p1;
-                B p2;
-                B ret = testPrx.returnTest1(out p1, out p2);
-                test(ret == p1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity with known first (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_returnTest1().whenCompleted(
-                (B r, B p1, B p2) =>
-                {
-                    test(r == p1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            var result = testPrx.returnTest1Async().Result;
-            test(result.returnValue == result.p1);
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity with unknown first... ");
-        output.Flush();
-        {
-            try
-            {
-                B p1;
-                B p2;
-                B ret = testPrx.returnTest2(out p1, out p2);
-                test(ret == p1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity with unknown first (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_returnTest2().whenCompleted(
-                (B r, B p1, B p2) =>
-                {
-                    test(r == p1);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            var result = testPrx.returnTest2Async().Result;
-            test(result.returnValue == result.p2);
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity for input params known first... ");
-        output.Flush();
-        {
-            try
-            {
-                D1 d1 = new D1();
-                d1.sb = "D1.sb";
-                d1.sd1 = "D1.sd1";
-                D3 d3 = new D3();
-                d3.pb = d1;
-                d3.sb = "D3.sb";
-                d3.sd3 = "D3.sd3";
-                d3.pd3 = d1;
-                d1.pb = d3;
-                d1.pd1 = d3;
-
-                B b1 = testPrx.returnTest3(d1, d3);
-
-                test(b1 != null);
-                test(b1.sb.Equals("D1.sb"));
-                test(b1.ice_id().Equals("::Test::D1"));
-                D1 p1 = (D1) b1;
-                test(p1 != null);
-                test(p1.sd1.Equals("D1.sd1"));
-                test(p1.pd1 == b1.pb);
-
-                B b2 = b1.pb;
-                test(b2 != null);
-                test(b2.sb.Equals("D3.sb"));
-                test(b2.ice_id().Equals("::Test::B")); // Sliced by server
-                test(b2.pb == b1);
                 try
                 {
-                    D3 p3 = (D3) b2;
-                    test(false);
-                    D3 tmp = p3; p3 = tmp; // Stop compiler warning about unused variable.
+                    B? b = testPrx.OneElementCycle();
+                    TestHelper.Assert(b != null);
+                    TestHelper.Assert(b.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b.Sb.Equals("B1.sb"));
+                    TestHelper.Assert(b.Pb == b);
                 }
-                catch(InvalidCastException)
-                {
-                }
-
-                test(b1 != d1);
-                test(b1 != d3);
-                test(b2 != d1);
-                test(b2 != d3);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity for input params known first (AMI)... ");
-        output.Flush();
-        {
-            D1 d1 = new D1();
-            d1.sb = "D1.sb";
-            d1.sd1 = "D1.sd1";
-            D3 d3 = new D3();
-            d3.pb = d1;
-            d3.sb = "D3.sb";
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d1;
-            d1.pb = d3;
-            d1.pd1 = d3;
-
-            B b1 = null;
-            Callback cb = new Callback();
-            testPrx.begin_returnTest3(d1, d3).whenCompleted(
-                (B b) =>
-                {
-                    b1 = b;
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-
-            test(b1 != null);
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.ice_id().Equals("::Test::D1"));
-            D1 p1 = (D1) b1;
-            test(p1 != null);
-            test(p1.sd1.Equals("D1.sd1"));
-            test(p1.pd1 == b1.pb);
-
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.sb.Equals("D3.sb"));
-            test(b2.ice_id().Equals("::Test::B")); // Sliced by server
-            test(b2.pb == b1);
-            try
-            {
-                D3 p3 = (D3) b2;
-                test(false);
-                D3 tmp = p3; p3 = tmp; // Stop compiler warning about unused variable.
+                    TestHelper.Assert(false);
+                }
             }
-            catch(InvalidCastException)
+            output.WriteLine("ok");
+
+            output.Write("one-element cycle (AMI)... ");
+            output.Flush();
             {
+                B? b = testPrx.OneElementCycleAsync().Result;
+                TestHelper.Assert(b != null);
+                TestHelper.Assert(b.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b.Sb.Equals("B1.sb"));
+                TestHelper.Assert(b.Pb == b);
             }
+            output.WriteLine("ok");
 
-            test(b1 != d1);
-            test(b1 != d3);
-            test(b2 != d1);
-            test(b2 != d3);
-        }
-
-        {
-            D1 d1 = new D1();
-            d1.sb = "D1.sb";
-            d1.sd1 = "D1.sd1";
-            D3 d3 = new D3();
-            d3.pb = d1;
-            d3.sb = "D3.sb";
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d1;
-            d1.pb = d3;
-            d1.pd1 = d3;
-
-            B b1 = testPrx.returnTest3Async(d1, d3).Result;
-
-            test(b1 != null);
-            test(b1.sb.Equals("D1.sb"));
-            test(b1.ice_id().Equals("::Test::D1"));
-            D1 p1 = (D1)b1;
-            test(p1 != null);
-            test(p1.sd1.Equals("D1.sd1"));
-            test(p1.pd1 == b1.pb);
-
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.sb.Equals("D3.sb"));
-            test(b2.ice_id().Equals("::Test::B")); // Sliced by server
-            test(b2.pb == b1);
-            try
+            output.Write("two-element cycle... ");
+            output.Flush();
             {
-                D3 p3 = (D3)b2;
-                test(false);
-                D3 tmp = p3;
-                p3 = tmp; // Stop compiler warning about unused variable.
+                try
+                {
+                    B? b1 = testPrx.TwoElementCycle();
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b1.Sb.Equals("B1.sb"));
+
+                    B? b2 = b1.Pb;
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Sb.Equals("B2.sb"));
+                    TestHelper.Assert(b2.Pb == b1);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
             }
-            catch(InvalidCastException)
+            output.WriteLine("ok");
+
+            output.Write("two-element cycle (AMI)... ");
+            output.Flush();
             {
+                B? b1 = testPrx.TwoElementCycleAsync().Result;
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b1.Sb.Equals("B1.sb"));
+
+                B? b2 = b1.Pb;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b2.Sb.Equals("B2.sb"));
+                TestHelper.Assert(b2.Pb == b1);
             }
+            output.WriteLine("ok");
 
-            test(b1 != d1);
-            test(b1 != d3);
-            test(b2 != d1);
-            test(b2 != d3);
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity for input params unknown first... ");
-        output.Flush();
-        {
-            try
+            output.Write("known derived pointer slicing as base... ");
+            output.Flush();
             {
-                D1 d1 = new D1();
-                d1.sb = "D1.sb";
-                d1.sd1 = "D1.sd1";
-                D3 d3 = new D3();
-                d3.pb = d1;
-                d3.sb = "D3.sb";
-                d3.sd3 = "D3.sd3";
-                d3.pd3 = d1;
-                d1.pb = d3;
-                d1.pd1 = d3;
+                try
+                {
+                    B? b1 = testPrx.D1AsB();
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b1.Pb != null);
+                    TestHelper.Assert(b1.Pb != b1);
+                    var d1 = (D1)b1;
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(d1.Pd1 != null);
+                    TestHelper.Assert(d1.Pd1 != b1);
+                    TestHelper.Assert(b1.Pb == d1.Pd1);
 
-                B b1 = testPrx.returnTest3(d3, d1);
+                    B b2 = b1.Pb;
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.Pb == b1);
+                    TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
 
-                test(b1 != null);
-                test(b1.sb.Equals("D3.sb"));
-                test(b1.ice_id().Equals("::Test::B")); // Sliced by server
+            output.Write("known derived pointer slicing as base (AMI)... ");
+            output.Flush();
+            {
+                B? b1 = testPrx.D1AsBAsync().Result;
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b1.Pb != null);
+                TestHelper.Assert(b1.Pb != b1);
+                var d1 = (D1)b1;
+                TestHelper.Assert(d1 != null);
+                TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(d1.Pd1 != null);
+                TestHelper.Assert(d1.Pd1 != b1);
+                TestHelper.Assert(b1.Pb == d1.Pd1);
+
+                B b2 = b1.Pb;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.Pb == b1);
+                TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("known derived pointer slicing as derived... ");
+            output.Flush();
+            {
+                try
+                {
+                    D1? d1 = testPrx.D1AsD1();
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(d1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(d1.Pb != null);
+                    TestHelper.Assert(d1.Pb != d1);
+
+                    B? b2 = d1.Pb;
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                    TestHelper.Assert(b2.Pb == d1);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("known derived pointer slicing as derived (AMI)... ");
+            output.Flush();
+            {
+                D1? d1 = testPrx.D1AsD1Async().Result;
+                TestHelper.Assert(d1 != null);
+                TestHelper.Assert(d1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(d1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(d1.Pb != null);
+                TestHelper.Assert(d1.Pb != d1);
+
+                B b2 = d1.Pb;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                TestHelper.Assert(b2.Pb == d1);
+            }
+            output.WriteLine("ok");
+
+            output.Write("unknown derived pointer slicing as base... ");
+            output.Flush();
+            {
+                try
+                {
+                    B? b2 = testPrx.D2AsB();
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                    TestHelper.Assert(b2.Pb != null);
+                    TestHelper.Assert(b2.Pb != b2);
+
+                    B? b1 = b2.Pb;
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b1.Pb == b2);
+                    var d1 = (D1)b1;
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(d1.Pd1 == b2);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("unknown derived pointer slicing as base (AMI)... ");
+            output.Flush();
+            {
+                B? b2 = testPrx.D2AsBAsync().Result;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                TestHelper.Assert(b2.Pb != null);
+                TestHelper.Assert(b2.Pb != b2);
+
+                B b1 = b2.Pb;
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b1.Pb == b2);
+                var d1 = (D1)b1;
+                TestHelper.Assert(d1 != null);
+                TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(d1.Pd1 == b2);
+            }
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing with known first... ");
+            output.Flush();
+            {
+                try
+                {
+                    (B? b1, B? b2) = testPrx.ParamTest1();
+
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b1.Pb == b2);
+                    var d1 = (D1)b1;
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(d1.Pd1 == b2);
+
+                    TestHelper.Assert(b2 != null);
+                    // No factory, must be sliced
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                    TestHelper.Assert(b2.Pb == b1);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing with known first (AMI)... ");
+            output.Flush();
+            {
+                (B? b1, B? b2) = testPrx.ParamTest1Async().Result;
+
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b1.Pb == b2);
+                var d1 = (D1)b1;
+                TestHelper.Assert(d1 != null);
+                TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(d1.Pd1 == b2);
+
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B")); // No factory, must be sliced
+                TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                TestHelper.Assert(b2.Pb == b1);
+            }
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing with unknown first... ");
+            output.Flush();
+            {
+                try
+                {
+                    B? b2;
+                    B? b1;
+                    (b2, b1) = testPrx.ParamTest2();
+
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b1.Pb == b2);
+                    var d1 = (D1)b1;
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(d1.Pd1 == b2);
+
+                    TestHelper.Assert(b2 != null);
+                    // No factory, must be sliced
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                    TestHelper.Assert(b2.Pb == b1);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing with unknown first (AMI)... ");
+            output.Flush();
+            {
+                (B? b2, B? b1) = testPrx.ParamTest2Async().Result;
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b1.Pb == b2);
+                var d1 = (D1)b1;
+                TestHelper.Assert(d1 != null);
+                TestHelper.Assert(d1.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(d1.Pd1 == b2);
+
+                TestHelper.Assert(b2 != null);
+                // No factory, must be sliced
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(b2.Sb.Equals("D2.sb"));
+                TestHelper.Assert(b2.Pb == b1);
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity with known first... ");
+            output.Flush();
+            {
+                try
+                {
+                    (B? b1, B? b2, _) = testPrx.ReturnTest1();
+                    TestHelper.Assert(b1 == b2);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity with known first (AMI)... ");
+            output.Flush();
+            {
+                (B? b1, B? b2, _) = testPrx.ReturnTest1Async().Result;
+                TestHelper.Assert(b1 == b2);
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity with unknown first... ");
+            output.Flush();
+            {
+                try
+                {
+                    (B? b1, B? b2, B? b3) = testPrx.ReturnTest2();
+                    TestHelper.Assert(b1 == b2);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity with unknown first (AMI)... ");
+            output.Flush();
+            {
+                (B? b1, B? b2, _) = testPrx.ReturnTest2Async().Result;
+                TestHelper.Assert(b1 == b2);
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity for input params known first... ");
+            output.Flush();
+            {
+                try
+                {
+                    var d1 = new D1();
+                    d1.Sb = "D1.sb";
+                    d1.Sd1 = "D1.sd1";
+                    var d3 = new D3();
+                    d3.Pb = d1;
+                    d3.Sb = "D3.sb";
+                    d3.Sd3 = "D3.sd3";
+                    d3.Pd3 = d1;
+                    d1.Pb = d3;
+                    d1.Pd1 = d3;
+
+                    B? b1 = testPrx.ReturnTest3(d1, d3);
+
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    var p1 = (D1)b1;
+                    TestHelper.Assert(p1 != null);
+                    TestHelper.Assert(p1.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(p1.Pd1 == b1.Pb);
+
+                    B? b2 = b1.Pb;
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.Sb.Equals("D3.sb"));
+                    // Sliced by server
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(b2.Pb == b1);
+                    try
+                    {
+                        _ = (D3)b2;
+                        TestHelper.Assert(false);
+                    }
+                    catch (InvalidCastException)
+                    {
+                    }
+
+                    TestHelper.Assert(b1 != d1);
+                    TestHelper.Assert(b1 != d3);
+                    TestHelper.Assert(b2 != d1);
+                    TestHelper.Assert(b2 != d3);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity for input params known first (AMI)... ");
+            output.Flush();
+            {
+                var d1 = new D1();
+                d1.Sb = "D1.sb";
+                d1.Sd1 = "D1.sd1";
+                var d3 = new D3();
+                d3.Pb = d1;
+                d3.Sb = "D3.sb";
+                d3.Sd3 = "D3.sd3";
+                d3.Pd3 = d1;
+                d1.Pb = d3;
+                d1.Pd1 = d3;
+
+                B? b1 = testPrx.ReturnTest3Async(d1, d3).Result;
+
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                var p1 = (D1)b1;
+                TestHelper.Assert(p1 != null);
+                TestHelper.Assert(p1.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(p1.Pd1 == b1.Pb);
+
+                B? b2 = b1.Pb;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.Sb.Equals("D3.sb"));
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B")); // Sliced by server
+                TestHelper.Assert(b2.Pb == b1);
+                try
+                {
+                    var p3 = (D3)b2;
+                    TestHelper.Assert(false);
+                    D3 tmp = p3;
+                    p3 = tmp; // Stop compiler warning about unused variable.
+                }
+                catch (InvalidCastException)
+                {
+                }
+
+                TestHelper.Assert(b1 != d1);
+                TestHelper.Assert(b1 != d3);
+                TestHelper.Assert(b2 != d1);
+                TestHelper.Assert(b2 != d3);
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity for input params unknown first... ");
+            output.Flush();
+            {
+                try
+                {
+                    var d1 = new D1();
+                    d1.Sb = "D1.sb";
+                    d1.Sd1 = "D1.sd1";
+                    var d3 = new D3();
+                    d3.Pb = d1;
+                    d3.Sb = "D3.sb";
+                    d3.Sd3 = "D3.sd3";
+                    d3.Pd3 = d1;
+                    d1.Pb = d3;
+                    d1.Pd1 = d3;
+
+                    B? b1 = testPrx.ReturnTest3(d3, d1);
+
+                    TestHelper.Assert(b1 != null);
+                    TestHelper.Assert(b1.Sb.Equals("D3.sb"));
+                    TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B")); // Sliced by server
+
+                    try
+                    {
+                        var p1 = (D3)b1;
+                        TestHelper.Assert(p1 != null);
+                    }
+                    catch (InvalidCastException)
+                    {
+                    }
+
+                    B? b2 = b1.Pb;
+                    TestHelper.Assert(b2 != null);
+                    TestHelper.Assert(b2.Sb.Equals("D1.sb"));
+                    TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(b2.Pb == b1);
+                    var p3 = (D1)b2;
+                    TestHelper.Assert(p3 != null);
+                    TestHelper.Assert(p3.Sd1.Equals("D1.sd1"));
+                    TestHelper.Assert(p3.Pd1 == b1);
+
+                    TestHelper.Assert(b1 != d1);
+                    TestHelper.Assert(b1 != d3);
+                    TestHelper.Assert(b2 != d1);
+                    TestHelper.Assert(b2 != d3);
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("return value identity for input params unknown first (AMI)... ");
+            output.Flush();
+            {
+                var d1 = new D1();
+                d1.Sb = "D1.sb";
+                d1.Sd1 = "D1.sd1";
+                var d3 = new D3();
+                d3.Pb = d1;
+                d3.Sb = "D3.sb";
+                d3.Sd3 = "D3.sd3";
+                d3.Pd3 = d1;
+                d1.Pb = d3;
+                d1.Pd1 = d3;
+
+                B? b1 = testPrx.ReturnTest3Async(d3, d1).Result;
+
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.Sb.Equals("D3.sb"));
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B")); // Sliced by server
 
                 try
                 {
-                    D3 p1 = (D3) b1;
-                    test(false);
-                    D3 tmp = p1; p1 = tmp; // Stop compiler warning about unused variable.
+                    var p1 = (D3)b1;
+                    TestHelper.Assert(p1 != null);
                 }
-                catch(InvalidCastException)
+                catch (InvalidCastException)
                 {
                 }
 
-                B b2 = b1.pb;
-                test(b2 != null);
-                test(b2.sb.Equals("D1.sb"));
-                test(b2.ice_id().Equals("::Test::D1"));
-                test(b2.pb == b1);
-                D1 p3 = (D1) b2;
-                test(p3 != null);
-                test(p3.sd1.Equals("D1.sd1"));
-                test(p3.pd1 == b1);
+                B? b2 = b1.Pb;
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.Sb.Equals("D1.sb"));
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(b2.Pb == b1);
+                var p3 = (D1)b2;
+                TestHelper.Assert(p3 != null);
+                TestHelper.Assert(p3.Sd1.Equals("D1.sd1"));
+                TestHelper.Assert(p3.Pd1 == b1);
 
-                test(b1 != d1);
-                test(b1 != d3);
-                test(b2 != d1);
-                test(b2 != d3);
+                TestHelper.Assert(b1 != d1);
+                TestHelper.Assert(b1 != d3);
+                TestHelper.Assert(b2 != d1);
+                TestHelper.Assert(b2 != d3);
             }
-            catch(Exception ex)
+            output.WriteLine("ok");
+
+            output.Write("remainder unmarshaling (3 instances)... ");
+            output.Flush();
             {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("return value identity for input params unknown first (AMI)... ");
-        output.Flush();
-        {
-            D1 d1 = new D1();
-            d1.sb = "D1.sb";
-            d1.sd1 = "D1.sd1";
-            D3 d3 = new D3();
-            d3.pb = d1;
-            d3.sb = "D3.sb";
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d1;
-            d1.pb = d3;
-            d1.pd1 = d3;
-
-            B b1 = null;
-            Callback cb = new Callback();
-            testPrx.begin_returnTest3(d3, d1).whenCompleted(
-                (B b) =>
+                try
                 {
-                    b1 = b;
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    (B? ret, B? p1, B? p2) = testPrx.ParamTest3();
+
+                    TestHelper.Assert(p1 != null);
+                    TestHelper.Assert(p1.Sb.Equals("D2.sb (p1 1)"));
+                    TestHelper.Assert(p1.Pb == null);
+                    TestHelper.Assert(p1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                    TestHelper.Assert(p2 != null);
+                    TestHelper.Assert(p2.Sb.Equals("D2.sb (p2 1)"));
+                    TestHelper.Assert(p2.Pb == null);
+                    TestHelper.Assert(p2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                    TestHelper.Assert(ret != null);
+                    TestHelper.Assert(ret.Sb.Equals("D1.sb (p2 2)"));
+                    TestHelper.Assert(ret.Pb == null);
+                    TestHelper.Assert(ret.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-
-            test(b1 != null);
-            test(b1.sb.Equals("D3.sb"));
-            test(b1.ice_id().Equals("::Test::B")); // Sliced by server
-
-            try
-            {
-                D3 p1 = (D3)b1;
-                test(false);
-                D3 tmp = p1;
-                p1 = tmp; // Stop compiler warning about unused variable.
+                    TestHelper.Assert(false);
+                }
             }
-            catch(InvalidCastException)
+            output.WriteLine("ok");
+
+            output.Write("remainder unmarshaling (3 instances) (AMI)... ");
+            output.Flush();
             {
+                (B? ret, B? p1, B? p2) = testPrx.ParamTest3Async().Result;
+
+                TestHelper.Assert(p1 != null);
+                TestHelper.Assert(p1.Sb.Equals("D2.sb (p1 1)"));
+                TestHelper.Assert(p1.Pb == null);
+                TestHelper.Assert(p1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                TestHelper.Assert(p2 != null);
+                TestHelper.Assert(p2.Sb.Equals("D2.sb (p2 1)"));
+                TestHelper.Assert(p2.Pb == null);
+                TestHelper.Assert(p2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                TestHelper.Assert(ret != null);
+                TestHelper.Assert(ret.Sb.Equals("D1.sb (p2 2)"));
+                TestHelper.Assert(ret.Pb == null);
+                TestHelper.Assert(ret.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
             }
+            output.WriteLine("ok");
 
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.sb.Equals("D1.sb"));
-            test(b2.ice_id().Equals("::Test::D1"));
-            test(b2.pb == b1);
-            D1 p3 = (D1)b2;
-            test(p3 != null);
-            test(p3.sd1.Equals("D1.sd1"));
-            test(p3.pd1 == b1);
-
-            test(b1 != d1);
-            test(b1 != d3);
-            test(b2 != d1);
-            test(b2 != d3);
-        }
-
-        {
-            D1 d1 = new D1();
-            d1.sb = "D1.sb";
-            d1.sd1 = "D1.sd1";
-            D3 d3 = new D3();
-            d3.pb = d1;
-            d3.sb = "D3.sb";
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d1;
-            d1.pb = d3;
-            d1.pd1 = d3;
-
-            B b1 = testPrx.returnTest3Async(d3, d1).Result;
-
-            test(b1 != null);
-            test(b1.sb.Equals("D3.sb"));
-            test(b1.ice_id().Equals("::Test::B")); // Sliced by server
-
-            try
+            output.Write("remainder unmarshaling (4 instances)... ");
+            output.Flush();
             {
-                D3 p1 = (D3)b1;
-                test(false);
-                D3 tmp = p1;
-                p1 = tmp; // Stop compiler warning about unused variable.
-            }
-            catch(InvalidCastException)
-            {
-            }
-
-            B b2 = b1.pb;
-            test(b2 != null);
-            test(b2.sb.Equals("D1.sb"));
-            test(b2.ice_id().Equals("::Test::D1"));
-            test(b2.pb == b1);
-            D1 p3 = (D1)b2;
-            test(p3 != null);
-            test(p3.sd1.Equals("D1.sd1"));
-            test(p3.pd1 == b1);
-
-            test(b1 != d1);
-            test(b1 != d3);
-            test(b2 != d1);
-            test(b2 != d3);
-        }
-        output.WriteLine("ok");
-
-        output.Write("remainder unmarshaling (3 instances)... ");
-        output.Flush();
-        {
-            try
-            {
-                B p1;
-                B p2;
-                B ret = testPrx.paramTest3(out p1, out p2);
-
-                test(p1 != null);
-                test(p1.sb.Equals("D2.sb (p1 1)"));
-                test(p1.pb == null);
-                test(p1.ice_id().Equals("::Test::B"));
-
-                test(p2 != null);
-                test(p2.sb.Equals("D2.sb (p2 1)"));
-                test(p2.pb == null);
-                test(p2.ice_id().Equals("::Test::B"));
-
-                test(ret != null);
-                test(ret.sb.Equals("D1.sb (p2 2)"));
-                test(ret.pb == null);
-                test(ret.ice_id().Equals("::Test::D1"));
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("remainder unmarshaling (3 instances) (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_paramTest3().whenCompleted(
-                (B ret, B p1, B p2) =>
+                try
                 {
-                    test(p1 != null);
-                    test(p1.sb.Equals("D2.sb (p1 1)"));
-                    test(p1.pb == null);
-                    test(p1.ice_id().Equals("::Test::B"));
+                    (B? ret, B? b) = testPrx.ParamTest4();
 
-                    test(p2 != null);
-                    test(p2.sb.Equals("D2.sb (p2 1)"));
-                    test(p2.pb == null);
-                    test(p2.ice_id().Equals("::Test::B"));
+                    TestHelper.Assert(b != null);
+                    TestHelper.Assert(b.Sb.Equals("D4.sb (1)"));
+                    TestHelper.Assert(b.Pb == null);
+                    TestHelper.Assert(b.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
 
-                    test(ret != null);
-                    test(ret.sb.Equals("D1.sb (p2 2)"));
-                    test(ret.pb == null);
-                    test(ret.ice_id().Equals("::Test::D1"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    TestHelper.Assert(ret != null);
+                    TestHelper.Assert(ret.Sb.Equals("B.sb (2)"));
+                    TestHelper.Assert(ret.Pb == null);
+                    TestHelper.Assert(ret.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            var result = testPrx.paramTest3Async().Result;
-
-            B ret = result.returnValue;
-            B p1 = result.p1;
-            B p2 = result.p2;
-            test(p1 != null);
-            test(p1.sb.Equals("D2.sb (p1 1)"));
-            test(p1.pb == null);
-            test(p1.ice_id().Equals("::Test::B"));
-
-            test(p2 != null);
-            test(p2.sb.Equals("D2.sb (p2 1)"));
-            test(p2.pb == null);
-            test(p2.ice_id().Equals("::Test::B"));
-
-            test(ret != null);
-            test(ret.sb.Equals("D1.sb (p2 2)"));
-            test(ret.pb == null);
-            test(ret.ice_id().Equals("::Test::D1"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("remainder unmarshaling (4 instances)... ");
-        output.Flush();
-        {
-            try
-            {
-                B b;
-                B ret = testPrx.paramTest4(out b);
-
-                test(b != null);
-                test(b.sb.Equals("D4.sb (1)"));
-                test(b.pb == null);
-                test(b.ice_id().Equals("::Test::B"));
-
-                test(ret != null);
-                test(ret.sb.Equals("B.sb (2)"));
-                test(ret.pb == null);
-                test(ret.ice_id().Equals("::Test::B"));
+                    TestHelper.Assert(false);
+                }
             }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("remainder unmarshaling (4 instances) (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_paramTest4().whenCompleted(
-                (B ret, B b) =>
+            output.Write("remainder unmarshaling (4 instances) (AMI)... ");
+            output.Flush();
+            {
+                (B? b1, B? b2) = testPrx.ParamTest4Async().Result;
+
+                TestHelper.Assert(b2 != null);
+                TestHelper.Assert(b2.Sb.Equals("D4.sb (1)"));
+                TestHelper.Assert(b2.Pb == null);
+                TestHelper.Assert(b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                TestHelper.Assert(b1 != null);
+                TestHelper.Assert(b1.Sb.Equals("B.sb (2)"));
+                TestHelper.Assert(b1.Pb == null);
+                TestHelper.Assert(b1.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+            }
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing, instance marshaled in unknown derived as base... ");
+            output.Flush();
+            {
+                try
                 {
-                    test(b != null);
-                    test(b.sb.Equals("D4.sb (1)"));
-                    test(b.pb == null);
-                    test(b.ice_id().Equals("::Test::B"));
+                    var b1 = new B();
+                    b1.Sb = "B.sb(1)";
+                    b1.Pb = b1;
 
-                    test(ret != null);
-                    test(ret.sb.Equals("B.sb (2)"));
-                    test(ret.pb == null);
-                    test(ret.ice_id().Equals("::Test::B"));
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    var d3 = new D3();
+                    d3.Sb = "D3.sb";
+                    d3.Pb = d3;
+                    d3.Sd3 = "D3.sd3";
+                    d3.Pd3 = b1;
+
+                    var b2 = new B();
+                    b2.Sb = "B.sb(2)";
+                    b2.Pb = b1;
+
+                    B? ret = testPrx.ReturnTest3(d3, b2);
+
+                    TestHelper.Assert(ret != null);
+                    TestHelper.Assert(ret.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(ret.Sb.Equals("D3.sb"));
+                    TestHelper.Assert(ret.Pb == ret);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            var result = testPrx.paramTest4Async().Result;
-            B ret = result.returnValue;
-            B b = result.p;
-
-            test(b != null);
-            test(b.sb.Equals("D4.sb (1)"));
-            test(b.pb == null);
-            test(b.ice_id().Equals("::Test::B"));
-
-            test(ret != null);
-            test(ret.sb.Equals("B.sb (2)"));
-            test(ret.pb == null);
-            test(ret.ice_id().Equals("::Test::B"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing, instance marshaled in unknown derived as base... ");
-        output.Flush();
-        {
-            try
-            {
-                B b1 = new B();
-                b1.sb = "B.sb(1)";
-                b1.pb = b1;
-
-                D3 d3 = new D3();
-                d3.sb = "D3.sb";
-                d3.pb = d3;
-                d3.sd3 = "D3.sd3";
-                d3.pd3 = b1;
-
-                B b2 = new B();
-                b2.sb = "B.sb(2)";
-                b2.pb = b1;
-
-                B ret = testPrx.returnTest3(d3, b2);
-
-                test(ret != null);
-                test(ret.ice_id().Equals("::Test::B"));
-                test(ret.sb.Equals("D3.sb"));
-                test(ret.pb == ret);
+                    TestHelper.Assert(false);
+                }
             }
-            catch(Exception ex)
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing, instance marshaled in unknown derived as base (AMI)... ");
+            output.Flush();
             {
-                output.WriteLine(ex.ToString());
-                test(false);
+                var b1 = new B();
+                b1.Sb = "B.sb(1)";
+                b1.Pb = b1;
+
+                var d3 = new D3();
+                d3.Sb = "D3.sb";
+                d3.Pb = d3;
+                d3.Sd3 = "D3.sd3";
+                d3.Pd3 = b1;
+
+                var b2 = new B();
+                b2.Sb = "B.sb(2)";
+                b2.Pb = b1;
+
+                B? rv = testPrx.ReturnTest3Async(d3, b2).Result;
+
+                TestHelper.Assert(rv != null);
+                TestHelper.Assert(rv.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(rv.Sb.Equals("D3.sb"));
+                TestHelper.Assert(rv.Pb == rv);
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("param ptr slicing, instance marshaled in unknown derived as base (AMI)... ");
-        output.Flush();
-        {
-            B b1 = new B();
-            b1.sb = "B.sb(1)";
-            b1.pb = b1;
-
-            D3 d3 = new D3();
-            d3.sb = "D3.sb";
-            d3.pb = d3;
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = b1;
-
-            B b2 = new B();
-            b2.sb = "B.sb(2)";
-            b2.pb = b1;
-
-            B rv = null;
-            Callback cb = new Callback();
-            testPrx.begin_returnTest3(d3, b2).whenCompleted(
-                (B b) =>
+            output.Write("param ptr slicing, instance marshaled in unknown derived as derived... ");
+            output.Flush();
+            {
+                try
                 {
-                    rv = b;
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    var d11 = new D1();
+                    d11.Sb = "D1.sb(1)";
+                    d11.Pb = d11;
+                    d11.Sd1 = "D1.sd1(1)";
+
+                    var d3 = new D3();
+                    d3.Sb = "D3.sb";
+                    d3.Pb = d3;
+                    d3.Sd3 = "D3.sd3";
+                    d3.Pd3 = d11;
+
+                    var d12 = new D1();
+                    d12.Sb = "D1.sb(2)";
+                    d12.Pb = d12;
+                    d12.Sd1 = "D1.sd1(2)";
+                    d12.Pd1 = d11;
+
+                    B? ret = testPrx.ReturnTest3(d3, d12);
+                    TestHelper.Assert(ret != null);
+                    TestHelper.Assert(ret.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(ret.Sb.Equals("D3.sb"));
+                    TestHelper.Assert(ret.Pb == ret);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-
-            test(rv != null);
-            test(rv.ice_id().Equals("::Test::B"));
-            test(rv.sb.Equals("D3.sb"));
-            test(rv.pb == rv);
-        }
-
-        {
-            B b1 = new B();
-            b1.sb = "B.sb(1)";
-            b1.pb = b1;
-
-            D3 d3 = new D3();
-            d3.sb = "D3.sb";
-            d3.pb = d3;
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = b1;
-
-            B b2 = new B();
-            b2.sb = "B.sb(2)";
-            b2.pb = b1;
-
-            B rv = testPrx.returnTest3Async(d3, b2).Result;
-
-            test(rv != null);
-            test(rv.ice_id().Equals("::Test::B"));
-            test(rv.sb.Equals("D3.sb"));
-            test(rv.pb == rv);
-        }
-        output.WriteLine("ok");
-
-        output.Write("param ptr slicing, instance marshaled in unknown derived as derived... ");
-        output.Flush();
-        {
-            try
-            {
-                D1 d11 = new D1();
-                d11.sb = "D1.sb(1)";
-                d11.pb = d11;
-                d11.sd1 = "D1.sd1(1)";
-
-                D3 d3 = new D3();
-                d3.sb = "D3.sb";
-                d3.pb = d3;
-                d3.sd3 = "D3.sd3";
-                d3.pd3 = d11;
-
-                D1 d12 = new D1();
-                d12.sb = "D1.sb(2)";
-                d12.pb = d12;
-                d12.sd1 = "D1.sd1(2)";
-                d12.pd1 = d11;
-
-                B ret = testPrx.returnTest3(d3, d12);
-                test(ret != null);
-                test(ret.ice_id().Equals("::Test::B"));
-                test(ret.sb.Equals("D3.sb"));
-                test(ret.pb == ret);
+                    TestHelper.Assert(false);
+                }
             }
-            catch(Exception ex)
+            output.WriteLine("ok");
+
+            output.Write("param ptr slicing, instance marshaled in unknown derived as derived (AMI)... ");
+            output.Flush();
             {
-                output.WriteLine(ex.ToString());
-                test(false);
+                var d11 = new D1();
+                d11.Sb = "D1.sb(1)";
+                d11.Pb = d11;
+                d11.Sd1 = "D1.sd1(1)";
+
+                var d3 = new D3();
+                d3.Sb = "D3.sb";
+                d3.Pb = d3;
+                d3.Sd3 = "D3.sd3";
+                d3.Pd3 = d11;
+
+                var d12 = new D1();
+                d12.Sb = "D1.sb(2)";
+                d12.Pb = d12;
+                d12.Sd1 = "D1.sd1(2)";
+                d12.Pd1 = d11;
+
+                B? rv = testPrx.ReturnTest3Async(d3, d12).Result;
+
+                TestHelper.Assert(rv != null);
+                TestHelper.Assert(rv.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(rv.Sb.Equals("D3.sb"));
+                TestHelper.Assert(rv.Pb == rv);
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("param ptr slicing, instance marshaled in unknown derived as derived (AMI)... ");
-        output.Flush();
-        {
-            D1 d11 = new D1();
-            d11.sb = "D1.sb(1)";
-            d11.pb = d11;
-            d11.sd1 = "D1.sd1(1)";
-
-            D3 d3 = new D3();
-            d3.sb = "D3.sb";
-            d3.pb = d3;
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d11;
-
-            D1 d12 = new D1();
-            d12.sb = "D1.sb(2)";
-            d12.pb = d12;
-            d12.sd1 = "D1.sd1(2)";
-            d12.pd1 = d11;
-
-            B rv = null;
-            Callback cb = new Callback();
-            testPrx.begin_returnTest3(d3, d12).whenCompleted(
-                (B b) =>
+            output.Write("sequence slicing... ");
+            output.Flush();
+            {
+                try
                 {
-                    rv = b;
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    SS3 ss;
+                    {
+                        var ss1b = new B();
+                        ss1b.Sb = "B.sb";
+                        ss1b.Pb = ss1b;
+
+                        var ss1d1 = new D1();
+                        ss1d1.Sb = "D1.sb";
+                        ss1d1.Sd1 = "D1.sd1";
+                        ss1d1.Pb = ss1b;
+
+                        var ss1d3 = new D3();
+                        ss1d3.Sb = "D3.sb";
+                        ss1d3.Sd3 = "D3.sd3";
+                        ss1d3.Pb = ss1b;
+
+                        var ss2b = new B();
+                        ss2b.Sb = "B.sb";
+                        ss2b.Pb = ss1b;
+
+                        var ss2d1 = new D1();
+                        ss2d1.Sb = "D1.sb";
+                        ss2d1.Sd1 = "D1.sd1";
+                        ss2d1.Pb = ss2b;
+
+                        var ss2d3 = new D3();
+                        ss2d3.Sb = "D3.sb";
+                        ss2d3.Sd3 = "D3.sd3";
+                        ss2d3.Pb = ss2b;
+
+                        ss1d1.Pd1 = ss2b;
+                        ss1d3.Pd3 = ss2d1;
+
+                        ss2d1.Pd1 = ss1d3;
+                        ss2d3.Pd3 = ss1d1;
+
+                        var ss1 = new SS1(Array.Empty<B>());
+                        ss1.S = new B[3];
+                        ss1.S[0] = ss1b;
+                        ss1.S[1] = ss1d1;
+                        ss1.S[2] = ss1d3;
+
+                        var ss2 = new SS2(Array.Empty<B>());
+                        ss2.S = new B[3];
+                        ss2.S[0] = ss2b;
+                        ss2.S[1] = ss2d1;
+                        ss2.S[2] = ss2d3;
+
+                        ss = testPrx.SequenceTest(ss1, ss2);
+                    }
+
+                    TestHelper.Assert(ss.C1 != null);
+                    B? ss1b2 = ss.C1.S[0];
+                    B? ss1d2 = ss.C1.S[1];
+                    TestHelper.Assert(ss.C2 != null);
+                    B? ss1d4 = ss.C1.S[2];
+
+                    TestHelper.Assert(ss.C2 != null);
+                    B? ss2b2 = ss.C2.S[0];
+                    B? ss2d2 = ss.C2.S[1];
+                    B? ss2d4 = ss.C2.S[2];
+
+                    TestHelper.Assert(ss1b2!.Pb == ss1b2);
+                    TestHelper.Assert(ss1d2!.Pb == ss1b2);
+                    TestHelper.Assert(ss1d4!.Pb == ss1b2);
+
+                    TestHelper.Assert(ss2b2!.Pb == ss1b2);
+                    TestHelper.Assert(ss2d2!.Pb == ss2b2);
+                    TestHelper.Assert(ss2d4!.Pb == ss2b2);
+
+                    TestHelper.Assert(ss1b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(ss1d2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(ss1d4.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+
+                    TestHelper.Assert(ss2b2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                    TestHelper.Assert(ss2d2.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                    TestHelper.Assert(ss2d4.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
 
-            test(rv != null);
-            test(rv.ice_id().Equals("::Test::B"));
-            test(rv.sb.Equals("D3.sb"));
-            test(rv.pb == rv);
-        }
-
-        {
-            D1 d11 = new D1();
-            d11.sb = "D1.sb(1)";
-            d11.pb = d11;
-            d11.sd1 = "D1.sd1(1)";
-
-            D3 d3 = new D3();
-            d3.sb = "D3.sb";
-            d3.pb = d3;
-            d3.sd3 = "D3.sd3";
-            d3.pd3 = d11;
-
-            D1 d12 = new D1();
-            d12.sb = "D1.sb(2)";
-            d12.pb = d12;
-            d12.sd1 = "D1.sd1(2)";
-            d12.pd1 = d11;
-
-            B rv = testPrx.returnTest3Async(d3, d12).Result;
-
-            test(rv != null);
-            test(rv.ice_id().Equals("::Test::B"));
-            test(rv.sb.Equals("D3.sb"));
-            test(rv.pb == rv);
-        }
-        output.WriteLine("ok");
-
-        output.Write("sequence slicing... ");
-        output.Flush();
-        {
-            try
+            output.Write("sequence slicing (AMI)... ");
+            output.Flush();
             {
                 SS3 ss;
                 {
-                    B ss1b = new B();
-                    ss1b.sb = "B.sb";
-                    ss1b.pb = ss1b;
+                    var ss1b = new B();
+                    ss1b.Sb = "B.sb";
+                    ss1b.Pb = ss1b;
 
-                    D1 ss1d1 = new D1();
-                    ss1d1.sb = "D1.sb";
-                    ss1d1.sd1 = "D1.sd1";
-                    ss1d1.pb = ss1b;
+                    var ss1d1 = new D1();
+                    ss1d1.Sb = "D1.sb";
+                    ss1d1.Sd1 = "D1.sd1";
+                    ss1d1.Pb = ss1b;
 
-                    D3 ss1d3 = new D3();
-                    ss1d3.sb = "D3.sb";
-                    ss1d3.sd3 = "D3.sd3";
-                    ss1d3.pb = ss1b;
+                    var ss1d3 = new D3();
+                    ss1d3.Sb = "D3.sb";
+                    ss1d3.Sd3 = "D3.sd3";
+                    ss1d3.Pb = ss1b;
 
-                    B ss2b = new B();
-                    ss2b.sb = "B.sb";
-                    ss2b.pb = ss1b;
+                    var ss2b = new B();
+                    ss2b.Sb = "B.sb";
+                    ss2b.Pb = ss1b;
 
-                    D1 ss2d1 = new D1();
-                    ss2d1.sb = "D1.sb";
-                    ss2d1.sd1 = "D1.sd1";
-                    ss2d1.pb = ss2b;
+                    var ss2d1 = new D1();
+                    ss2d1.Sb = "D1.sb";
+                    ss2d1.Sd1 = "D1.sd1";
+                    ss2d1.Pb = ss2b;
 
-                    D3 ss2d3 = new D3();
-                    ss2d3.sb = "D3.sb";
-                    ss2d3.sd3 = "D3.sd3";
-                    ss2d3.pb = ss2b;
+                    var ss2d3 = new D3();
+                    ss2d3.Sb = "D3.sb";
+                    ss2d3.Sd3 = "D3.sd3";
+                    ss2d3.Pb = ss2b;
 
-                    ss1d1.pd1 = ss2b;
-                    ss1d3.pd3 = ss2d1;
+                    ss1d1.Pd1 = ss2b;
+                    ss1d3.Pd3 = ss2d1;
 
-                    ss2d1.pd1 = ss1d3;
-                    ss2d3.pd3 = ss1d1;
+                    ss2d1.Pd1 = ss1d3;
+                    ss2d3.Pd3 = ss1d1;
 
-                    SS1 ss1 = new SS1();
-                    ss1.s = new B[3];
-                    ss1.s[0] = ss1b;
-                    ss1.s[1] = ss1d1;
-                    ss1.s[2] = ss1d3;
+                    var ss1 = new SS1(Array.Empty<B>());
+                    ss1.S = new B[3];
+                    ss1.S[0] = ss1b;
+                    ss1.S[1] = ss1d1;
+                    ss1.S[2] = ss1d3;
 
-                    SS2 ss2 = new SS2();
-                    ss2.s = new B[3];
-                    ss2.s[0] = ss2b;
-                    ss2.s[1] = ss2d1;
-                    ss2.s[2] = ss2d3;
+                    var ss2 = new SS2(Array.Empty<B>());
+                    ss2.S = new B[3];
+                    ss2.S[0] = ss2b;
+                    ss2.S[1] = ss2d1;
+                    ss2.S[2] = ss2d3;
 
-                    ss = testPrx.sequenceTest(ss1, ss2);
+                    ss = testPrx.SequenceTestAsync(ss1, ss2).Result;
                 }
+                TestHelper.Assert(ss.C1 != null);
+                B? ss1b3 = ss.C1.S[0];
+                B? ss1d5 = ss.C1.S[1];
+                TestHelper.Assert(ss.C2 != null);
+                B? ss1d6 = ss.C1.S[2];
 
-                test(ss.c1 != null);
-                B ss1b2 = ss.c1.s[0];
-                B ss1d2 = ss.c1.s[1];
-                test(ss.c2 != null);
-                B ss1d4 = ss.c1.s[2];
+                TestHelper.Assert(ss.C2 != null);
+                B? ss2b3 = ss.C2.S[0];
+                B? ss2d5 = ss.C2.S[1];
+                B? ss2d6 = ss.C2.S[2];
 
-                test(ss.c2 != null);
-                B ss2b2 = ss.c2.s[0];
-                B ss2d2 = ss.c2.s[1];
-                B ss2d4 = ss.c2.s[2];
+                TestHelper.Assert(ss1b3!.Pb == ss1b3);
+                TestHelper.Assert(ss1d6!.Pb == ss1b3);
+                TestHelper.Assert(ss1d6!.Pb == ss1b3);
 
-                test(ss1b2.pb == ss1b2);
-                test(ss1d2.pb == ss1b2);
-                test(ss1d4.pb == ss1b2);
+                TestHelper.Assert(ss2b3!.Pb == ss1b3);
+                TestHelper.Assert(ss2d6!.Pb == ss2b3);
+                TestHelper.Assert(ss2d6!.Pb == ss2b3);
 
-                test(ss2b2.pb == ss1b2);
-                test(ss2d2.pb == ss2b2);
-                test(ss2d4.pb == ss2b2);
+                TestHelper.Assert(ss1b3!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(ss1d5!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(ss1d6!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
 
-                test(ss1b2.ice_id().Equals("::Test::B"));
-                test(ss1d2.ice_id().Equals("::Test::D1"));
-                test(ss1d4.ice_id().Equals("::Test::B"));
-
-                test(ss2b2.ice_id().Equals("::Test::B"));
-                test(ss2d2.ice_id().Equals("::Test::D1"));
-                test(ss2d4.ice_id().Equals("::Test::B"));
+                TestHelper.Assert(ss2b3!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
+                TestHelper.Assert(ss2d5!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::D1"));
+                TestHelper.Assert(ss2d6!.GetType().GetIceTypeId()!.Equals("::ZeroC::Ice::Test::Slicing::Objects::B"));
             }
-            catch(Exception ex)
+            output.WriteLine("ok");
+
+            output.Write("dictionary slicing... ");
+            output.Flush();
             {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("sequence slicing (AMI)... ");
-        output.Flush();
-        {
-            SS3 ss = null;
-            {
-                B ss1b = new B();
-                ss1b.sb = "B.sb";
-                ss1b.pb = ss1b;
-
-                D1 ss1d1 = new D1();
-                ss1d1.sb = "D1.sb";
-                ss1d1.sd1 = "D1.sd1";
-                ss1d1.pb = ss1b;
-
-                D3 ss1d3 = new D3();
-                ss1d3.sb = "D3.sb";
-                ss1d3.sd3 = "D3.sd3";
-                ss1d3.pb = ss1b;
-
-                B ss2b = new B();
-                ss2b.sb = "B.sb";
-                ss2b.pb = ss1b;
-
-                D1 ss2d1 = new D1();
-                ss2d1.sb = "D1.sb";
-                ss2d1.sd1 = "D1.sd1";
-                ss2d1.pb = ss2b;
-
-                D3 ss2d3 = new D3();
-                ss2d3.sb = "D3.sb";
-                ss2d3.sd3 = "D3.sd3";
-                ss2d3.pb = ss2b;
-
-                ss1d1.pd1 = ss2b;
-                ss1d3.pd3 = ss2d1;
-
-                ss2d1.pd1 = ss1d3;
-                ss2d3.pd3 = ss1d1;
-
-                SS1 ss1 = new SS1();
-                ss1.s = new B[3];
-                ss1.s[0] = ss1b;
-                ss1.s[1] = ss1d1;
-                ss1.s[2] = ss1d3;
-
-                SS2 ss2 = new SS2();
-                ss2.s = new B[3];
-                ss2.s[0] = ss2b;
-                ss2.s[1] = ss2d1;
-                ss2.s[2] = ss2d3;
-
-                Callback cb = new Callback();
-                testPrx.begin_sequenceTest(ss1, ss2).whenCompleted(
-                    (SS3 s) =>
+                try
+                {
+                    var bin = new Dictionary<int, B?>();
+                    Dictionary<int, B?> bout;
+                    Dictionary<int, B?> ret;
+                    int i;
+                    for (i = 0; i < 10; ++i)
                     {
-                        ss = s;
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
+                        string s = "D1." + i.ToString();
+                        var d1 = new D1();
+                        d1.Sb = s;
+                        d1.Pb = d1;
+                        d1.Sd1 = s;
+                        bin[i] = d1;
+                    }
+
+                    (ret, bout) = testPrx.DictionaryTest(bin);
+
+                    TestHelper.Assert(bout.Count == 10);
+                    for (i = 0; i < 10; ++i)
                     {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-                cb.check();
+                        B? b = bout[i * 10];
+                        TestHelper.Assert(b != null);
+                        string s = "D1." + i.ToString();
+                        TestHelper.Assert(b.Sb.Equals(s));
+                        TestHelper.Assert(b.Pb != null);
+                        TestHelper.Assert(b.Pb != b);
+                        TestHelper.Assert(b.Pb.Sb.Equals(s));
+                        TestHelper.Assert(b.Pb.Pb == b.Pb);
+                    }
+
+                    TestHelper.Assert(ret.Count == 10);
+                    for (i = 0; i < 10; ++i)
+                    {
+                        B? b = ret[i * 20];
+                        TestHelper.Assert(b != null);
+                        string s = "D1." + (i * 20).ToString();
+                        TestHelper.Assert(b.Sb.Equals(s));
+                        TestHelper.Assert(b.Pb == (i == 0 ? null : ret[(i - 1) * 20]));
+                        var d1 = (D1)b;
+                        TestHelper.Assert(d1 != null);
+                        TestHelper.Assert(d1.Sd1.Equals(s));
+                        TestHelper.Assert(d1.Pd1 == d1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
+                }
             }
-            test(ss.c1 != null);
-            B ss1b3 = ss.c1.s[0];
-            B ss1d5 = ss.c1.s[1];
-            test(ss.c2 != null);
-            B ss1d6 = ss.c1.s[2];
+            output.WriteLine("ok");
 
-            test(ss.c2 != null);
-            B ss2b3 = ss.c2.s[0];
-            B ss2d5 = ss.c2.s[1];
-            B ss2d6 = ss.c2.s[2];
-
-            test(ss1b3.pb == ss1b3);
-            test(ss1d6.pb == ss1b3);
-            test(ss1d6.pb == ss1b3);
-
-            test(ss2b3.pb == ss1b3);
-            test(ss2d6.pb == ss2b3);
-            test(ss2d6.pb == ss2b3);
-
-            test(ss1b3.ice_id().Equals("::Test::B"));
-            test(ss1d5.ice_id().Equals("::Test::D1"));
-            test(ss1d6.ice_id().Equals("::Test::B"));
-
-            test(ss2b3.ice_id().Equals("::Test::B"));
-            test(ss2d5.ice_id().Equals("::Test::D1"));
-            test(ss2d6.ice_id().Equals("::Test::B"));
-        }
-
-        {
-            SS3 ss = null;
+            output.Write("dictionary slicing (AMI)... ");
+            output.Flush();
             {
-                B ss1b = new B();
-                ss1b.sb = "B.sb";
-                ss1b.pb = ss1b;
-
-                D1 ss1d1 = new D1();
-                ss1d1.sb = "D1.sb";
-                ss1d1.sd1 = "D1.sd1";
-                ss1d1.pb = ss1b;
-
-                D3 ss1d3 = new D3();
-                ss1d3.sb = "D3.sb";
-                ss1d3.sd3 = "D3.sd3";
-                ss1d3.pb = ss1b;
-
-                B ss2b = new B();
-                ss2b.sb = "B.sb";
-                ss2b.pb = ss1b;
-
-                D1 ss2d1 = new D1();
-                ss2d1.sb = "D1.sb";
-                ss2d1.sd1 = "D1.sd1";
-                ss2d1.pb = ss2b;
-
-                D3 ss2d3 = new D3();
-                ss2d3.sb = "D3.sb";
-                ss2d3.sd3 = "D3.sd3";
-                ss2d3.pb = ss2b;
-
-                ss1d1.pd1 = ss2b;
-                ss1d3.pd3 = ss2d1;
-
-                ss2d1.pd1 = ss1d3;
-                ss2d3.pd3 = ss1d1;
-
-                SS1 ss1 = new SS1();
-                ss1.s = new B[3];
-                ss1.s[0] = ss1b;
-                ss1.s[1] = ss1d1;
-                ss1.s[2] = ss1d3;
-
-                SS2 ss2 = new SS2();
-                ss2.s = new B[3];
-                ss2.s[0] = ss2b;
-                ss2.s[1] = ss2d1;
-                ss2.s[2] = ss2d3;
-
-                ss = testPrx.sequenceTestAsync(ss1, ss2).Result;
-            }
-            test(ss.c1 != null);
-            B ss1b3 = ss.c1.s[0];
-            B ss1d5 = ss.c1.s[1];
-            test(ss.c2 != null);
-            B ss1d6 = ss.c1.s[2];
-
-            test(ss.c2 != null);
-            B ss2b3 = ss.c2.s[0];
-            B ss2d5 = ss.c2.s[1];
-            B ss2d6 = ss.c2.s[2];
-
-            test(ss1b3.pb == ss1b3);
-            test(ss1d6.pb == ss1b3);
-            test(ss1d6.pb == ss1b3);
-
-            test(ss2b3.pb == ss1b3);
-            test(ss2d6.pb == ss2b3);
-            test(ss2d6.pb == ss2b3);
-
-            test(ss1b3.ice_id().Equals("::Test::B"));
-            test(ss1d5.ice_id().Equals("::Test::D1"));
-            test(ss1d6.ice_id().Equals("::Test::B"));
-
-            test(ss2b3.ice_id().Equals("::Test::B"));
-            test(ss2d5.ice_id().Equals("::Test::D1"));
-            test(ss2d6.ice_id().Equals("::Test::B"));
-        }
-        output.WriteLine("ok");
-
-        output.Write("dictionary slicing... ");
-        output.Flush();
-        {
-            try
-            {
-                Dictionary<int, B> bin = new Dictionary<int, B>();
-                Dictionary<int, B> bout;
-                Dictionary<int, B> ret;
+                var bin = new Dictionary<int, B?>();
                 int i;
-                for(i = 0; i < 10; ++i)
+                for (i = 0; i < 10; ++i)
                 {
                     string s = "D1." + i.ToString();
-                    D1 d1 = new D1();
-                    d1.sb = s;
-                    d1.pb = d1;
-                    d1.sd1 = s;
+                    var d1 = new D1();
+                    d1.Sb = s;
+                    d1.Pb = d1;
+                    d1.Sd1 = s;
                     bin[i] = d1;
                 }
 
-                ret = testPrx.dictionaryTest(bin, out bout);
+                (Dictionary<int, B?> ReturnValue, Dictionary<int, B?> bout) result =
+                    testPrx.DictionaryTestAsync(bin).Result;
+                Dictionary<int, B?> rv = result.ReturnValue;
+                Dictionary<int, B?> bout = result.bout;
 
-                test(bout.Count == 10);
-                for(i = 0; i < 10; ++i)
+                TestHelper.Assert(bout.Count == 10);
+                for (i = 0; i < 10; ++i)
                 {
-                    B b = bout[i * 10];
-                    test(b != null);
+                    B? b = bout[i * 10];
+                    TestHelper.Assert(b != null);
                     string s = "D1." + i.ToString();
-                    test(b.sb.Equals(s));
-                    test(b.pb != null);
-                    test(b.pb != b);
-                    test(b.pb.sb.Equals(s));
-                    test(b.pb.pb == b.pb);
+                    TestHelper.Assert(b.Sb.Equals(s));
+                    TestHelper.Assert(b.Pb != null);
+                    TestHelper.Assert(b.Pb != b);
+                    TestHelper.Assert(b.Pb.Sb.Equals(s));
+                    TestHelper.Assert(b.Pb.Pb == b.Pb);
                 }
 
-                test(ret.Count == 10);
-                for(i = 0; i < 10; ++i)
+                TestHelper.Assert(rv.Count == 10);
+                for (i = 0; i < 10; ++i)
                 {
-                    B b = ret[i * 20];
-                    test(b != null);
+                    B? b = rv[i * 20];
+                    TestHelper.Assert(b != null);
                     string s = "D1." + (i * 20).ToString();
-                    test(b.sb.Equals(s));
-                    test(b.pb == (i == 0 ? (B)null : ret[(i - 1) * 20]));
-                    D1 d1 = (D1) b;
-                    test(d1 != null);
-                    test(d1.sd1.Equals(s));
-                    test(d1.pd1 == d1);
+                    TestHelper.Assert(b.Sb.Equals(s));
+                    TestHelper.Assert(b.Pb == (i == 0 ? null : rv[(i - 1) * 20]));
+                    var d1 = (D1)b;
+                    TestHelper.Assert(d1 != null);
+                    TestHelper.Assert(d1.Sd1.Equals(s));
+                    TestHelper.Assert(d1.Pd1 == d1);
                 }
             }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("dictionary slicing (AMI)... ");
-        output.Flush();
-        {
-            Dictionary<int, B> bin = new Dictionary<int, B>();
-            Dictionary<int, B> bout = null;
-            Dictionary<int, B> rv = null;
-            int i;
-            for(i = 0; i < 10; ++i)
+            output.Write("base exception thrown as base exception... ");
+            output.Flush();
             {
-                string s = "D1." + i.ToString();
-                D1 d1 = new D1();
-                d1.sb = s;
-                d1.pb = d1;
-                d1.sd1 = s;
-                bin[i] = d1;
-            }
-
-            Callback cb = new Callback();
-            testPrx.begin_dictionaryTest(bin).whenCompleted(
-                (Dictionary<int, B> r, Dictionary<int, B> b) =>
+                try
                 {
-                    rv = (Dictionary<int, B>)r;
-                    bout = (Dictionary<int, B>)b;
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
+                    testPrx.ThrowBaseAsBase();
+                    TestHelper.Assert(false);
+                }
+                catch (BaseException e)
+                {
+                    TestHelper.Assert(e.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Objects.BaseException"));
+                    TestHelper.Assert(e.Sbe.Equals("sbe"));
+                    TestHelper.Assert(e.Pb != null);
+                    TestHelper.Assert(e.Pb.Sb.Equals("sb"));
+                    TestHelper.Assert(e.Pb.Pb == e.Pb);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-
-            test(bout.Count == 10);
-            for(i = 0; i < 10; ++i)
-            {
-                B b = bout[i * 10];
-                test(b != null);
-                string s = "D1." + i.ToString();
-                test(b.sb.Equals(s));
-                test(b.pb != null);
-                test(b.pb != b);
-                test(b.pb.sb.Equals(s));
-                test(b.pb.pb == b.pb);
+                    TestHelper.Assert(false);
+                }
             }
+            output.WriteLine("ok");
 
-            test(rv.Count == 10);
-            for(i = 0; i < 10; ++i)
+            output.Write("base exception thrown as base exception (AMI)... ");
+            output.Flush();
             {
-                B b = rv[i * 20];
-                test(b != null);
-                string s = "D1." + (i * 20).ToString();
-                test(b.sb.Equals(s));
-                test(b.pb == (i == 0 ? (B)null : rv[(i - 1) * 20]));
-                D1 d1 = (D1) b;
-                test(d1 != null);
-                test(d1.sd1.Equals(s));
-                test(d1.pd1 == d1);
-            }
-        }
-
-        {
-            Dictionary<int, B> bin = new Dictionary<int, B>();
-            Dictionary<int, B> bout = null;
-            Dictionary<int, B> rv = null;
-            int i;
-            for(i = 0; i < 10; ++i)
-            {
-                string s = "D1." + i.ToString();
-                D1 d1 = new D1();
-                d1.sb = s;
-                d1.pb = d1;
-                d1.sd1 = s;
-                bin[i] = d1;
-            }
-
-            var result = testPrx.dictionaryTestAsync(bin).Result;
-            rv = result.returnValue;
-            bout = result.bout;
-
-            test(bout.Count == 10);
-            for(i = 0; i < 10; ++i)
-            {
-                B b = bout[i * 10];
-                test(b != null);
-                string s = "D1." + i.ToString();
-                test(b.sb.Equals(s));
-                test(b.pb != null);
-                test(b.pb != b);
-                test(b.pb.sb.Equals(s));
-                test(b.pb.pb == b.pb);
-            }
-
-            test(rv.Count == 10);
-            for(i = 0; i < 10; ++i)
-            {
-                B b = rv[i * 20];
-                test(b != null);
-                string s = "D1." + (i * 20).ToString();
-                test(b.sb.Equals(s));
-                test(b.pb == (i == 0 ? (B)null : rv[(i - 1) * 20]));
-                D1 d1 = (D1)b;
-                test(d1 != null);
-                test(d1.sd1.Equals(s));
-                test(d1.pd1 == d1);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("base exception thrown as base exception... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.throwBaseAsBase();
-                test(false);
-            }
-            catch(BaseException e)
-            {
-                test(e.GetType().FullName.Equals("Test.BaseException"));
-                test(e.sbe.Equals("sbe"));
-                test(e.pb != null);
-                test(e.pb.sb.Equals("sb"));
-                test(e.pb.pb == e.pb);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("base exception thrown as base exception (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_throwBaseAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.ThrowBaseAsBaseAsync().Wait();
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        BaseException e = (BaseException)ex;
-                        test(e.sbe.Equals("sbe"));
-                        test(e.pb != null);
-                        test(e.pb.sb.Equals("sb"));
-                        test(e.pb.pb == e.pb);
+                        TestHelper.Assert(ae.InnerException != null);
+                        var e = (BaseException)ae.InnerException;
+                        TestHelper.Assert(e.Sbe.Equals("sbe"));
+                        TestHelper.Assert(e.Pb != null);
+                        TestHelper.Assert(e.Pb.Sb.Equals("sb"));
+                        TestHelper.Assert(e.Pb.Pb == e.Pb);
                     }
-                    catch(Exception)
+                    catch (Exception ex)
                     {
                         output.WriteLine(ex.ToString());
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-        }
-        {
-            try
-            {
-                testPrx.throwBaseAsBaseAsync().Wait();
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("derived exception thrown as base exception... ");
+            output.Flush();
             {
                 try
                 {
-                    BaseException e = (BaseException)ae.InnerException;
-                    test(e.sbe.Equals("sbe"));
-                    test(e.pb != null);
-                    test(e.pb.sb.Equals("sb"));
-                    test(e.pb.pb == e.pb);
+                    testPrx.ThrowDerivedAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(Exception ex)
+                catch (DerivedException e)
+                {
+                    TestHelper.Assert(e.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Objects.DerivedException"));
+                    TestHelper.Assert(e.Sbe.Equals("sbe"));
+                    TestHelper.Assert(e.Pb != null);
+                    TestHelper.Assert(e.Pb.Sb.Equals("sb1"));
+                    TestHelper.Assert(e.Pb.Pb == e.Pb);
+                    TestHelper.Assert(e.Sde.Equals("sde1"));
+                    TestHelper.Assert(e.Pd1 != null);
+                    TestHelper.Assert(e.Pd1.Sb.Equals("sb2"));
+                    TestHelper.Assert(e.Pd1.Pb == e.Pd1);
+                    TestHelper.Assert(e.Pd1.Sd1.Equals("sd2"));
+                    TestHelper.Assert(e.Pd1.Pd1 == e.Pd1);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("derived exception thrown as base exception... ");
-        output.Flush();
-        {
-            try
+            output.Write("derived exception thrown as base exception (AMI)... ");
+            output.Flush();
             {
-                testPrx.throwDerivedAsBase();
-                test(false);
-            }
-            catch(DerivedException e)
-            {
-                test(e.GetType().FullName.Equals("Test.DerivedException"));
-                test(e.sbe.Equals("sbe"));
-                test(e.pb != null);
-                test(e.pb.sb.Equals("sb1"));
-                test(e.pb.pb == e.pb);
-                test(e.sde.Equals("sde1"));
-                test(e.pd1 != null);
-                test(e.pd1.sb.Equals("sb2"));
-                test(e.pd1.pb == e.pd1);
-                test(e.pd1.sd1.Equals("sd2"));
-                test(e.pd1.pd1 == e.pd1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("derived exception thrown as base exception (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_throwDerivedAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.ThrowDerivedAsBaseAsync().Wait();
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        DerivedException e = (DerivedException)ex;
-                        test(e.sbe.Equals("sbe"));
-                        test(e.pb != null);
-                        test(e.pb.sb.Equals("sb1"));
-                        test(e.pb.pb == e.pb);
-                        test(e.sde.Equals("sde1"));
-                        test(e.pd1 != null);
-                        test(e.pd1.sb.Equals("sb2"));
-                        test(e.pd1.pb == e.pd1);
-                        test(e.pd1.sd1.Equals("sd2"));
-                        test(e.pd1.pd1 == e.pd1);
+                        TestHelper.Assert(ae.InnerException != null);
+                        var e = (DerivedException)ae.InnerException;
+                        TestHelper.Assert(e.Sbe.Equals("sbe"));
+                        TestHelper.Assert(e.Pb != null);
+                        TestHelper.Assert(e.Pb.Sb.Equals("sb1"));
+                        TestHelper.Assert(e.Pb.Pb == e.Pb);
+                        TestHelper.Assert(e.Sde.Equals("sde1"));
+                        TestHelper.Assert(e.Pd1 != null);
+                        TestHelper.Assert(e.Pd1.Sb.Equals("sb2"));
+                        TestHelper.Assert(e.Pd1.Pb == e.Pd1);
+                        TestHelper.Assert(e.Pd1.Sd1.Equals("sd2"));
+                        TestHelper.Assert(e.Pd1.Pd1 == e.Pd1);
                     }
-                    catch(Exception)
+                    catch (Exception ex)
                     {
                         output.WriteLine(ex.ToString());
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-        }
-
-        {
-            try
-            {
-                testPrx.throwDerivedAsBaseAsync().Wait();
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("derived exception thrown as derived exception... ");
+            output.Flush();
             {
                 try
                 {
-                    DerivedException e = (DerivedException)ae.InnerException;
-                    test(e.sbe.Equals("sbe"));
-                    test(e.pb != null);
-                    test(e.pb.sb.Equals("sb1"));
-                    test(e.pb.pb == e.pb);
-                    test(e.sde.Equals("sde1"));
-                    test(e.pd1 != null);
-                    test(e.pd1.sb.Equals("sb2"));
-                    test(e.pd1.pb == e.pd1);
-                    test(e.pd1.sd1.Equals("sd2"));
-                    test(e.pd1.pd1 == e.pd1);
+                    testPrx.ThrowDerivedAsDerived();
+                    TestHelper.Assert(false);
                 }
-                catch(Exception ex)
+                catch (DerivedException e)
+                {
+                    TestHelper.Assert(e.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Objects.DerivedException"));
+                    TestHelper.Assert(e.Sbe.Equals("sbe"));
+                    TestHelper.Assert(e.Pb != null);
+                    TestHelper.Assert(e.Pb.Sb.Equals("sb1"));
+                    TestHelper.Assert(e.Pb.Pb == e.Pb);
+                    TestHelper.Assert(e.Sde.Equals("sde1"));
+                    TestHelper.Assert(e.Pd1 != null);
+                    TestHelper.Assert(e.Pd1.Sb.Equals("sb2"));
+                    TestHelper.Assert(e.Pd1.Pb == e.Pd1);
+                    TestHelper.Assert(e.Pd1.Sd1.Equals("sd2"));
+                    TestHelper.Assert(e.Pd1.Pd1 == e.Pd1);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("derived exception thrown as derived exception... ");
-        output.Flush();
-        {
-            try
+            output.Write("derived exception thrown as derived exception (AMI)... ");
+            output.Flush();
             {
-                testPrx.throwDerivedAsDerived();
-                test(false);
-            }
-            catch(DerivedException e)
-            {
-                test(e.GetType().FullName.Equals("Test.DerivedException"));
-                test(e.sbe.Equals("sbe"));
-                test(e.pb != null);
-                test(e.pb.sb.Equals("sb1"));
-                test(e.pb.pb == e.pb);
-                test(e.sde.Equals("sde1"));
-                test(e.pd1 != null);
-                test(e.pd1.sb.Equals("sb2"));
-                test(e.pd1.pb == e.pd1);
-                test(e.pd1.sd1.Equals("sd2"));
-                test(e.pd1.pd1 == e.pd1);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("derived exception thrown as derived exception (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_throwDerivedAsDerived().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.ThrowDerivedAsDerivedAsync().Wait();
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        DerivedException e = (DerivedException)ex;
-                        test(e.sbe.Equals("sbe"));
-                        test(e.pb != null);
-                        test(e.pb.sb.Equals("sb1"));
-                        test(e.pb.pb == e.pb);
-                        test(e.sde.Equals("sde1"));
-                        test(e.pd1 != null);
-                        test(e.pd1.sb.Equals("sb2"));
-                        test(e.pd1.pb == e.pd1);
-                        test(e.pd1.sd1.Equals("sd2"));
-                        test(e.pd1.pd1 == e.pd1);
+                        TestHelper.Assert(ae.InnerException != null);
+                        var e = (DerivedException)ae.InnerException;
+                        TestHelper.Assert(e.Sbe.Equals("sbe"));
+                        TestHelper.Assert(e.Pb != null);
+                        TestHelper.Assert(e.Pb.Sb.Equals("sb1"));
+                        TestHelper.Assert(e.Pb.Pb == e.Pb);
+                        TestHelper.Assert(e.Sde.Equals("sde1"));
+                        TestHelper.Assert(e.Pd1 != null);
+                        TestHelper.Assert(e.Pd1.Sb.Equals("sb2"));
+                        TestHelper.Assert(e.Pd1.Pb == e.Pd1);
+                        TestHelper.Assert(e.Pd1.Sd1.Equals("sd2"));
+                        TestHelper.Assert(e.Pd1.Pd1 == e.Pd1);
                     }
-                    catch(Exception)
+                    catch (Exception ex)
                     {
                         output.WriteLine(ex.ToString());
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-        }
-
-        {
-            try
-            {
-                testPrx.throwDerivedAsDerivedAsync().Wait();
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("unknown derived exception thrown as base exception... ");
+            output.Flush();
             {
                 try
                 {
-                    DerivedException e = (DerivedException)ae.InnerException;
-                    test(e.sbe.Equals("sbe"));
-                    test(e.pb != null);
-                    test(e.pb.sb.Equals("sb1"));
-                    test(e.pb.pb == e.pb);
-                    test(e.sde.Equals("sde1"));
-                    test(e.pd1 != null);
-                    test(e.pd1.sb.Equals("sb2"));
-                    test(e.pd1.pb == e.pd1);
-                    test(e.pd1.sd1.Equals("sd2"));
-                    test(e.pd1.pd1 == e.pd1);
+                    testPrx.ThrowUnknownDerivedAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(Exception ex)
+                catch (BaseException e)
+                {
+                    TestHelper.Assert(e.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Objects.BaseException"));
+                    TestHelper.Assert(e.Sbe.Equals("sbe"));
+                    TestHelper.Assert(e.Pb != null);
+                    TestHelper.Assert(e.Pb.Sb.Equals("sb d2"));
+                    TestHelper.Assert(e.Pb.Pb == e.Pb);
+                }
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("unknown derived exception thrown as base exception... ");
-        output.Flush();
-        {
-            try
+            output.Write("unknown derived exception thrown as base exception (AMI)... ");
+            output.Flush();
             {
-                testPrx.throwUnknownDerivedAsBase();
-                test(false);
-            }
-            catch(BaseException e)
-            {
-                test(e.GetType().FullName.Equals("Test.BaseException"));
-                test(e.sbe.Equals("sbe"));
-                test(e.pb != null);
-                test(e.pb.sb.Equals("sb d2"));
-                test(e.pb.pb == e.pb);
-            }
-            catch(Exception ex)
-            {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("unknown derived exception thrown as base exception (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_throwUnknownDerivedAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.ThrowUnknownDerivedAsBaseAsync().Wait();
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        BaseException e = (BaseException)ex;
-                        test(e.sbe.Equals("sbe"));
-                        test(e.pb != null);
-                        test(e.pb.sb.Equals("sb d2"));
-                        test(e.pb.pb == e.pb);
+                        TestHelper.Assert(ae.InnerException != null);
+                        var e = (BaseException)ae.InnerException;
+                        TestHelper.Assert(e.Sbe.Equals("sbe"));
+                        TestHelper.Assert(e.Pb != null);
+                        TestHelper.Assert(e.Pb.Sb.Equals("sb d2"));
+                        TestHelper.Assert(e.Pb.Pb == e.Pb);
                     }
-                    catch(Exception)
+                    catch (Exception ex)
                     {
                         output.WriteLine(ex.ToString());
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-        }
-
-        {
-            try
-            {
-                testPrx.throwUnknownDerivedAsBaseAsync().Wait();
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("forward-declared class... ");
+            output.Flush();
             {
                 try
                 {
-                    BaseException e = (BaseException)ae.InnerException;
-                    test(e.sbe.Equals("sbe"));
-                    test(e.pb != null);
-                    test(e.pb.sb.Equals("sb d2"));
-                    test(e.pb.pb == e.pb);
+                    Forward? f = testPrx.UseForward();
+                    TestHelper.Assert(f != null);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     output.WriteLine(ex.ToString());
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("forward-declared class... ");
-        output.Flush();
-        {
+            output.Write("forward-declared class (AMI)... ");
+            output.Flush();
+            {
+                TestHelper.Assert(testPrx.UseForwardAsync().Result != null);
+            }
+            output.WriteLine("ok");
+
+            output.Write("preserved classes... ");
+            output.Flush();
+
             try
             {
-                Forward f;
-                testPrx.useForward(out f);
-                test(f != null);
+                // Server knows the most-derived class PDerived.
+                var pd = new PDerived();
+                pd.Pi = 3;
+                pd.Ps = "preserved";
+                pd.Pb = pd;
+
+                PBase? r = testPrx.ExchangePBase(pd);
+                TestHelper.Assert(r != null);
+                var p2 = (PDerived)r;
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Ps.Equals("preserved"));
+                TestHelper.Assert(p2.Pb == p2);
             }
-            catch(Exception ex)
+            catch (OperationNotExistException)
             {
-                output.WriteLine(ex.ToString());
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("forward-declared class (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_useForward().whenCompleted(
-                (Forward f) =>
-                {
-                    test(f != null);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-        {
-            test(testPrx.useForwardAsync().Result != null);
-        }
-        output.WriteLine("ok");
-
-        output.Write("preserved classes... ");
-        output.Flush();
-
-        //
-        // Register a factory in order to substitute our own subclass of Preserved. This provides
-        // an easy way to determine how many unmarshaled instances currently exist.
-        //
-        // TODO: We have to install this now (even though it's not necessary yet), because otherwise
-        // the Ice run time will install its own internal factory for Preserved upon receiving the
-        // first instance.
-        //
-        communicator.getValueFactoryManager().add(PreservedFactoryI, Preserved.ice_staticId());
-
-        try
-        {
-            //
-            // Server knows the most-derived class PDerived.
-            //
-            PDerived pd = new PDerived();
-            pd.pi = 3;
-            pd.ps = "preserved";
-            pd.pb = pd;
-
-            PBase r = testPrx.exchangePBase(pd);
-            PDerived p2 = r as PDerived;
-            test(p2.pi == 3);
-            test(p2.ps.Equals("preserved"));
-            test(p2.pb == p2);
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        try
-        {
-            //
-            // Server only knows the base (non-preserved) type, so the object is sliced.
-            //
-            PCUnknown pu = new PCUnknown();
-            pu.pi = 3;
-            pu.pu = "preserved";
-
-            PBase r = testPrx.exchangePBase(pu);
-            test(!(r is PCUnknown));
-            test(r.pi == 3);
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        try
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            PCDerived pcd = new PCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            PBase r = testPrx.exchangePBase(pcd);
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                test(!(r is PCDerived));
-                test(r.pi == 3);
-            }
-            else
-            {
-                PCDerived p2 = r as PCDerived;
-                test(p2.pi == 3);
-                test(p2.pbs[0] == p2);
-            }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        try
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            CompactPCDerived pcd = new CompactPCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            PBase r = testPrx.exchangePBase(pcd);
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                test(!(r is CompactPCDerived));
-                test(r.pi == 3);
-            }
-            else
-            {
-                CompactPCDerived p2 = r as CompactPCDerived;
-                test(p2.pi == 3);
-                test(p2.pbs[0] == p2);
-            }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        try
-        {
-            //
-            // Send an object that will have multiple preserved slices in the server.
-            // The object will be sliced to Preserved for the 1.0 encoding.
-            //
-            PCDerived3 pcd = new PCDerived3();
-            pcd.pi = 3;
-            //
-            // Sending more than 254 objects exercises the encoding for object ids.
-            //
-            pcd.pbs = new PBase[300];
-            int i;
-            for(i = 0; i < 300; ++i)
-            {
-                PCDerived2 p2 = new PCDerived2();
-                p2.pi = i;
-                p2.pbs = new PBase[] { null }; // Nil reference. This slice should not have an indirection table.
-                p2.pcd2 = i;
-                pcd.pbs[i] = p2;
-            }
-            pcd.pcd2 = pcd.pi;
-            pcd.pcd3 = pcd.pbs[10];
-
-            PBase r = testPrx.exchangePBase(pcd);
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                test(!(r is PCDerived3));
-                test(r is Preserved);
-                test(r.pi == 3);
-            }
-            else
-            {
-                PCDerived3 p3 = r as PCDerived3;
-                test(p3.pi == 3);
-                for(i = 0; i < 300; ++i)
-                {
-                    PCDerived2 p2 = p3.pbs[i] as PCDerived2;
-                    test(p2.pi == i);
-                    test(p2.pbs.Length == 1);
-                    test(p2.pbs[0] == null);
-                    test(p2.pcd2 == i);
-                }
-                test(p3.pcd2 == p3.pi);
-                test(p3.pcd3 == p3.pbs[10]);
-            }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        try
-        {
-            //
-            // Obtain an object with preserved slices and send it back to the server.
-            // The preserved slices should be excluded for the 1.0 encoding, otherwise
-            // they should be included.
-            //
-            Preserved p = testPrx.PBSUnknownAsPreserved();
-            testPrx.checkPBSUnknown(p);
-            if(!testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                Ice.SlicedData slicedData = p.ice_getSlicedData();
-                test(slicedData != null);
-                test(slicedData.slices.Length == 1);
-                test(slicedData.slices[0].typeId.Equals("::Test::PSUnknown"));
-                (testPrx.ice_encodingVersion(Ice.Util.Encoding_1_0) as TestIntfPrx).checkPBSUnknown(p);
-            }
-            else
-            {
-                test(p.ice_getSlicedData() == null);
-            }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        output.WriteLine("ok");
-
-        output.Write("preserved classes (AMI)... ");
-        output.Flush();
-        {
-            //
-            // Server knows the most-derived class PDerived.
-            //
-            PDerived pd = new PDerived();
-            pd.pi = 3;
-            pd.ps = "preserved";
-            pd.pb = pd;
-
-            Callback cb = new Callback();
-            testPrx.begin_exchangePBase(pd).whenCompleted(
-                (PBase r) =>
-                {
-                    PDerived p2 = (PDerived)r;
-                    test(p2.pi == 3);
-                    test(p2.ps.Equals("preserved"));
-                    test(p2.pb == p2);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            //
-            // Server knows the most-derived class PDerived.
-            //
-            PDerived pd = new PDerived();
-            pd.pi = 3;
-            pd.ps = "preserved";
-            pd.pb = pd;
-
-            PDerived p2 = (PDerived)testPrx.exchangePBaseAsync(pd).Result;
-            test(p2.pi == 3);
-            test(p2.ps.Equals("preserved"));
-            test(p2.pb == p2);
-        }
-
-        {
-            //
-            // Server only knows the base (non-preserved) type, so the object is sliced.
-            //
-            PCUnknown pu = new PCUnknown();
-            pu.pi = 3;
-            pu.pu = "preserved";
-
-            Callback cb = new Callback();
-            testPrx.begin_exchangePBase(pu).whenCompleted(
-                (PBase r) =>
-                {
-                    test(!(r is PCUnknown));
-                    test(r.pi == 3);
-                    cb.called();
-                },
-                (Ice.Exception ex) =>
-                {
-                    output.WriteLine(ex.ToString());
-                    test(false);
-                });
-            cb.check();
-        }
-
-        {
-            //
-            // Server only knows the base (non-preserved) type, so the object is sliced.
-            //
-            PCUnknown pu = new PCUnknown();
-            pu.pi = 3;
-            pu.pu = "preserved";
-
-            PBase r = testPrx.exchangePBaseAsync(pu).Result;
-            test(!(r is PCUnknown));
-            test(r.pi == 3);
-        }
-
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            PCDerived pcd = new PCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            Callback cb = new Callback();
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        test(!(r is PCDerived));
-                        test(r.pi == 3);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            else
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        PCDerived p2 = r as PCDerived;
-                        test(p2.pi == 3);
-                        test(p2.pbs[0] == p2);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            cb.check();
-        }
-
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            PCDerived pcd = new PCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                test(!(r is PCDerived));
-                test(r.pi == 3);
-            }
-            else
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                PCDerived p2 = r as PCDerived;
-                test(p2.pi == 3);
-                test(p2.pbs[0] == p2);
-            }
-        }
-
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            CompactPCDerived pcd = new CompactPCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            Callback cb = new Callback();
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        test(!(r is CompactPCDerived));
-                        test(r.pi == 3);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            else
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        CompactPCDerived p2 = r as CompactPCDerived;
-                        test(p2.pi == 3);
-                        test(p2.pbs[0] == p2);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            cb.check();
-        }
-
-        {
-            //
-            // Server only knows the intermediate type Preserved. The object will be sliced to
-            // Preserved for the 1.0 encoding; otherwise it should be returned intact.
-            //
-            CompactPCDerived pcd = new CompactPCDerived();
-            pcd.pi = 3;
-            pcd.pbs = new PBase[] { pcd };
-
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                test(!(r is CompactPCDerived));
-                test(r.pi == 3);
-            }
-            else
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                CompactPCDerived p2 = r as CompactPCDerived;
-                test(p2.pi == 3);
-                test(p2.pbs[0] == p2);
-            }
-        }
-
-        {
-            //
-            // Send an object that will have multiple preserved slices in the server.
-            // The object will be sliced to Preserved for the 1.0 encoding.
-            //
-            PCDerived3 pcd = new PCDerived3();
-            pcd.pi = 3;
-            //
-            // Sending more than 254 objects exercises the encoding for object ids.
-            //
-            pcd.pbs = new PBase[300];
-            for(int i = 0; i < 300; ++i)
-            {
-                PCDerived2 p2 = new PCDerived2();
-                p2.pi = i;
-                p2.pbs = new PBase[] { null }; // Nil reference. This slice should not have an indirection table.
-                p2.pcd2 = i;
-                pcd.pbs[i] = p2;
-            }
-            pcd.pcd2 = pcd.pi;
-            pcd.pcd3 = pcd.pbs[10];
-
-            Callback cb = new Callback();
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        test(!(r is PCDerived3));
-                        test(r is Preserved);
-                        test(r.pi == 3);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            else
-            {
-                testPrx.begin_exchangePBase(pcd).whenCompleted(
-                    (PBase r) =>
-                    {
-                        PCDerived3 p3 = r as PCDerived3;
-                        test(p3.pi == 3);
-                        for(int i = 0; i < 300; ++i)
-                        {
-                            PCDerived2 p2 = p3.pbs[i] as PCDerived2;
-                            test(p2.pi == i);
-                            test(p2.pbs.Length == 1);
-                            test(p2.pbs[0] == null);
-                            test(p2.pcd2 == i);
-                        }
-                        test(p3.pcd2 == p3.pi);
-                        test(p3.pcd3 == p3.pbs[10]);
-                        cb.called();
-                    },
-                    (Ice.Exception ex) =>
-                    {
-                        output.WriteLine(ex.ToString());
-                        test(false);
-                    });
-            }
-            cb.check();
-        }
-
-        {
-            //
-            // Send an object that will have multiple preserved slices in the server.
-            // The object will be sliced to Preserved for the 1.0 encoding.
-            //
-            PCDerived3 pcd = new PCDerived3();
-            pcd.pi = 3;
-            //
-            // Sending more than 254 objects exercises the encoding for object ids.
-            //
-            pcd.pbs = new PBase[300];
-            for(int i = 0; i < 300; ++i)
-            {
-                PCDerived2 p2 = new PCDerived2();
-                p2.pi = i;
-                p2.pbs = new PBase[] { null }; // Nil reference. This slice should not have an indirection table.
-                p2.pcd2 = i;
-                pcd.pbs[i] = p2;
-            }
-            pcd.pcd2 = pcd.pi;
-            pcd.pcd3 = pcd.pbs[10];
-
-            if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                test(!(r is PCDerived3));
-                test(r is Preserved);
-                test(r.pi == 3);
-            }
-            else
-            {
-                PBase r = testPrx.exchangePBaseAsync(pcd).Result;
-                PCDerived3 p3 = r as PCDerived3;
-                test(p3.pi == 3);
-                for(int i = 0; i < 300; ++i)
-                {
-                    PCDerived2 p2 = p3.pbs[i] as PCDerived2;
-                    test(p2.pi == i);
-                    test(p2.pbs.Length == 1);
-                    test(p2.pbs[0] == null);
-                    test(p2.pcd2 == i);
-                }
-                test(p3.pcd2 == p3.pi);
-                test(p3.pcd3 == p3.pbs[10]);
-            }
-        }
-
-        try
-        {
-            //
-            // Obtain an object with preserved slices and send it back to the server.
-            // The preserved slices should be excluded for the 1.0 encoding, otherwise
-            // they should be included.
-            //
-            Preserved p = testPrx.PBSUnknownAsPreserved();
-            testPrx.checkPBSUnknown(p);
-            if(!testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-            {
-                (testPrx.ice_encodingVersion(Ice.Util.Encoding_1_0) as TestIntfPrx).checkPBSUnknown(p);
-            }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
-
-        output.WriteLine("ok");
-
-        output.Write("garbage collection for preserved classes... ");
-        output.Flush();
-        try
-        {
-            //
-            // Register a factory in order to substitute our own subclass of PNode. This provides
-            // an easy way to determine how many unmarshaled instances currently exist.
-            //
-            communicator.getValueFactoryManager().add((string id) =>
-            {
-                if(id.Equals(PNode.ice_staticId()))
-                {
-                    return new PNodeI();
-                }
-                return null;
-            }, PNode.ice_staticId());
-
-            //
-            // Relay a graph through the server.
-            //
-            {
-                PNode c = new PNode();
-                c.next = new PNode();
-                c.next.next = new PNode();
-                c.next.next.next = c;
-
-                test(PNodeI.counter == 0);
-                PNode n = testPrx.exchangePNode(c);
-
-                test(PNodeI.counter == 3);
-                PNodeI.counter = 0;
-                n.next = null;
             }
 
-            //
-            // Obtain a preserved object from the server where the most-derived
-            // type is unknown. The preserved slice refers to a graph of PNode
-            // objects.
-            //
-            {
-                test(PNodeI.counter == 0);
-                Preserved p = testPrx.PBSUnknownAsPreservedWithGraph();
-                testPrx.checkPBSUnknownWithGraph(p);
-                test(PNodeI.counter == 3);
-                PNodeI.counter = 0;
-            }
-
-            //
-            // Obtain a preserved object from the server where the most-derived
-            // type is unknown. A data member in the preserved slice refers to the
-            // outer object, so the chain of references looks like this:
-            //
-            // outer.iceSlicedData_.outer
-            //
-            {
-                PreservedI.counter = 0;
-                Preserved p = testPrx.PBSUnknown2AsPreservedWithGraph();
-                testPrx.checkPBSUnknown2WithGraph(p);
-                test(PreservedI.counter == 1);
-                PreservedI.counter = 0;
-            }
-
-            //
-            // Throw a preserved exception where the most-derived type is unknown.
-            // The preserved exception slice contains a class data member. This
-            // object is also preserved, and its most-derived type is also unknown.
-            // The preserved slice of the object contains a class data member that
-            // refers to itself.
-            //
-            // The chain of references looks like this:
-            //
-            // ex.slicedData_.obj.iceSlicedData_.obj
-            //
             try
             {
-                test(PreservedI.counter == 0);
+                // Server only knows the base (non-preserved) type, so the object is sliced.
+                var pu = new PCUnknown();
+                pu.Pi = 3;
+                pu.Pu = "preserved";
 
+                PBase? r = testPrx.ExchangePBase(pu);
+                TestHelper.Assert(r != null);
+                TestHelper.Assert(!(r is PCUnknown));
+                TestHelper.Assert(r.Pi == 3);
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            try
+            {
+                // Server only knows the intermediate type Preserved. The object will be sliced to Preserved for the
+                // 1.0 encoding; otherwise it should be returned intact.
+                var pcd = new PCDerived(3, "", null, Array.Empty<PBase>());
+                pcd.Pbs = new PBase[] { pcd };
+
+                PBase? r = testPrx.ExchangePBase(pcd);
+                TestHelper.Assert(r is PCDerived);
+                var p2 = (PCDerived)r;
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Pbs[0] == p2);
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            try
+            {
+                // Server only knows the intermediate type Preserved. The object will be sliced to Preserved for the
+                // 1.0 encoding; otherwise it should be returned intact.
+                var pcd = new CompactPCDerived(3, "", null, Array.Empty<PBase>());
+                pcd.Pbs = new PBase[] { pcd };
+
+                PBase? r = testPrx.ExchangePBase(pcd);
+                TestHelper.Assert(r is CompactPCDerived);
+                var p2 = (CompactPCDerived)r;
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Pbs[0] == p2);
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            try
+            {
+                // Send an object that will have multiple preserved slices in the server. The object will be sliced
+                // to Preserved for the 1.0 encoding.
+                var pcd = new PCDerived3(3, "", null, Array.Empty<PBase>(), 0, null);
+
+                // Sending more than 254 objects exercises the encoding for object ids.
+                pcd.Pbs = new PBase[300];
+                int i;
+                for (i = 0; i < 300; ++i)
+                {
+                    var p2 = new PCDerived2(i, "", null, Array.Empty<PBase>(), i);
+                    p2.Pbs = new PBase?[] { null }; // Nil reference. This slice should not have an indirection table.
+                    pcd.Pbs[i] = p2;
+                }
+                pcd.Pcd2 = pcd.Pi;
+                pcd.Pcd3 = pcd.Pbs[10];
+
+                PBase? r = testPrx.ExchangePBase(pcd);
+                TestHelper.Assert(r is PCDerived3);
+                var p3 = (PCDerived3)r;
+                TestHelper.Assert(p3.Pi == 3);
+                for (i = 0; i < 300; ++i)
+                {
+                    var p2 = (PCDerived2)p3.Pbs[i]!;
+                    TestHelper.Assert(p2.Pi == i);
+                    TestHelper.Assert(p2.Pbs.Length == 1);
+                    TestHelper.Assert(p2.Pbs[0] == null);
+                    TestHelper.Assert(p2.Pcd2 == i);
+                }
+                TestHelper.Assert(p3.Pcd2 == p3.Pi);
+                TestHelper.Assert(p3.Pcd3 == p3.Pbs[10]);
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            try
+            {
+                // Obtain an object with preserved slices and send it back to the server. The preserved slices should
+                // be excluded for the 1.0 encoding, otherwise they should be included.
+                Preserved? p = testPrx.PBSUnknownAsPreserved();
+                TestHelper.Assert(p != null);
+                testPrx.CheckPBSUnknown(p);
+                IReadOnlyList<SliceInfo>? slices = p.GetSlicedData()!.Value.Slices;
+                TestHelper.Assert(slices.Count == 1);
+                TestHelper.Assert(slices[0].TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Objects::PSUnknown"));
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("preserved classes (AMI)... ");
+            output.Flush();
+            {
+                // Server knows the most-derived class PDerived.
+                var pd = new PDerived();
+                pd.Pi = 3;
+                pd.Ps = "preserved";
+                pd.Pb = pd;
+
+                var p2 = (PDerived?)testPrx.ExchangePBaseAsync(pd).Result;
+                TestHelper.Assert(p2 != null);
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Ps.Equals("preserved"));
+                TestHelper.Assert(p2.Pb == p2);
+            }
+
+            {
+                // Server only knows the base (non-preserved) type, so the object is sliced.
+                var pu = new PCUnknown();
+                pu.Pi = 3;
+                pu.Pu = "preserved";
+
+                PBase? r = testPrx.ExchangePBaseAsync(pu).Result;
+                TestHelper.Assert(r != null);
+                TestHelper.Assert(!(r is PCUnknown));
+                TestHelper.Assert(r.Pi == 3);
+            }
+
+            {
+                // Server only knows the intermediate type Preserved. The object will be sliced to Preserved for the
+                // 1.0 encoding; otherwise it should be returned intact.
+                var pcd = new PCDerived(3, "", null, Array.Empty<PBase>());
+                pcd.Pbs = new PBase[] { pcd };
+
+                PBase? r = testPrx.ExchangePBaseAsync(pcd).Result;
+                TestHelper.Assert(r != null);
+                var p2 = (PCDerived)r;
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Pbs[0] == p2);
+            }
+
+            {
+                // Server only knows the intermediate type Preserved. The object will be sliced to Preserved for the
+                // 1.0 encoding; otherwise it should be returned intact.
+                var pcd = new CompactPCDerived(3, "", null, Array.Empty<PBase>());
+                pcd.Pbs = new PBase[] { pcd };
+
+                PBase? r = testPrx.ExchangePBaseAsync(pcd).Result;
+                TestHelper.Assert(r != null);
+                var p2 = (CompactPCDerived)r;
+                TestHelper.Assert(p2.Pi == 3);
+                TestHelper.Assert(p2.Pbs[0] == p2);
+            }
+
+            {
+                // Send an object that will have multiple preserved slices in the server. The object will be sliced to
+                // Preserved for the 1.0 encoding.
+                var pcd = new PCDerived3(3, "", null, Array.Empty<PBase>(), 0, null);
+
+                // Sending more than 254 objects exercises the encoding for object ids.
+                pcd.Pbs = new PBase[300];
+                for (int i = 0; i < 300; ++i)
+                {
+                    var p2 = new PCDerived2(i, "", null, Array.Empty<PBase>(), i);
+                    p2.Pbs = new PBase?[] { null }; // Nil reference. This slice should not have an indirection table.
+                    pcd.Pbs[i] = p2;
+                }
+                pcd.Pcd2 = pcd.Pi;
+                pcd.Pcd3 = pcd.Pbs[10];
+
+                PBase? r = testPrx.ExchangePBaseAsync(pcd).Result;
+                TestHelper.Assert(r != null);
+                var p3 = (PCDerived3)r;
+                TestHelper.Assert(p3.Pi == 3);
+                for (int i = 0; i < 300; ++i)
+                {
+                    var p2 = (PCDerived2?)p3.Pbs[i];
+                    TestHelper.Assert(p2 != null);
+                    TestHelper.Assert(p2.Pi == i);
+                    TestHelper.Assert(p2.Pbs.Length == 1);
+                    TestHelper.Assert(p2.Pbs[0] == null);
+                    TestHelper.Assert(p2.Pcd2 == i);
+                }
+                TestHelper.Assert(p3.Pcd2 == p3.Pi);
+                TestHelper.Assert(p3.Pcd3 == p3.Pbs[10]);
+            }
+
+            try
+            {
+                // Obtain an object with preserved slices and send it back to the server. The preserved slices should
+                // be excluded for the 1.0 encoding, otherwise they should be included.
+                Preserved? p = testPrx.PBSUnknownAsPreserved();
+                testPrx.CheckPBSUnknown(p);
+            }
+            catch (OperationNotExistException)
+            {
+            }
+
+            output.WriteLine("ok");
+
+            output.Write("garbage collection for preserved classes... ");
+            output.Flush();
+            try
+            {
+                // Relay a graph through the server.
+                {
+                    var c = new PNode();
+                    c.Next = new PNode();
+                    c.Next.Next = new PNode();
+                    c.Next.Next.Next = c;
+
+                    TestHelper.Assert(PNode.Counter == 3);
+                    PNode? n = testPrx.ExchangePNode(c);
+                    TestHelper.Assert(n != null);
+                    TestHelper.Assert(PNode.Counter == 6);
+                    PNode.Counter = 0;
+                    n.Next = null;
+                }
+
+                // Obtain a preserved object from the server where the most-derived type is unknown. The preserved
+                // slice refers to a graph of PNode objects.
+                {
+                    TestHelper.Assert(PNode.Counter == 0);
+                    Preserved? p = testPrx.PBSUnknownAsPreservedWithGraph();
+                    testPrx.CheckPBSUnknownWithGraph(p);
+                    TestHelper.Assert(PNode.Counter == 3);
+                    PNode.Counter = 0;
+                }
+
+                // Obtain a preserved object from the server where the most-derived type is unknown. A data member in
+                // the preserved slice refers to the outer object, so the chain of references looks like this:
+                //
+                // outer.iceSlicedData_.outer
+                {
+                    Preserved.Counter = 0;
+                    Preserved? p = testPrx.PBSUnknown2AsPreservedWithGraph();
+                    testPrx.CheckPBSUnknown2WithGraph(p);
+                    TestHelper.Assert(Preserved.Counter == 1);
+                    Preserved.Counter = 0;
+                }
+                // Throw a preserved exception where the most-derived type is unknown. The preserved exception slice
+                // contains a class data member. This object is also preserved, and its most-derived type is also
+                // unknown. The preserved slice of the object contains a class data member that refers to itself.
+                //
+                // The chain of references looks like this:
+                //
+                // ex.slicedData_.obj.iceSlicedData_.obj
                 try
                 {
-                    testPrx.throwPreservedException();
+                    TestHelper.Assert(Preserved.Counter == 0);
+
+                    try
+                    {
+                        testPrx.ThrowPreservedException();
+                    }
+                    catch (PreservedException)
+                    {
+                        TestHelper.Assert(Preserved.Counter == 1);
+                    }
+
+                    Preserved.Counter = 0;
                 }
-                catch(PreservedException)
+                catch (Exception ex)
                 {
-                    test(PreservedI.counter == 1);
+                    output.WriteLine(ex.ToString());
+                    TestHelper.Assert(false);
                 }
-
-                PreservedI.counter = 0;
             }
-            catch(Exception ex)
+            catch (OperationNotExistException)
             {
-                output.WriteLine(ex.ToString());
-                test(false);
             }
-        }
-        catch(Ice.OperationNotExistException)
-        {
-        }
 
-        output.WriteLine("ok");
-        return testPrx;
+            output.WriteLine("ok");
+            return testPrx;
+        }
     }
 }

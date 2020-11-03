@@ -1,932 +1,617 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Collections;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
-namespace IceInternal
+using EndpointList = System.Collections.Generic.IReadOnlyList<ZeroC.Ice.Endpoint>;
+using Location = System.Collections.Generic.IReadOnlyList<string>;
+
+namespace ZeroC.Ice
 {
-    public sealed class LocatorInfo
+    /// <summary>The locator info class caches information specific to a given locator proxy. The communicator holds a
+    /// locator info instance per locator proxy set either with Ice.Default.Locator or the proxy's Locator property. It
+    /// caches the locator registry proxy and keeps track of requests to the locator to prevent multiple concurrent
+    /// identical requests.</summary>
+    internal sealed class LocatorInfo
     {
-        public interface GetEndpointsCallback
+        internal ILocatorPrx Locator { get; }
+
+        private static readonly IEqualityComparer<(Location, Protocol)> _locationComparer = new LocationComparer();
+
+        private readonly bool _background;
+
+        private readonly ConcurrentDictionary<(Location, Protocol), (TimeSpan InsertionTime, EndpointList Endpoints, Location Location)> _locationCache =
+            new (_locationComparer);
+
+        private readonly Dictionary<(Location, Protocol), Task<(EndpointList, Location)>> _locationRequests =
+             new (_locationComparer);
+
+        private ILocatorRegistryPrx? _locatorRegistry;
+
+        // _mutex protects _locationRequests and _wellKnownProxyRequests
+        private readonly object _mutex = new ();
+
+        private readonly ConcurrentDictionary<(Identity, string, Protocol), (TimeSpan InsertionTime, EndpointList Endpoints, Location Location)> _wellKnownProxyCache =
+            new ();
+
+        private readonly Dictionary<(Identity, string, Protocol), Task<(EndpointList, Location)>> _wellKnownProxyRequests =
+            new ();
+
+        internal LocatorInfo(ILocatorPrx locator, bool background)
         {
-            void setEndpoints(EndpointI[] endpoints, bool cached);
-            void setException(Ice.LocalException ex);
-        }
-
-        private class RequestCallback
-        {
-            public void
-            response(LocatorInfo locatorInfo, Ice.ObjectPrx proxy)
-            {
-                EndpointI[] endpoints = null;
-                if(proxy != null)
-                {
-                    Reference r = ((Ice.ObjectPrxHelperBase)proxy).iceReference();
-                    if(_ref.isWellKnown() && !Protocol.isSupported(_ref.getEncoding(), r.getEncoding()))
-                    {
-                        //
-                        // If a well-known proxy and the returned
-                        // proxy encoding isn't supported, we're done:
-                        // there's no compatible endpoint we can use.
-                        //
-                    }
-                    else if(!r.isIndirect())
-                    {
-                        endpoints = r.getEndpoints();
-                    }
-                    else if(_ref.isWellKnown() && !r.isWellKnown())
-                    {
-                        //
-                        // We're resolving the endpoints of a well-known object and the proxy returned
-                        // by the locator is an indirect proxy. We now need to resolve the endpoints
-                        // of this indirect proxy.
-                        //
-                        if(_ref.getInstance().traceLevels().location >= 1)
-                        {
-                            locatorInfo.trace("retrieved adapter for well-known object from locator, " +
-                                              "adding to locator cache", _ref, r);
-                        }
-                        locatorInfo.getEndpoints(r, _ref, _ttl, _callback);
-                        return;
-                    }
-                }
-
-                if(_ref.getInstance().traceLevels().location >= 1)
-                {
-                    locatorInfo.getEndpointsTrace(_ref, endpoints, false);
-                }
-                if(_callback != null)
-                {
-                    _callback.setEndpoints(endpoints == null ? new EndpointI[0] : endpoints, false);
-                }
-            }
-
-            public void
-            exception(LocatorInfo locatorInfo, Ice.Exception exc)
-            {
-                try
-                {
-                    locatorInfo.getEndpointsException(_ref, exc); // This throws.
-                }
-                catch(Ice.LocalException ex)
-                {
-                    if(_callback != null)
-                    {
-                        _callback.setException(ex);
-                    }
-                }
-            }
-
-            public
-            RequestCallback(Reference @ref, int ttl, GetEndpointsCallback cb)
-            {
-                _ref = @ref;
-                _ttl = ttl;
-                _callback = cb;
-            }
-
-            readonly Reference _ref;
-            readonly int _ttl;
-            readonly GetEndpointsCallback _callback;
-        }
-
-        private abstract class Request
-        {
-            public void
-            addCallback(Reference @ref, Reference wellKnownRef, int ttl, GetEndpointsCallback cb)
-            {
-                RequestCallback callback = new RequestCallback(@ref, ttl, cb);
-                lock(this)
-                {
-                    if(!_response && _exception == null)
-                    {
-                        _callbacks.Add(callback);
-                        if(wellKnownRef != null)
-                        {
-                            // This request is to resolve the endpoints of a cached well-known object ref
-                            _wellKnownRefs.Add(wellKnownRef);
-                        }
-                        if(!_sent)
-                        {
-                            _sent = true;
-                            send();
-                        }
-                        return;
-                    }
-                }
-
-                if(_response)
-                {
-                    callback.response(_locatorInfo, _proxy);
-                }
-                else
-                {
-                    Debug.Assert(_exception != null);
-                    callback.exception(_locatorInfo, _exception);
-                }
-            }
-
-            public Request(LocatorInfo locatorInfo, Reference @ref)
-            {
-                _locatorInfo = locatorInfo;
-                _ref = @ref;
-                _sent = false;
-                _response = false;
-            }
-
-            public void
-            response(Ice.ObjectPrx proxy)
-            {
-                lock(this)
-                {
-                    _locatorInfo.finishRequest(_ref, _wellKnownRefs, proxy, false);
-                    _response = true;
-                    _proxy = proxy;
-                    Monitor.PulseAll(this);
-                }
-                foreach(RequestCallback callback in _callbacks)
-                {
-                    callback.response(_locatorInfo, proxy);
-                }
-            }
-
-            public void
-            exception(Ice.Exception ex)
-            {
-                lock(this)
-                {
-                    _locatorInfo.finishRequest(_ref, _wellKnownRefs, null, ex is Ice.UserException);
-                    _exception = ex;
-                    Monitor.PulseAll(this);
-                }
-                foreach(RequestCallback callback in _callbacks)
-                {
-                    callback.exception(_locatorInfo, ex);
-                }
-            }
-
-            protected abstract void send();
-
-            readonly protected LocatorInfo _locatorInfo;
-            readonly protected Reference _ref;
-
-            private List<RequestCallback> _callbacks = new List<RequestCallback>();
-            private List<Reference> _wellKnownRefs = new List<Reference>();
-            private bool _sent;
-            private bool _response;
-            private Ice.ObjectPrx _proxy;
-            private Ice.Exception _exception;
-        }
-
-        private class ObjectRequest : Request
-        {
-            public ObjectRequest(LocatorInfo locatorInfo, Reference @ref) : base(locatorInfo, @ref)
-            {
-            }
-
-            override protected void
-            send()
-            {
-                try
-                {
-                    _locatorInfo.getLocator().begin_findObjectById(_ref.getIdentity()).whenCompleted(
-                        this.response, this.exception);
-                }
-                catch(Ice.Exception ex)
-                {
-                    exception(ex);
-                }
-            }
-        }
-
-        private class AdapterRequest : Request
-        {
-            public AdapterRequest(LocatorInfo locatorInfo, Reference @ref) : base(locatorInfo, @ref)
-            {
-            }
-
-            override protected void
-            send()
-            {
-                try
-                {
-                    _locatorInfo.getLocator().begin_findAdapterById(_ref.getAdapterId()).whenCompleted(
-                        response, exception);
-                }
-                catch(Ice.Exception ex)
-                {
-                    exception(ex);
-                }
-            }
-        }
-
-        internal LocatorInfo(Ice.LocatorPrx locator, LocatorTable table, bool background)
-        {
-            _locator = locator;
-            _table = table;
+            Locator = locator;
             _background = background;
         }
 
-        public void destroy()
+        internal void ClearCache(Reference reference)
         {
-            lock(this)
+            Debug.Assert(reference.IsIndirect);
+
+            if (reference.IsWellKnown)
             {
-                _locatorRegistry = null;
-                _table.clear();
-            }
-        }
-
-        public override bool Equals(object obj)
-        {
-            if(ReferenceEquals(this, obj))
-            {
-                return true;
-            }
-
-            LocatorInfo rhs = obj as LocatorInfo;
-            return rhs == null ? false : _locator.Equals(rhs._locator);
-        }
-
-        public override int GetHashCode()
-        {
-            return _locator.GetHashCode();
-        }
-
-        public Ice.LocatorPrx getLocator()
-        {
-            //
-            // No synchronization necessary, _locator is immutable.
-            //
-            return _locator;
-        }
-
-        public Ice.LocatorRegistryPrx getLocatorRegistry()
-        {
-            lock(this)
-            {
-                if(_locatorRegistry != null)
+                if (_wellKnownProxyCache.TryRemove(
+                    (reference.Identity, reference.Facet, reference.Protocol),
+                    out (TimeSpan _, EndpointList Endpoints, Location Location) entry))
                 {
-                    return _locatorRegistry;
+                    if (entry.Endpoints.Count > 0)
+                    {
+                        if (reference.Communicator.TraceLevels.Locator >= 2)
+                        {
+                            Trace("removed well-known proxy with endpoints from locator cache",
+                                  reference,
+                                  entry.Endpoints,
+                                  entry.Location);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Assert(entry.Location.Count > 0);
+                        if (reference.Communicator.TraceLevels.Locator >= 2)
+                        {
+                            Trace("removed well-known proxy without endpoints from locator cache",
+                                  reference,
+                                  entry.Location);
+                        }
+
+                        ClearCache(entry.Location, reference.Protocol, reference.Communicator);
+                    }
                 }
             }
-
-            //
-            // Do not make locator calls from within sync.
-            //
-            Ice.LocatorRegistryPrx locatorRegistry = _locator.getRegistry();
-            if(locatorRegistry == null)
+            else
             {
-                return null;
-            }
-
-            lock(this)
-            {
-                //
-                // The locator registry can't be located. We use ordered
-                // endpoint selection in case the locator returned a proxy
-                // with some endpoints which are prefered to be tried first.
-                //
-                _locatorRegistry = (Ice.LocatorRegistryPrx)locatorRegistry.ice_locator(null).ice_endpointSelection(
-                    Ice.EndpointSelectionType.Ordered);
-                return _locatorRegistry;
+                ClearCache(reference.Location, reference.Protocol, reference.Communicator);
             }
         }
 
-        public void
-        getEndpoints(Reference @ref, int ttl, GetEndpointsCallback callback)
+        /// <summary>Resolves an indirect reference using the locator proxy or cache.</summary>
+        internal async ValueTask<(EndpointList Endpoints, Location Location, bool Cached)> ResolveIndirectReferenceAsync(
+            Reference reference,
+            CancellationToken cancel)
         {
-            getEndpoints(@ref, null, ttl, callback);
-        }
+            Debug.Assert(reference.IsIndirect);
 
-        public void
-        getEndpoints(Reference @ref, Reference wellKnownRef, int ttl, GetEndpointsCallback callback)
-        {
-            Debug.Assert(@ref.isIndirect());
-            EndpointI[] endpoints = null;
+            EndpointList endpoints = ImmutableArray<Endpoint>.Empty;
+            Location newLocation = ImmutableArray<string>.Empty;
             bool cached = false;
-            if(!@ref.isWellKnown())
+
+            Location locationToResolve = reference.Location;
+
+            if (reference.IsWellKnown)
             {
-                endpoints = _table.getAdapterEndpoints(@ref.getAdapterId(), ttl, out cached);
-                if(!cached)
+                // First, we check the cache.
+                (endpoints, newLocation, cached) = GetResolvedWellKnownProxyFromCache(reference,
+                                                                                      reference.LocatorCacheTimeout);
+                if (!cached)
                 {
-                    if(_background && endpoints != null)
+                    if (_background && (endpoints.Count > 0 || newLocation.Count > 0))
                     {
-                        getAdapterRequest(@ref).addCallback(@ref, wellKnownRef, ttl, null);
+                        // Entry is returned from the cache but TTL was reached, if backgrounds updates are configured,
+                        // we make a new resolution to refresh the cache but use the stale info to not block the caller.
+                        _ = ResolveWellKnownProxyAsync(reference, cancel: default);
                     }
                     else
                     {
-                        getAdapterRequest(@ref).addCallback(@ref, wellKnownRef, ttl, callback);
-                        return;
+                        (endpoints, newLocation) =
+                            await ResolveWellKnownProxyAsync(reference, cancel).ConfigureAwait(false);
                     }
                 }
+
+                locationToResolve = endpoints.Count == 0 ? newLocation : ImmutableArray<string>.Empty;
             }
-            else
+
+            if (locationToResolve.Count > 0)
             {
-                Reference r = _table.getObjectReference(@ref.getIdentity(), ttl, out cached);
-                if(!cached)
+                bool cachedLocation;
+
+                (endpoints, newLocation, cachedLocation) =
+                    GetResolvedLocationFromCache(locationToResolve, reference.Protocol, reference.LocatorCacheTimeout);
+
+                if (!cachedLocation)
                 {
-                    if(_background && r != null)
+                    if (_background && endpoints.Count > 0)
                     {
-                        getObjectRequest(@ref).addCallback(@ref, null, ttl, null);
+                        // Endpoints are returned from the cache but TTL was reached, if backgrounds updates
+                        // are configured, we obtain new endpoints but continue using the stale endpoints to
+                        // not block the caller.
+                        _ = ResolveLocationAsync(locationToResolve,
+                                                 reference.Protocol,
+                                                 reference.Communicator,
+                                                 cancel: default);
                     }
                     else
                     {
-                        getObjectRequest(@ref).addCallback(@ref, null, ttl, callback);
-                        return;
-                    }
-                }
-
-                if(!r.isIndirect())
-                {
-                    endpoints = r.getEndpoints();
-                }
-                else if(!r.isWellKnown())
-                {
-                    if(@ref.getInstance().traceLevels().location >= 1)
-                    {
-                        trace("found adapter for well-known object in locator cache", @ref, r);
-                    }
-                    getEndpoints(r, @ref, ttl, callback);
-                    return;
-                }
-            }
-
-            Debug.Assert(endpoints != null);
-            if(@ref.getInstance().traceLevels().location >= 1)
-            {
-                getEndpointsTrace(@ref, endpoints, true);
-            }
-            if(callback != null)
-            {
-                callback.setEndpoints(endpoints, true);
-            }
-        }
-
-        public void clearCache(Reference rf)
-        {
-            Debug.Assert(rf.isIndirect());
-            if(!rf.isWellKnown())
-            {
-                EndpointI[] endpoints = _table.removeAdapterEndpoints(rf.getAdapterId());
-
-                if(endpoints != null && rf.getInstance().traceLevels().location >= 2)
-                {
-                    trace("removed endpoints for adapter from locator cache", rf, endpoints);
-                }
-            }
-            else
-            {
-                Reference r = _table.removeObjectReference(rf.getIdentity());
-                if(r != null)
-                {
-                    if(!r.isIndirect())
-                    {
-                        if(rf.getInstance().traceLevels().location >= 2)
+                        try
                         {
-                            trace("removed endpoints for well-known object from locator cache", rf, r.getEndpoints());
+                            (endpoints, newLocation) =
+                                await ResolveLocationAsync(locationToResolve,
+                                                           reference.Protocol,
+                                                           reference.Communicator,
+                                                           cancel).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            // If we can't resolve the location we clear the resolved well-known proxy from the cache.
+                            if (endpoints.Count == 0 && reference.IsWellKnown)
+                            {
+                                ClearCache(reference);
+                            }
                         }
                     }
-                    else if(!r.isWellKnown())
+                }
+
+                if (!reference.IsWellKnown)
+                {
+                    cached = cachedLocation;
+                }
+            }
+
+            if (reference.Communicator.TraceLevels.Locator >= 1)
+            {
+                if (endpoints.Count > 0)
+                {
+                    if (reference.IsWellKnown)
                     {
-                        if(rf.getInstance().traceLevels().location >= 2)
-                        {
-                            trace("removed adapter for well-known object from locator cache", rf, r);
-                        }
-                        clearCache(r);
-                    }
-                }
-            }
-        }
-
-        private void trace(string msg, Reference r, EndpointI[] endpoints)
-        {
-            System.Text.StringBuilder s = new System.Text.StringBuilder();
-            s.Append(msg + "\n");
-            if(r.getAdapterId().Length > 0)
-            {
-                s.Append("adapter = " + r.getAdapterId() + "\n");
-            }
-            else
-            {
-                s.Append("well-known proxy = " + r.ToString() + "\n");
-            }
-
-            s.Append("endpoints = ");
-            int sz = endpoints.Length;
-            for (int i = 0; i < sz; i++)
-            {
-                s.Append(endpoints[i].ToString());
-                if(i + 1 < sz)
-                {
-                    s.Append(":");
-                }
-            }
-
-            r.getInstance().initializationData().logger.trace(r.getInstance().traceLevels().locationCat, s.ToString());
-        }
-
-        private void trace(string msg, Reference r, Reference resolved)
-        {
-            Debug.Assert(r.isWellKnown());
-
-            System.Text.StringBuilder s = new System.Text.StringBuilder();
-            s.Append(msg);
-            s.Append("\n");
-            s.Append("well-known proxy = ");
-            s.Append(r.ToString());
-            s.Append("\n");
-            s.Append("adapter = ");
-            s.Append(resolved.getAdapterId());
-
-            r.getInstance().initializationData().logger.trace(r.getInstance().traceLevels().locationCat, s.ToString());
-        }
-
-        private void getEndpointsException(Reference @ref, System.Exception exc)
-        {
-            try
-            {
-                throw exc;
-            }
-            catch(Ice.AdapterNotFoundException ex)
-            {
-                Instance instance = @ref.getInstance();
-                if(instance.traceLevels().location >= 1)
-                {
-                    System.Text.StringBuilder s = new System.Text.StringBuilder();
-                    s.Append("adapter not found\n");
-                    s.Append("adapter = " + @ref.getAdapterId());
-                    instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
-                }
-
-                Ice.NotRegisteredException e = new Ice.NotRegisteredException(ex);
-                e.kindOfObject = "object adapter";
-                e.id = @ref.getAdapterId();
-                throw e;
-            }
-            catch(Ice.ObjectNotFoundException ex)
-            {
-                Instance instance = @ref.getInstance();
-                if(instance.traceLevels().location >= 1)
-                {
-                    System.Text.StringBuilder s = new System.Text.StringBuilder();
-                    s.Append("object not found\n");
-                    s.Append("object = " + Ice.Util.identityToString(@ref.getIdentity(), instance.toStringMode()));
-                    instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
-                }
-
-                Ice.NotRegisteredException e = new Ice.NotRegisteredException(ex);
-                e.kindOfObject = "object";
-                e.id = Ice.Util.identityToString(@ref.getIdentity(), instance.toStringMode());
-                throw e;
-            }
-            catch(Ice.NotRegisteredException)
-            {
-                throw;
-            }
-            catch(Ice.LocalException ex)
-            {
-                Instance instance = @ref.getInstance();
-                if(instance.traceLevels().location >= 1)
-                {
-                    System.Text.StringBuilder s = new System.Text.StringBuilder();
-                    s.Append("couldn't contact the locator to retrieve endpoints\n");
-                    if(@ref.getAdapterId().Length > 0)
-                    {
-                        s.Append("adapter = " + @ref.getAdapterId() + "\n");
+                        Trace(cached ? $"found entry for well-known proxy in locator cache" :
+                                  $"resolved well-known proxy using locator, adding to locator cache",
+                              reference,
+                              endpoints,
+                              newLocation);
                     }
                     else
                     {
-                        s.Append("well-known proxy = " + @ref.ToString() + "\n");
-                    }
-                    s.Append("reason = " + ex);
-                    instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
-                }
-                throw;
-            }
-            catch(System.Exception)
-            {
-                Debug.Assert(false);
-            }
-        }
-
-        private void getEndpointsTrace(Reference @ref, EndpointI[] endpoints, bool cached)
-        {
-            if(endpoints != null && endpoints.Length > 0)
-            {
-                if(cached)
-                {
-                    if(@ref.isWellKnown())
-                    {
-                        trace("found endpoints for well-known proxy in locator cache", @ref, endpoints);
-                    }
-                    else
-                    {
-                        trace("found endpoints for adapter in locator cache", @ref, endpoints);
+                        Trace(cached ? $"found entry for location in locator cache" :
+                                  $"resolved location using locator, adding to locator cache",
+                              locationToResolve,
+                              reference.Protocol,
+                              endpoints,
+                              newLocation,
+                              reference.Communicator);
                     }
                 }
                 else
                 {
-                    if(@ref.isWellKnown())
+                    Communicator communicator = reference.Communicator;
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("could not find endpoint(s) for ");
+                    if (reference.Location.Count > 0)
                     {
-                        trace("retrieved endpoints for well-known proxy from locator, adding to locator cache",
-                              @ref, endpoints);
+                        sb.Append("location ");
+                        sb.Append(reference.Location.ToLocationString());
                     }
                     else
                     {
-                        trace("retrieved endpoints for adapter from locator, adding to locator cache",
-                              @ref, endpoints);
+                        sb.Append("well-known proxy ");
+                        sb.Append(reference);
                     }
+                    communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
                 }
+            }
+
+            return (endpoints, newLocation, cached);
+        }
+
+        internal async ValueTask<ILocatorRegistryPrx?> GetLocatorRegistryAsync()
+        {
+            if (_locatorRegistry == null)
+            {
+                ILocatorRegistryPrx? registry = await Locator.GetRegistryAsync().ConfigureAwait(false);
+
+                // The locator registry can't be located.
+                _locatorRegistry = registry?.Clone(clearLocator: true);
+            }
+            return _locatorRegistry;
+        }
+
+        private static bool CheckTTL(TimeSpan insertionTime, TimeSpan ttl) =>
+            ttl == Timeout.InfiniteTimeSpan || (Time.Elapsed - insertionTime) <= ttl;
+
+        private static void Trace(
+            string msg,
+            Location location,
+            Protocol protocol,
+            EndpointList endpoints,
+            Location newLocation,
+            Communicator communicator)
+        {
+            var sb = new System.Text.StringBuilder(msg);
+            sb.Append("\nlocation = ");
+            sb.Append(location.ToLocationString());
+            sb.Append("\nprotocol = ");
+            sb.Append(protocol.GetName());
+            sb.Append("\nendpoints = ");
+            sb.AppendEndpointList(endpoints);
+            if (protocol != Protocol.Ice1)
+            {
+                sb.Append("\nnew location = ");
+                sb.Append(newLocation.ToLocationString());
+            }
+            communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private static void Trace(string msg, Reference wellKnownProxy, EndpointList endpoints, Location location)
+        {
+            var sb = new System.Text.StringBuilder(msg);
+            sb.Append("\nwell-known proxy = ");
+            sb.Append(wellKnownProxy);
+            sb.Append("\nendpoints = ");
+            sb.AppendEndpointList(endpoints);
+            if (wellKnownProxy.Protocol != Protocol.Ice1)
+            {
+                sb.Append("\nlocation = ");
+                sb.Append(location.ToLocationString());
+            }
+            wellKnownProxy.Communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private static void Trace(string msg, Reference wellKnownProxy, Location location)
+        {
+            var sb = new System.Text.StringBuilder(msg);
+            sb.Append("\nwell-known proxy = ");
+            sb.Append(wellKnownProxy);
+            sb.Append("\nlocation = ");
+            sb.Append(location.ToLocationString());
+            wellKnownProxy.Communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private static void TraceInvalid(Location location, Location newLocation, Communicator communicator)
+        {
+            var sb = new System.Text.StringBuilder("locator returned only a location when resolving location ");
+            sb.Append(location.ToLocationString());
+            sb.Append("\n received = ");
+            sb.Append(newLocation.ToLocationString());
+            communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private static void TraceInvalid(Location location, Reference invalidReference)
+        {
+            var sb = new System.Text.StringBuilder("locator returned an invalid proxy when resolving location ");
+            sb.Append(location.ToLocationString());
+            sb.Append("\n received = ");
+            sb.Append(invalidReference);
+            invalidReference.Communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private static void TraceInvalid(Reference reference, Reference invalidReference)
+        {
+            var sb = new System.Text.StringBuilder("locator returned an invalid proxy when resolving ");
+            sb.Append(reference);
+            sb.Append("\n received = ");
+            sb.Append(invalidReference);
+            reference.Communicator.Logger.Trace(TraceLevels.LocatorCategory, sb.ToString());
+        }
+
+        private void ClearCache(Location location, Protocol protocol, Communicator communicator)
+        {
+            if (_locationCache.TryRemove(
+                (location, protocol),
+                out (TimeSpan _, EndpointList Endpoints, Location Location) entry))
+            {
+                if (communicator.TraceLevels.Locator >= 2)
+                {
+                    Trace("removed endpoints for location from locator cache",
+                          location,
+                          protocol,
+                          entry.Endpoints,
+                          entry.Location,
+                          communicator);
+                }
+            }
+        }
+
+        private (EndpointList Endpoints, Location Location, bool Cached) GetResolvedLocationFromCache(
+            Location location,
+            Protocol protocol,
+            TimeSpan ttl)
+        {
+            if (ttl != TimeSpan.Zero && _locationCache.TryGetValue(
+                (location, protocol),
+                out (TimeSpan InsertionTime, EndpointList Endpoints, Location Location) entry))
+            {
+                return (entry.Endpoints, entry.Location, CheckTTL(entry.InsertionTime, ttl));
             }
             else
             {
-                Instance instance = @ref.getInstance();
-                System.Text.StringBuilder s = new System.Text.StringBuilder();
-                s.Append("no endpoints configured for ");
-                if(@ref.getAdapterId().Length > 0)
-                {
-                    s.Append("adapter\n");
-                    s.Append("adapter = " + @ref.getAdapterId());
-                }
-                else
-                {
-                    s.Append("well-known object\n");
-                    s.Append("well-known proxy = " + @ref.ToString());
-                }
-                instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
+                return (ImmutableArray<Endpoint>.Empty, ImmutableArray<string>.Empty, false);
             }
         }
 
-        private Request
-        getAdapterRequest(Reference @ref)
+        private (EndpointList Endpoints, Location Location, bool Cached) GetResolvedWellKnownProxyFromCache(
+            Reference reference,
+            TimeSpan ttl)
         {
-            if(@ref.getInstance().traceLevels().location >= 1)
+            if (ttl != TimeSpan.Zero &&
+                _wellKnownProxyCache.TryGetValue(
+                    (reference.Identity, reference.Facet, reference.Protocol),
+                    out (TimeSpan InsertionTime, EndpointList Endpoints, Location Location) entry))
             {
-                Instance instance = @ref.getInstance();
-                System.Text.StringBuilder s = new System.Text.StringBuilder();
-                s.Append("searching for adapter by id\nadapter = ");
-                s.Append(@ref.getAdapterId());
-                instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
-            }
-
-            lock(this)
-            {
-                Request request;
-                if(_adapterRequests.TryGetValue(@ref.getAdapterId(), out request))
-                {
-                    return request;
-                }
-
-                request = new AdapterRequest(this, @ref);
-                _adapterRequests.Add(@ref.getAdapterId(), request);
-                return request;
-            }
-        }
-
-        private Request
-        getObjectRequest(Reference @ref)
-        {
-            if(@ref.getInstance().traceLevels().location >= 1)
-            {
-                Instance instance = @ref.getInstance();
-                System.Text.StringBuilder s = new System.Text.StringBuilder();
-                s.Append("searching for well-known object\nwell-known proxy = ");
-                s.Append(@ref.ToString());
-                instance.initializationData().logger.trace(instance.traceLevels().locationCat, s.ToString());
-            }
-
-            lock(this)
-            {
-                Request request;
-                if(_objectRequests.TryGetValue(@ref.getIdentity(), out request))
-                {
-                    return request;
-                }
-
-                request = new ObjectRequest(this, @ref);
-                _objectRequests.Add(@ref.getIdentity(), request);
-                return request;
-            }
-        }
-
-        private void
-        finishRequest(Reference @ref, List<Reference> wellKnownRefs, Ice.ObjectPrx proxy, bool notRegistered)
-        {
-            Ice.ObjectPrxHelperBase @base = proxy as Ice.ObjectPrxHelperBase;
-            if(proxy == null || @base.iceReference().isIndirect())
-            {
-                //
-                // Remove the cached references of well-known objects for which we tried
-                // to resolved the endpoints if these endpoints are empty.
-                //
-                foreach(Reference r in wellKnownRefs)
-                {
-                    _table.removeObjectReference(r.getIdentity());
-                }
-            }
-
-            if(!@ref.isWellKnown())
-            {
-                if(proxy != null && !@base.iceReference().isIndirect())
-                {
-                    // Cache the adapter endpoints.
-                    _table.addAdapterEndpoints(@ref.getAdapterId(), @base.iceReference().getEndpoints());
-                }
-                else if(notRegistered) // If the adapter isn't registered anymore, remove it from the cache.
-                {
-                    _table.removeAdapterEndpoints(@ref.getAdapterId());
-                }
-
-                lock(this)
-                {
-                    Debug.Assert(_adapterRequests.ContainsKey(@ref.getAdapterId()));
-                    _adapterRequests.Remove(@ref.getAdapterId());
-                }
+                return (entry.Endpoints, entry.Location, CheckTTL(entry.InsertionTime, ttl));
             }
             else
             {
-                if(proxy != null && !@base.iceReference().isWellKnown())
-                {
-                    // Cache the well-known object reference.
-                    _table.addObjectReference(@ref.getIdentity(), @base.iceReference());
-                }
-                else if(notRegistered) // If the well-known object isn't registered anymore, remove it from the cache.
-                {
-                    _table.removeObjectReference(@ref.getIdentity());
-                }
-
-                lock(this)
-                {
-                    Debug.Assert(_objectRequests.ContainsKey(@ref.getIdentity()));
-                    _objectRequests.Remove(@ref.getIdentity());
-                }
+                return (ImmutableArray<Endpoint>.Empty, ImmutableArray<string>.Empty, false);
             }
         }
 
-        private readonly Ice.LocatorPrx _locator;
-        private Ice.LocatorRegistryPrx _locatorRegistry;
-        private readonly LocatorTable _table;
-        private readonly bool _background;
-
-        private Dictionary<string, Request> _adapterRequests = new Dictionary<string, Request>();
-        private Dictionary<Ice.Identity, Request> _objectRequests = new Dictionary<Ice.Identity, Request>();
-    }
-
-    public sealed class LocatorManager
-    {
-        struct LocatorKey
+        private async Task<(EndpointList, Location)> ResolveLocationAsync(
+            Location location,
+            Protocol protocol,
+            Communicator communicator,
+            CancellationToken cancel)
         {
-            public LocatorKey(Ice.LocatorPrx prx)
+            if (communicator.TraceLevels.Locator > 0)
             {
-                Reference r = ((Ice.ObjectPrxHelperBase)prx).iceReference();
-                _id = r.getIdentity();
-                _encoding = r.getEncoding();
+                communicator.Logger.Trace(TraceLevels.LocatorCategory,
+                    $"resolving location\nlocation = {location.ToLocationString()}");
             }
 
-            public override bool Equals(object o)
+            Task<(EndpointList, Location)>? task;
+            lock (_mutex)
             {
-                LocatorKey k = (LocatorKey)o;
-                if(!k._id.Equals(_id))
+                if (!_locationRequests.TryGetValue((location, protocol), out task))
                 {
-                    return false;
-                }
-                if(!k._encoding.Equals(_encoding))
-                {
-                    return false;
-                }
-                return true;
-            }
-
-            public override int GetHashCode()
-            {
-                int h = 5381;
-                HashUtil.hashAdd(ref h, _id);
-                HashUtil.hashAdd(ref h, _encoding);
-                return h;
-            }
-
-            private Ice.Identity _id;
-            private Ice.EncodingVersion _encoding;
-        }
-
-        internal LocatorManager(Ice.Properties properties)
-        {
-            _table = new Dictionary<Ice.LocatorPrx, LocatorInfo>();
-            _locatorTables = new Dictionary<LocatorKey, LocatorTable>();
-            _background = properties.getPropertyAsInt("Ice.BackgroundLocatorCacheUpdates") > 0;
-        }
-
-        internal void destroy()
-        {
-            lock(this)
-            {
-                foreach(LocatorInfo info in _table.Values)
-                {
-                    info.destroy();
-                }
-                _table.Clear();
-                _locatorTables.Clear();
-            }
-        }
-
-        //
-        // Returns locator info for a given locator. Automatically creates
-        // the locator info if it doesn't exist yet.
-        //
-        public LocatorInfo get(Ice.LocatorPrx loc)
-        {
-            if(loc == null)
-            {
-                return null;
-            }
-
-            //
-            // The locator can't be located.
-            //
-            Ice.LocatorPrx locator = Ice.LocatorPrxHelper.uncheckedCast(loc.ice_locator(null));
-
-            //
-            // TODO: reap unused locator info objects?
-            //
-            lock(this)
-            {
-                LocatorInfo info = null;
-                if(!_table.TryGetValue(locator, out info))
-                {
-                    //
-                    // Rely on locator identity for the adapter table. We want to
-                    // have only one table per locator (not one per locator
-                    // proxy).
-                    //
-                    LocatorTable table = null;
-                    LocatorKey key = new LocatorKey(locator);
-                    if(!_locatorTables.TryGetValue(key, out table))
+                    // If there is no request in progress for this location, we invoke one and cache the request to
+                    // prevent concurrent identical requests. It's removed once the response is received.
+                    task = PerformResolveLocationAsync(location, protocol, communicator);
+                    if (!task.IsCompleted)
                     {
-                        table = new LocatorTable();
-                        _locatorTables[key] = table;
+                        // If PerformResolveLocationAsync completed, don't add the task (it would leak since
+                        // PerformResolveLocationAsync is responsible for removing it).
+                        // Since PerformResolveLocationAsync locks _mutex in its finally block, the only way it can be
+                        // completed now is if completed synchronously.
+                        _locationRequests.Add((location, protocol), task);
+                    }
+                }
+            }
+
+            return await task.WaitAsync(cancel).ConfigureAwait(false);
+
+            async Task<(EndpointList, Location)> PerformResolveLocationAsync(
+                Location location,
+                Protocol protocol,
+                Communicator communicator)
+            {
+                Debug.Assert(location.Count > 0);
+
+                try
+                {
+                    EndpointList endpoints = ImmutableArray<Endpoint>.Empty;
+                    Location newLocation = ImmutableArray<string>.Empty;
+
+                    if (protocol == Protocol.Ice1)
+                    {
+                        IObjectPrx? proxy = null;
+                        try
+                        {
+                            proxy = await Locator.FindAdapterByIdAsync(
+                                location[0],
+                                cancel: CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (AdapterNotFoundException)
+                        {
+                            // We treat AdapterNotFoundException just like a null return value.
+                            proxy = null;
+                        }
+
+                        Reference? resolved = proxy?.IceReference;
+
+                        if (resolved != null && (resolved.IsIndirect || resolved.Protocol != Protocol.Ice1))
+                        {
+                            if (communicator.TraceLevels.Locator >= 1)
+                            {
+                                TraceInvalid(location, resolved);
+                            }
+                            resolved = null;
+                        }
+
+                        endpoints = resolved?.Endpoints ?? endpoints;
+                    }
+                    else
+                    {
+                        EndpointData[] dataArray;
+
+                        // This will throw OperationNotExistException if it's an old Locator, and that's fine.
+                        (dataArray, newLocation) = await Locator.ResolveLocationAsync(
+                            location,
+                            cancel: CancellationToken.None).ConfigureAwait(false);
+
+                        if (dataArray.Length > 0)
+                        {
+                            endpoints = dataArray.ToEndpointList(communicator);
+                        }
+                        else if (newLocation.Count > 0)
+                        {
+                            TraceInvalid(location, newLocation, communicator);
+                            newLocation = ImmutableArray<string>.Empty;
+                        }
                     }
 
-                    info = new LocatorInfo(locator, table, _background);
-                    _table[locator] = info;
+                    if (endpoints.Count == 0)
+                    {
+                        ClearCache(location, protocol, communicator);
+                        return (endpoints, newLocation);
+                    }
+                    else
+                    {
+                        // Cache the resolved location
+                        _locationCache[(location, protocol)] = (Time.Elapsed, endpoints, newLocation);
+                        return (endpoints, newLocation);
+                    }
                 }
-
-                return info;
+                catch (Exception exception)
+                {
+                    if (communicator.TraceLevels.Locator > 0)
+                    {
+                        communicator.Logger.Trace(
+                            TraceLevels.LocatorCategory,
+                            @$"could not contact the locator to resolve location `{location.ToLocationString()
+                                }'\nreason = {exception}");
+                    }
+                    throw;
+                }
+                finally
+                {
+                    lock (_mutex)
+                    {
+                        _locationRequests.Remove((location, protocol));
+                    }
+                }
             }
         }
 
-        private Dictionary<Ice.LocatorPrx, LocatorInfo> _table;
-        private Dictionary<LocatorKey, LocatorTable> _locatorTables;
-        private readonly bool _background;
+        private async Task<(EndpointList, Location)> ResolveWellKnownProxyAsync(
+            Reference reference,
+            CancellationToken cancel)
+        {
+            if (reference.Communicator.TraceLevels.Locator > 0)
+            {
+                reference.Communicator.Logger.Trace(TraceLevels.LocatorCategory,
+                    $"searching for well-known object\nwell-known proxy = {reference}");
+            }
+
+            Task<(EndpointList, Location)>? task;
+            lock (_mutex)
+            {
+                if (!_wellKnownProxyRequests.TryGetValue((reference.Identity, reference.Facet, reference.Protocol),
+                                                         out task))
+                {
+                    // If there's no locator request in progress for this object, we make one and cache it to prevent
+                    // making too many requests on the locator. It's removed once the locator response is received.
+                    task = PerformResolveWellKnownProxyAsync(reference);
+                    if (!task.IsCompleted)
+                    {
+                        // If PerformGetObjectProxyAsync completed, don't add the task (it would leak since
+                        // PerformGetObjectProxyAsync is responsible for removing it).
+                        _wellKnownProxyRequests.Add((reference.Identity, reference.Facet, reference.Protocol), task);
+                    }
+                }
+            }
+
+            return await task.WaitAsync(cancel).ConfigureAwait(false);
+
+            async Task<(EndpointList, Location)> PerformResolveWellKnownProxyAsync(Reference reference)
+            {
+                try
+                {
+                    EndpointList endpoints;
+                    Location location;
+
+                    if (reference.Protocol == Protocol.Ice1)
+                    {
+                        IObjectPrx? proxy = null;
+                        try
+                        {
+                            proxy = await Locator.FindObjectByIdAsync(
+                                reference.Identity,
+                                reference.Facet,
+                                cancel: CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (ObjectNotFoundException)
+                        {
+                            // We treat ObjectNotFoundException just like a null return value.
+                            proxy = null;
+                        }
+
+                        Reference? resolved = proxy?.IceReference;
+
+                        if (resolved != null && (resolved.IsWellKnown || resolved.Protocol != Protocol.Ice1))
+                        {
+                            if (reference.Communicator.TraceLevels.Locator >= 1)
+                            {
+                                TraceInvalid(reference, resolved);
+                            }
+                            resolved = null;
+                        }
+
+                        endpoints = resolved?.Endpoints ?? ImmutableArray<Endpoint>.Empty;
+                        location = resolved?.Location ?? ImmutableArray<string>.Empty;
+                    }
+                    else
+                    {
+                        EndpointData[] dataArray;
+                        (dataArray, location) = await Locator.ResolveWellKnownProxyAsync(
+                            reference.Identity,
+                            reference.Facet,
+                            cancel: CancellationToken.None).ConfigureAwait(false);
+
+                        endpoints = dataArray.ToEndpointList(reference.Communicator);
+                    }
+
+                    if (endpoints.Count == 0 && location.Count == 0)
+                    {
+                        ClearCache(reference);
+                        return (endpoints, location);
+                    }
+                    else
+                    {
+                        _wellKnownProxyCache[(reference.Identity, reference.Facet, reference.Protocol)] =
+                            (Time.Elapsed, endpoints, location);
+                        return (endpoints, location);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    if (reference.Communicator.TraceLevels.Locator > 0)
+                    {
+                        reference.Communicator.Logger.Trace(
+                            TraceLevels.LocatorCategory,
+                            @$"could not contact the locator to retrieve endpoints for well-known proxy `{reference
+                                }'\nreason = {exception}");
+                    }
+                    throw;
+                }
+                finally
+                {
+                    lock (_mutex)
+                    {
+                        _wellKnownProxyRequests.Remove((reference.Identity, reference.Facet, reference.Protocol));
+                    }
+                }
+            }
+        }
+
+        private sealed class LocationComparer : IEqualityComparer<(Location Location, Protocol Protocol)>
+        {
+            public bool Equals(
+                (Location Location, Protocol Protocol) lhs,
+                (Location Location, Protocol Protocol) rhs) =>
+                lhs.Location.SequenceEqual(rhs.Location) && lhs.Protocol == rhs.Protocol;
+
+            public int GetHashCode((Location Location, Protocol Protocol) obj)
+            {
+                var hash = new HashCode();
+                foreach (string s in obj.Location)
+                {
+                    hash.Add(s);
+                }
+                hash.Add(obj.Protocol);
+                return hash.ToHashCode();
+            }
+        }
     }
-
-    sealed class LocatorTable
-    {
-        internal LocatorTable()
-        {
-            _adapterEndpointsTable = new Dictionary<string, EndpointTableEntry>();
-            _objectTable = new Dictionary<Ice.Identity, ReferenceTableEntry>();
-        }
-
-        internal void clear()
-        {
-            lock(this)
-            {
-                _adapterEndpointsTable.Clear();
-                _objectTable.Clear();
-            }
-        }
-
-        internal EndpointI[] getAdapterEndpoints(string adapter, int ttl, out bool cached)
-        {
-            if(ttl == 0) // Locator cache disabled.
-            {
-                cached = false;
-                return null;
-            }
-
-            lock(this)
-            {
-                EndpointTableEntry entry = null;
-                if(_adapterEndpointsTable.TryGetValue(adapter, out entry))
-                {
-                    cached = checkTTL(entry.time, ttl);
-                    return entry.endpoints;
-
-                }
-                cached = false;
-                return null;
-            }
-        }
-
-        internal void addAdapterEndpoints(string adapter, EndpointI[] endpoints)
-        {
-            lock(this)
-            {
-                _adapterEndpointsTable[adapter] =
-                    new EndpointTableEntry(Time.currentMonotonicTimeMillis(), endpoints);
-            }
-        }
-
-        internal EndpointI[] removeAdapterEndpoints(string adapter)
-        {
-            lock(this)
-            {
-                EndpointTableEntry entry = null;
-                if(_adapterEndpointsTable.TryGetValue(adapter, out entry))
-                {
-                    _adapterEndpointsTable.Remove(adapter);
-                    return entry.endpoints;
-                }
-                return null;
-            }
-        }
-
-        internal Reference getObjectReference(Ice.Identity id, int ttl, out bool cached)
-        {
-            if(ttl == 0) // Locator cache disabled.
-            {
-                cached = false;
-                return null;
-            }
-
-            lock(this)
-            {
-                ReferenceTableEntry entry = null;
-                if(_objectTable.TryGetValue(id, out entry))
-                {
-                    cached = checkTTL(entry.time, ttl);
-                    return entry.reference;
-                }
-                cached = false;
-                return null;
-            }
-        }
-
-        internal void addObjectReference(Ice.Identity id, Reference reference)
-        {
-            lock(this)
-            {
-                _objectTable[id] = new ReferenceTableEntry(Time.currentMonotonicTimeMillis(), reference);
-            }
-        }
-
-        internal Reference removeObjectReference(Ice.Identity id)
-        {
-            lock(this)
-            {
-                ReferenceTableEntry entry = null;
-                if(_objectTable.TryGetValue(id, out entry))
-                {
-                    _objectTable.Remove(id);
-                    return entry.reference;
-                }
-                return null;
-            }
-        }
-
-        private bool checkTTL(long time, int ttl)
-        {
-            Debug.Assert(ttl != 0);
-            if(ttl < 0) // TTL = infinite
-            {
-                return true;
-            }
-            else
-            {
-                return Time.currentMonotonicTimeMillis() - time <= ((long)ttl * 1000);
-            }
-        }
-
-        sealed private class EndpointTableEntry
-        {
-            public EndpointTableEntry(long time, EndpointI[] endpoints)
-            {
-                this.time = time;
-                this.endpoints = endpoints;
-            }
-
-            public long time;
-            public EndpointI[] endpoints;
-        }
-
-        sealed private class ReferenceTableEntry
-        {
-            public ReferenceTableEntry(long time, Reference reference)
-            {
-                this.time = time;
-                this.reference = reference;
-            }
-
-            public long time;
-            public Reference reference;
-        }
-
-        private Dictionary<string, EndpointTableEntry> _adapterEndpointsTable;
-        private Dictionary<Ice.Identity, ReferenceTableEntry> _objectTable;
-    }
-
 }

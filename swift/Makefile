@@ -21,13 +21,15 @@ endef
 ice.xcodeproj: Rakefile | carthage
 	rake icesdistproj
 
-ice-test.xcodeproj: Rakefile carthage
+ice-test.xcodeproj: Rakefile | carthage
 	rake icebdistproj
 
 all:: tests
 
+# Workaround for carthage sporadic SEGFAULT (https://github.com/Carthage/Carthage/issues/2760).
+# If it SEGFAULT we retry.
 carthage:
-	cd .. && carthage update --cache-builds
+	$(Q)cd .. && ./swift/carthage.sh update --cache-builds
 
 tests srcs:: carthage
 

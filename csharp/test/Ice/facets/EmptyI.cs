@@ -1,13 +1,8 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+namespace ZeroC.Ice.Test.Facets
 {
-    namespace facets
+    public sealed class Empty : IEmpty
     {
-        public sealed class EmptyI : Test.EmptyDisp_
-        {
-        }
     }
 }

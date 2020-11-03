@@ -4,9 +4,7 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
-
-[["suppress-warning:deprecated"]] // For classes with operations
+#include <Ice/Context.ice>
 
 module Test
 {
@@ -41,7 +39,6 @@ sequence<float> FloatS;
 sequence<double> DoubleS;
 sequence<string> StringS;
 sequence<MyEnum> MyEnumS;
-sequence<MyClass*> MyClassS;
 
 sequence<ByteS> ByteSS;
 sequence<BoolS> BoolSS;
@@ -52,7 +49,6 @@ sequence<FloatS> FloatSS;
 sequence<DoubleS> DoubleSS;
 sequence<StringS> StringSS;
 sequence<MyEnumS> MyEnumSS;
-sequence<MyClassS> MyClassSS;
 
 sequence<StringSS> StringSSS;
 
@@ -234,7 +230,7 @@ interface MyClass
 
     idempotent void opIdempotent();
 
-    ["nonmutating"] idempotent void opNonmutating();
+    [nonmutating] idempotent void opNonmutating();
 
     byte opByte1(byte opByte1);
     short opShort1(short opShort1);
@@ -250,31 +246,29 @@ interface MyClass
 
     StringS opStringLiterals();
 
-    ["marshaled-result"] Structure opMStruct1();
-    ["marshaled-result"] Structure opMStruct2(Structure p1, out Structure p2);
+    [marshaled-result] Structure opMStruct1();
+    [marshaled-result] Structure opMStruct2(Structure p1, out Structure p2);
 
-    ["marshaled-result"] StringS opMSeq1();
-    ["marshaled-result"] StringS opMSeq2(StringS p1, out StringS p2);
+    [marshaled-result] StringS opMSeq1();
+    [marshaled-result] StringS opMSeq2(StringS p1, out StringS p2);
 
-    ["marshaled-result"] StringStringD opMDict1();
-    ["marshaled-result"] StringStringD opMDict2(StringStringD p1, out StringStringD p2);
+    [marshaled-result] StringStringD opMDict1();
+    [marshaled-result] StringStringD opMDict2(StringStringD p1, out StringStringD p2);
 }
 
 struct MyStruct1
 {
     string tesT; // Same name as the enclosing module
     MyClass* myClass; // Same name as an already defined class
-    string myStruct1; // Same name as the enclosing struct
 }
 
 class MyClass1
 {
     string tesT; // Same name as the enclosing module
     MyClass* myClass; // Same name as an already defined class
-    string myClass1; // Same name as the enclosing class
 }
 
-interface MyDerivedClass extends MyClass
+interface MyDerivedClass : MyClass
 {
     void opDerived();
     MyClass1 opMyClass1(MyClass1 opMyClass1);
@@ -369,32 +363,21 @@ module Test2
  * a different module (ICE-7639).
  *
  **/
-interface MyDerivedClass extends Test::MyClass
+interface MyDerivedClass : Test::MyClass
 {
 }
 
 }
 
-//
-// Test proxy inheritance for class with operations
-// see: https://github.com/zeroc-ice/ice/issues/406
-//
-["cs:namespace:Ice.operations"]
 module M
 {
     class A
     {
         int x;
-        // void opA();
     }
 
     interface Intf
     {
         void opIntf();
-    }
-
-    ["cs:tie"] class B extends A implements Intf
-    {
-        void opB();
     }
 }

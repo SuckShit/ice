@@ -1,151 +1,137 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Plugin
 {
-    public static int Main(string[] args)
+    public class Client : TestHelper
     {
-        return Test.TestDriver.runTest<Client>(args);
-    }
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
 
-    public override void run(string[] args)
-    {
-#if NET45
-        string pluginPath = "msbuild/plugin/net45/Plugin.dll";
-#else
-        string pluginPath =
-            String.Format("msbuild/plugin/netstandard2.0/{0}/Plugin.dll",
-                          Path.GetFileName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase)));
-#endif
+        public override async Task RunAsync(string[] args)
         {
-            Console.Write("testing a simple plug-in... ");
-            Console.Out.Flush();
-            Ice.Properties properties = Ice.Util.createProperties();
-            properties.setProperty("Ice.Plugin.Test",
-                pluginPath + ":PluginFactory 'C:\\Program Files\\' --DatabasePath " +
-                "'C:\\Program Files\\Application\\db'");
-            using(var communicator = initialize(properties))
+            string pluginPath =
+                string.Format("msbuild/plugin/{0}/Plugin.dll",
+                            Path.GetFileName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)));
             {
+                Console.Write("testing a simple plug-in... ");
+                Console.Out.Flush();
+                await using Communicator communicator = Initialize(new Dictionary<string, string>
+                {
+                    {
+                        "Ice.Plugin.Test",
+                        $"{pluginPath }:ZeroC.Ice.Test.Plugin.PluginFactory 'C:\\Program Files\\' --DatabasePath 'C:\\Program Files\\Application\\db'"
+                    }
+                });
+                Console.WriteLine("ok");
             }
-            Console.WriteLine("ok");
-        }
 
-        {
-            Console.Write("testing a simple plug-in that fails to initialize... ");
-            Console.Out.Flush();
-            try
             {
-                Ice.Properties properties = Ice.Util.createProperties();
-                properties.setProperty("Ice.Plugin.Test", pluginPath + ":PluginInitializeFailFactory");
-                initialize(properties);
-                test(false);
+                Console.Write("testing a simple plug-in that fails to initialize... ");
+                Console.Out.Flush();
+                try
+                {
+                    Initialize(new Dictionary<string, string>()
+                    {
+                        {
+                            "Ice.Plugin.Test", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginInitializeFailFactory"
+                        }
+                    });
+                    Assert(false);
+                }
+                catch
+                {
+                    // Expected
+                }
+                Console.WriteLine("ok");
             }
-            catch(Ice.PluginInitializationException ex)
+
             {
-                test(ex.InnerException.Message.Equals("PluginInitializeFailException"));
-            }
-            Console.WriteLine("ok");
-        }
+                Console.Write("testing plug-in load order... ");
+                Console.Out.Flush();
 
-        {
-            Console.Write("testing plug-in load order... ");
-            Console.Out.Flush();
-            Ice.Properties properties = Ice.Util.createProperties();
-            properties.setProperty("Ice.Plugin.PluginOne", pluginPath + ":PluginOneFactory");
-            properties.setProperty("Ice.Plugin.PluginTwo", pluginPath + ":PluginTwoFactory");
-            properties.setProperty("Ice.Plugin.PluginThree", pluginPath + ":PluginThreeFactory");
-            properties.setProperty("Ice.PluginLoadOrder", "PluginOne, PluginTwo"); // Exclude PluginThree
-            using(var communicator = initialize(properties))
+                using Communicator communicator = Initialize(new Dictionary<string, string>()
+                {
+                    { "Ice.Plugin.PluginOne", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginOneFactory" },
+                    { "Ice.Plugin.PluginTwo", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginTwoFactory" },
+                    { "Ice.Plugin.PluginThree", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginThreeFactory" },
+                    { "Ice.PluginLoadOrder", "PluginOne, PluginTwo" } // Exclude PluginThree
+                });
+                Console.WriteLine("ok");
+            }
+
             {
+                Console.Write("testing plug-in manager... ");
+                Console.Out.Flush();
+
+                MyPlugin p4;
+                {
+                    using Communicator communicator = Initialize(new Dictionary<string, string>()
+                    {
+                        { "Ice.Plugin.PluginOne", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginOneFactory" },
+                        { "Ice.Plugin.PluginTwo", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginTwoFactory" },
+                        { "Ice.Plugin.PluginThree", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginThreeFactory" },
+                        { "Ice.InitPlugins", "0"}
+                    });
+
+                    Assert(communicator.GetPlugin("PluginOne") != null);
+                    Assert(communicator.GetPlugin("PluginTwo") != null);
+                    Assert(communicator.GetPlugin("PluginThree") != null);
+
+                    p4 = new MyPlugin();
+                    communicator.AddPlugin("PluginFour", p4);
+                    Assert(communicator.GetPlugin("PluginFour") != null);
+
+                    communicator.InitializePlugins();
+
+                    Assert(p4.IsInitialized());
+                }
+                Assert(p4.IsDestroyed());
+                Console.WriteLine("ok");
             }
-            Console.WriteLine("ok");
-        }
 
-        {
-            Console.Write("testing plug-in manager... ");
-            Console.Out.Flush();
-
-            Ice.Properties properties = Ice.Util.createProperties();
-            properties.setProperty("Ice.Plugin.PluginOne", pluginPath + ":PluginOneFactory");
-            properties.setProperty("Ice.Plugin.PluginTwo", pluginPath + ":PluginTwoFactory");
-            properties.setProperty("Ice.Plugin.PluginThree", pluginPath + ":PluginThreeFactory");
-            properties.setProperty("Ice.Plugin.PluginThree", pluginPath + ":PluginThreeFactory");
-            properties.setProperty("Ice.InitPlugins", "0");
-
-            MyPlugin p4 = null;
-            using(var communicator = initialize(properties))
             {
-                Ice.PluginManager pm = communicator.getPluginManager();
-                test(pm.getPlugin("PluginOne") != null);
-                test(pm.getPlugin("PluginTwo") != null);
-                test(pm.getPlugin("PluginThree") != null);
-
-                p4 = new MyPlugin();
-                pm.addPlugin("PluginFour", p4);
-                test(pm.getPlugin("PluginFour") != null);
-
-                pm.initializePlugins();
-
-                test(p4.isInitialized());
+                Console.Write("testing destroy when a plug-in fails to initialize... ");
+                Console.Out.Flush();
+                try
+                {
+                    Initialize(new Dictionary<string, string>()
+                    {
+                        { "Ice.Plugin.PluginOneFail", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginOneFailFactory" },
+                        { "Ice.Plugin.PluginTwoFail", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginTwoFailFactory" },
+                        { "Ice.Plugin.PluginThreeFail", $"{pluginPath}:ZeroC.Ice.Test.Plugin.PluginThreeFailFactory" },
+                        { "Ice.PluginLoadOrder", "PluginOneFail, PluginTwoFail, PluginThreeFail"}
+                    });
+                }
+                catch
+                {
+                    // Expected
+                }
+                Console.WriteLine("ok");
             }
-            test(p4.isDestroyed());
-            Console.WriteLine("ok");
         }
 
+        internal class MyPlugin : IPlugin
         {
-            Console.Write("testing destroy when a plug-in fails to initialize... ");
-            Console.Out.Flush();
-            try
+            private bool _destroyed;
+            private bool _initialized;
+
+            public bool IsInitialized() => _initialized;
+
+            public bool IsDestroyed() => _destroyed;
+
+            public void Initialize(PluginInitializationContext context) => _initialized = true;
+
+            public ValueTask DisposeAsync()
             {
-                Ice.Properties properties = Ice.Util.createProperties();
-                properties.setProperty("Ice.Plugin.PluginOneFail", pluginPath + ":PluginOneFailFactory");
-                properties.setProperty("Ice.Plugin.PluginTwoFail", pluginPath + ":PluginTwoFailFactory");
-                properties.setProperty("Ice.Plugin.PluginThreeFail", pluginPath + ":PluginThreeFailFactory");
-                properties.setProperty("Ice.PluginLoadOrder", "PluginOneFail, PluginTwoFail, PluginThreeFail");
-                initialize(properties);
+                _destroyed = true;
+                return new ValueTask(Task.CompletedTask);
             }
-            catch(Ice.PluginInitializationException ex)
-            {
-                test(ex.InnerException.Message.Equals("PluginInitializeFailException"));
-            }
-            Console.WriteLine("ok");
         }
-    }
-
-    internal class MyPlugin : Ice.Plugin
-    {
-        public bool isInitialized()
-        {
-            return _initialized;
-        }
-
-        public bool isDestroyed()
-        {
-            return _destroyed;
-        }
-
-        public void initialize()
-        {
-            _initialized = true;
-        }
-
-        public void destroy()
-        {
-            _destroyed = true;
-        }
-
-        private bool _initialized = false;
-        private bool _destroyed = false;
     }
 }

@@ -1,153 +1,67 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Diagnostics;
+using System.Threading;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Exceptions
 {
-    namespace exceptions
+    public sealed class Thrower : IThrower
     {
-        public sealed class ThrowerI : Test.ThrowerDisp_
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        public bool SupportsAssertException(Current current, CancellationToken cancel) => false;
+
+        public void ThrowAasA(int a, Current current, CancellationToken cancel) => throw new A(a);
+
+        public void ThrowAorDasAorD(int a, Current current, CancellationToken cancel)
         {
-            public ThrowerI()
+            if (a > 0)
             {
+                throw new A(a);
             }
-
-            public override void shutdown(Ice.Current current)
+            else
             {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            public override bool supportsUndeclaredExceptions(Ice.Current current)
-            {
-                return true;
-            }
-
-            public override bool supportsAssertException(Ice.Current current)
-            {
-                return false;
-            }
-
-            public override void throwAasA(int a, Ice.Current current)
-            {
-                var ex = new Test.A();
-                ex.aMem = a;
-                throw ex;
-            }
-
-            public override void throwAorDasAorD(int a, Ice.Current current)
-            {
-                if(a > 0)
-                {
-                    var ex = new Test.A();
-                    ex.aMem = a;
-                    throw ex;
-                }
-                else
-                {
-                    var ex = new Test.D();
-                    ex.dMem = a;
-                    throw ex;
-                }
-            }
-
-            public override void throwBasA(int a, int b, Ice.Current current)
-            {
-                throwBasB(a, b, current);
-            }
-
-            public override void throwBasB(int a, int b, Ice.Current current)
-            {
-                var ex = new Test.B();
-                ex.aMem = a;
-                ex.bMem = b;
-                throw ex;
-            }
-
-            public override void throwCasA(int a, int b, int c, Ice.Current current)
-            {
-                throwCasC(a, b, c, current);
-            }
-
-            public override void throwCasB(int a, int b, int c, Ice.Current current)
-            {
-                throwCasC(a, b, c, current);
-            }
-
-            public override void throwCasC(int a, int b, int c, Ice.Current current)
-            {
-                var ex = new Test.C();
-                ex.aMem = a;
-                ex.bMem = b;
-                ex.cMem = c;
-                throw ex;
-            }
-
-            public override void throwLocalException(Ice.Current current)
-            {
-                throw new Ice.TimeoutException();
-            }
-
-            public override void throwNonIceException(Ice.Current current)
-            {
-                throw new System.Exception();
-            }
-
-            public override void throwAssertException(Ice.Current current)
-            {
-                Debug.Assert(false);
-            }
-
-            public override byte[] throwMemoryLimitException(byte[] seq, Ice.Current current)
-            {
-                return new byte[1024 * 20]; // 20KB is over the configured 10KB message size max.
-            }
-
-            public override void throwLocalExceptionIdempotent(Ice.Current current)
-            {
-                throw new Ice.TimeoutException();
-            }
-
-            public override void throwUndeclaredA(int a, Ice.Current current)
-            {
-                var ex = new Test.A();
-                ex.aMem = a;
-                throw ex;
-            }
-
-            public override void throwUndeclaredB(int a, int b, Ice.Current current)
-            {
-                var ex = new Test.B();
-                ex.aMem = a;
-                ex.bMem = b;
-                throw ex;
-            }
-
-            public override void throwUndeclaredC(int a, int b, int c, Ice.Current current)
-            {
-                var ex = new Test.C();
-                ex.aMem = a;
-                ex.bMem = b;
-                ex.cMem = c;
-                throw ex;
-            }
-
-            public override void throwAfterResponse(Ice.Current current)
-            {
-                //
-                // Only relevant for AMD.
-                //
-            }
-
-            public override void throwAfterException(Ice.Current current)
-            {
-                //
-                // Only relevant for AMD.
-                //
-                throw new Test.A();
+                throw new D(a);
             }
         }
+
+        public void ThrowBasA(int a, int b, Current current, CancellationToken cancel) => ThrowBasB(a, b, current, cancel);
+
+        public void ThrowBasB(int a, int b, Current current, CancellationToken cancel) => throw new B(a, b);
+
+        public void ThrowCasA(int a, int b, int c, Current current, CancellationToken cancel) =>
+            ThrowCasC(a, b, c, current, cancel);
+
+        public void ThrowCasB(int a, int b, int c, Current current, CancellationToken cancel) =>
+            ThrowCasC(a, b, c, current, cancel);
+
+        public void ThrowCasC(int a, int b, int c, Current current, CancellationToken cancel) => throw new C(a, b, c);
+
+        public void ThrowLocalException(Current current, CancellationToken cancel) =>
+            throw new ConnectionClosedException();
+
+        public void ThrowNonIceException(Current current, CancellationToken cancel) => throw new Exception();
+
+        public void ThrowAssertException(Current current, CancellationToken cancel) => TestHelper.Assert(false);
+
+        // 20KB is over the configured 10KB message size max.
+        public ReadOnlyMemory<byte> ThrowMemoryLimitException(byte[] seq, Current current, CancellationToken cancel) =>
+            new byte[1024 * 20];
+
+        public void ThrowLocalExceptionIdempotent(Current current, CancellationToken cancel) =>
+            throw new ConnectionClosedException();
+
+        public void ThrowAfterResponse(Current current, CancellationToken cancel)
+        {
+            // Only relevant for AMD.
+        }
+
+        // Only relevant for AMD.
+        public void ThrowAfterException(Current current, CancellationToken cancel) => throw new A();
+
+        public void ThrowAConvertedToUnhandled(Current current, CancellationToken cancel) =>
+            throw new A() { ConvertToUnhandled = true };
     }
 }

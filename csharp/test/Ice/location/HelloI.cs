@@ -1,16 +1,13 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public class Hello : IHello
     {
-        public class HelloI : Test.HelloDisp_
+        public void SayHello(Current current, CancellationToken cancel)
         {
-            public override void sayHello(Ice.Current current)
-            {
-            }
         }
     }
 }

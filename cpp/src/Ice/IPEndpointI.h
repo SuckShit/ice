@@ -15,9 +15,7 @@
 #include <Ice/ProtocolInstanceF.h>
 #include <Ice/ObserverHelper.h>
 
-#ifndef ICE_OS_UWP
-#   include <deque>
-#endif
+#include <deque>
 
 namespace IceInternal
 {
@@ -29,9 +27,9 @@ public:
     IPEndpointInfoI(const EndpointIPtr&);
     virtual ~IPEndpointInfoI();
 
-    virtual Ice::Short type() const ICE_NOEXCEPT;
-    virtual bool datagram() const ICE_NOEXCEPT;
-    virtual bool secure() const ICE_NOEXCEPT;
+    virtual Ice::Short type() const noexcept;
+    virtual bool datagram() const noexcept;
+    virtual bool secure() const noexcept;
 
 private:
 
@@ -39,15 +37,13 @@ private:
 };
 
 class ICE_API IPEndpointI : public EndpointI
-#ifdef ICE_CPP11_MAPPING
                           , public std::enable_shared_from_this<IPEndpointI>
-#endif
 {
 public:
 
     virtual void streamWriteImpl(Ice::OutputStream*) const;
 
-    virtual Ice::EndpointInfoPtr getInfo() const ICE_NOEXCEPT;
+    virtual Ice::EndpointInfoPtr getInfo() const noexcept;
     virtual Ice::Short type() const;
     virtual const std::string& protocol() const;
     virtual bool secure() const;
@@ -62,13 +58,8 @@ public:
     virtual ::Ice::Int hash() const;
     virtual std::string options() const;
 
-#ifdef ICE_CPP11_MAPPING
     virtual bool operator==(const Ice::Endpoint&) const;
     virtual bool operator<(const Ice::Endpoint&) const;
-#else
-    virtual bool operator==(const Ice::LocalObject&) const;
-    virtual bool operator<(const Ice::LocalObject&) const;
-#endif
 
     virtual std::vector<ConnectorPtr> connectors(const std::vector<Address>&, const NetworkProxyPtr&) const;
 
@@ -104,11 +95,7 @@ private:
     mutable Ice::Int _hashValue;
 };
 
-#ifndef ICE_OS_UWP
 class ICE_API EndpointHostResolver : public IceUtil::Thread, public IceUtil::Monitor<IceUtil::Mutex>
-#else
-class ICE_API EndpointHostResolver : public IceUtil::Shared
-#endif
 {
 public:
 
@@ -123,7 +110,6 @@ public:
 
 private:
 
-#ifndef ICE_OS_UWP
     struct ResolveEntry
     {
         std::string host;
@@ -140,22 +126,7 @@ private:
     bool _destroyed;
     std::deque<ResolveEntry> _queue;
     ObserverHelperT<Ice::Instrumentation::ThreadObserver> _observer;
-#else
-    const InstancePtr _instance;
-#endif
 };
-
-#ifndef ICE_CPP11_MAPPING
-inline bool operator==(const IPEndpointI& l, const IPEndpointI& r)
-{
-    return static_cast<const ::Ice::LocalObject&>(l) == static_cast<const ::Ice::LocalObject&>(r);
-}
-
-inline bool operator<(const IPEndpointI& l, const IPEndpointI& r)
-{
-    return static_cast<const ::Ice::LocalObject&>(l) < static_cast<const ::Ice::LocalObject&>(r);
-}
-#endif
 
 }
 

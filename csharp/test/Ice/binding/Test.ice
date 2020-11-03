@@ -4,8 +4,9 @@
 
 #pragma once
 
-["cs:namespace:Ice.binding"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Binding
 {
 
 interface TestIntf
@@ -22,7 +23,8 @@ interface RemoteObjectAdapter
 
 interface RemoteCommunicator
 {
-    RemoteObjectAdapter* createObjectAdapter(string name, string endpoints);
+    RemoteObjectAdapter createObjectAdapter(string name, string transport);
+    RemoteObjectAdapter createObjectAdapterWithEndpoints(string name, string endpoints);
 
     void deactivateObjectAdapter(RemoteObjectAdapter* adapter);
 

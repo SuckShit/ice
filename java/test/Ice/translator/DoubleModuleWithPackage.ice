@@ -4,11 +4,9 @@
 
 // dmwp = double module with package
 
-[["java:package:dmwp"]]
+[[java:package(dmwp)]]
 
-module M1
-{
-module M2
+module M1::M2
 {
 
 enum dmwpEnum { dmwpE1, dmwpE2 }
@@ -29,7 +27,7 @@ interface dmwpBaseInterface
     void dmwpBaseInterfaceOp();
 }
 
-interface dmwpInterface extends dmwpBaseInterface
+interface dmwpInterface : dmwpBaseInterface
 {
     void dmwpInterfaceOp();
 }
@@ -42,7 +40,7 @@ class dmwpBaseClass
     dmwpStringStructDict dict;
 }
 
-class dmwpClass extends dmwpBaseClass implements dmwpInterface
+class dmwpClass : dmwpBaseClass implements dmwpInterface
 {
 }
 
@@ -55,9 +53,8 @@ exception dmwpBaseException
     dmwpClass c;
 }
 
-exception dmwpException extends dmwpBaseException
+exception dmwpException : dmwpBaseException
 {
 }
 
-}
 }

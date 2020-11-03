@@ -73,10 +73,6 @@
         }
     }
 
-    class HI extends Test.H
-    {
-    }
-
     class II extends Ice.InterfaceByValue
     {
         constructor()
@@ -235,37 +231,22 @@
             return Ice.Promise.resolve(this._b1);
         }
 
-        getI(current)
-        {
-            return new II();
-        }
-
-        getJ(current)
-        {
-            return new JI();
-        }
-
-        getH(current)
-        {
-            return new HI();
-        }
-
         getK(current)
         {
             return new Test.K(new Test.L("l"));
         }
 
-        opValue(v1, current)
+        opClass(v1, current)
         {
             return [v1, v1];
         }
 
-        opValueSeq(v1, current)
+        opClassSeq(v1, current)
         {
             return [v1, v1];
         }
 
-        opValueMap(v1, current)
+        opClassMap(v1, current)
         {
             return [v1, v1];
         }
@@ -281,10 +262,6 @@
         }
 
         setG(theG, current)
-        {
-        }
-
-        setI(theI, current)
         {
         }
 

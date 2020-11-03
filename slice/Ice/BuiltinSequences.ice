@@ -4,55 +4,50 @@
 
 #pragma once
 
-[["cpp:dll-export:ICE_API"]]
-[["cpp:doxygen:include:Ice/Ice.h"]]
-[["cpp:header-ext:h"]]
+[[cpp:dll-export(ICE_API)]]
+[[cpp:doxygen:include(Ice/Ice.h)]]
+[[cpp:header-ext(h)]]
 
-[["ice-prefix"]]
+[[suppress-warning(reserved-identifier)]]
 
-[["js:module:ice"]]
+[[js:module(ice)]]
 
-[["objc:dll-export:ICE_API"]]
-[["objc:header-dir:objc"]]
+[[python:pkgdir(Ice)]]
 
-[["python:pkgdir:Ice"]]
+[[java:package(com.zeroc)]]
 
-#ifndef __SLICE2JAVA_COMPAT__
-[["java:package:com.zeroc"]]
-#endif
+[[3.7]] // TODO, temporary
 
-["objc:prefix:ICE"]
+[cs:namespace(ZeroC)]
 module Ice
 {
+    /// A sequence of bools.
+    sequence<bool> BoolSeq;
 
-/** A sequence of bools. **/
-sequence<bool> BoolSeq;
+    /// A sequence of bytes.
+    sequence<byte> ByteSeq;
 
-/** A sequence of bytes. **/
-sequence<byte> ByteSeq;
+    /// A sequence of shorts.
+    sequence<short> ShortSeq;
 
-/** A sequence of shorts. **/
-sequence<short> ShortSeq;
+    /// A sequence of ints.
+    sequence<int> IntSeq;
 
-/** A sequence of ints. **/
-sequence<int> IntSeq;
+    /// A sequence of longs.
+    sequence<long> LongSeq;
 
-/** A sequence of longs. **/
-sequence<long> LongSeq;
+    /// A sequence of floats.
+    sequence<float> FloatSeq;
 
-/** A sequence of floats. **/
-sequence<float> FloatSeq;
+    /// A sequence of doubles.
+    sequence<double> DoubleSeq;
 
-/** A sequence of doubles. **/
-sequence<double> DoubleSeq;
+    /// A sequence of strings.
+    sequence<string> StringSeq;
 
-/** A sequence of strings. **/
-sequence<string> StringSeq;
+    /// A sequence of objects.
+    sequence<Object> ObjectSeq;
 
-/** A sequence of objects. **/
-sequence<Object> ObjectSeq;
-
-/** A sequence of object proxies. **/
-sequence<Object*> ObjectProxySeq;
-
+    /// A sequence of object proxies.
+    sequence<Object*> ObjectProxySeq;
 }

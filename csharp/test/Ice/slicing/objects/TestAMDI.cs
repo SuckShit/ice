@@ -1,491 +1,384 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Test;
 
-public sealed class TestI : TestIntfDisp_
+namespace ZeroC.Ice.Test.Slicing.Objects
 {
-    private static void test(bool b)
+    public sealed class AsyncTestIntf : IAsyncTestIntf
     {
-        if(!b)
+        public ValueTask ShutdownAsync(Current current, CancellationToken cancel)
         {
-            throw new Exception();
+            current.Adapter.Communicator.ShutdownAsync();
+            return new ValueTask(Task.CompletedTask);
         }
-    }
 
-    public override Task shutdownAsync(Ice.Current current)
-    {
-        current.adapter.getCommunicator().shutdown();
-        return null;
-    }
+        public ValueTask<AnyClass?> SBaseAsObjectAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<AnyClass?>(new SBase("SBase.sb"));
 
-    public override Task<Ice.Value>
-    SBaseAsObjectAsync(Ice.Current current)
-    {
-        return Task.FromResult<Ice.Value>(new SBase("SBase.sb"));
-    }
+        public ValueTask<SBase?> SBaseAsSBaseAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<SBase?>(new SBase("SBase.sb"));
 
-    public override Task<SBase> SBaseAsSBaseAsync(Ice.Current current)
-    {
-        return Task.FromResult<SBase>(new SBase("SBase.sb"));
-    }
+        public ValueTask<SBase?> SBSKnownDerivedAsSBaseAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<SBase?>(new SBSKnownDerived("SBSKnownDerived.sb", "SBSKnownDerived.sbskd"));
 
-    public override Task<SBase>
-    SBSKnownDerivedAsSBaseAsync(Ice.Current current)
-    {
-        return Task.FromResult<SBase>(new SBSKnownDerived("SBSKnownDerived.sb", "SBSKnownDerived.sbskd"));
-    }
+        public ValueTask<SBSKnownDerived?> SBSKnownDerivedAsSBSKnownDerivedAsync(
+            Current current,
+            CancellationToken cancel) =>
+            new ValueTask<SBSKnownDerived?>(new SBSKnownDerived("SBSKnownDerived.sb", "SBSKnownDerived.sbskd"));
 
-    public override Task<SBSKnownDerived>
-    SBSKnownDerivedAsSBSKnownDerivedAsync(Ice.Current current)
-    {
-        return Task.FromResult<SBSKnownDerived>(new SBSKnownDerived("SBSKnownDerived.sb", "SBSKnownDerived.sbskd"));
-    }
+        public ValueTask<SBase?> SBSUnknownDerivedAsSBaseAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<SBase?>(new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud"));
 
-    public override Task<SBase>
-    SBSUnknownDerivedAsSBaseAsync(Ice.Current current)
-    {
-        return Task.FromResult<SBase>(new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud"));
-    }
-
-    public override Task<SBase>
-    SBSUnknownDerivedAsSBaseCompactAsync(Ice.Current current)
-    {
-        return Task.FromResult<SBase>(new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud"));
-    }
-
-    public override Task<Ice.Value> SUnknownAsObjectAsync(Ice.Current current)
-    {
-        var su = new SUnknown("SUnknown.su", null);
-        su.cycle = su;
-        return Task.FromResult<Ice.Value>(su);
-    }
-
-    public override Task checkSUnknownAsync(Ice.Value obj, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public ValueTask CUnknownAsSBaseAsync(SBase? cUnknown, Current current, CancellationToken cancel)
         {
-            test(!(obj is SUnknown));
+            if (cUnknown!.Sb != "CUnknown.sb")
+            {
+                throw new Exception();
+            }
+            return new ValueTask();
         }
-        else
+
+        public ValueTask<SBase?> SBSUnknownDerivedAsSBaseCompactAsync(Current current, CancellationToken cancel) =>
+            new ValueTask<SBase?>(new SBSUnknownDerived("SBSUnknownDerived.sb", "SBSUnknownDerived.sbsud"));
+
+        public ValueTask<AnyClass?> SUnknownAsObjectAsync(Current current, CancellationToken cancel)
         {
-            SUnknown su = obj as SUnknown;
-            test(su.su.Equals("SUnknown.su"));
+            var su = new SUnknown("SUnknown.su", null);
+            su.Cycle = su;
+            return new ValueTask<AnyClass?>(su);
         }
-        return null;
-    }
 
-    public override Task<B> oneElementCycleAsync(Ice.Current current)
-    {
-        B b = new B();
-        b.sb = "B1.sb";
-        b.pb = b;
-        return Task.FromResult<B>(b);
-    }
-
-    public override Task<B> twoElementCycleAsync(Ice.Current current)
-    {
-        B b1 = new B();
-        b1.sb = "B1.sb";
-        B b2 = new B();
-        b2.sb = "B2.sb";
-        b2.pb = b1;
-        b1.pb = b2;
-        return Task.FromResult<B>(b1);
-    }
-
-    public override Task<B> D1AsBAsync(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<B>(d1);
-    }
-
-    public override Task<D1> D1AsD1Async(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<D1>(d1);
-    }
-
-    public override Task<B> D2AsBAsync(Ice.Current current)
-    {
-        D2 d2 = new D2();
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        D1 d1 = new D1();
-        d1.pb = d2;
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        d1.pd1 = d2;
-        d2.pb = d1;
-        d2.pd2 = d1;
-        return Task.FromResult<B>(d2);
-    }
-
-    public override Task<TestIntf_ParamTest1Result>
-    paramTest1Async(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<TestIntf_ParamTest1Result>(new TestIntf_ParamTest1Result(d1, d2));
-    }
-
-    public override Task<TestIntf_ParamTest2Result>
-    paramTest2Async(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<TestIntf_ParamTest2Result>(new TestIntf_ParamTest2Result(d2, d1));
-    }
-
-    public override Task<TestIntf_ParamTest3Result>
-    paramTest3Async(Ice.Current current)
-    {
-        D2 d2 = new D2();
-        d2.sb = "D2.sb (p1 1)";
-        d2.pb = null;
-        d2.sd2 = "D2.sd2 (p1 1)";
-
-        D1 d1 = new D1();
-        d1.sb = "D1.sb (p1 2)";
-        d1.pb = null;
-        d1.sd1 = "D1.sd2 (p1 2)";
-        d1.pd1 = null;
-        d2.pd2 = d1;
-
-        D2 d4 = new D2();
-        d4.sb = "D2.sb (p2 1)";
-        d4.pb = null;
-        d4.sd2 = "D2.sd2 (p2 1)";
-
-        D1 d3 = new D1();
-        d3.sb = "D1.sb (p2 2)";
-        d3.pb = null;
-        d3.sd1 = "D1.sd2 (p2 2)";
-        d3.pd1 = null;
-        d4.pd2 = d3;
-
-        return Task.FromResult<TestIntf_ParamTest3Result>(new TestIntf_ParamTest3Result(d3, d2, d4));
-    }
-
-    public override Task<TestIntf_ParamTest4Result>
-    paramTest4Async(Ice.Current current)
-    {
-        D4 d4 = new D4();
-        d4.sb = "D4.sb (1)";
-        d4.pb = null;
-        d4.p1 = new B();
-        d4.p1.sb = "B.sb (1)";
-        d4.p2 = new B();
-        d4.p2.sb = "B.sb (2)";
-        return Task.FromResult<TestIntf_ParamTest4Result>(new TestIntf_ParamTest4Result(d4.p2, d4));
-    }
-
-    public override Task<TestIntf_ReturnTest1Result>
-    returnTest1Async(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<TestIntf_ReturnTest1Result>(new TestIntf_ReturnTest1Result(d2, d2, d1));
-    }
-
-    public override Task<TestIntf_ReturnTest2Result>
-    returnTest2Async(Ice.Current current)
-    {
-        D1 d1 = new D1();
-        d1.sb = "D1.sb";
-        d1.sd1 = "D1.sd1";
-        D2 d2 = new D2();
-        d2.pb = d1;
-        d2.sb = "D2.sb";
-        d2.sd2 = "D2.sd2";
-        d2.pd2 = d1;
-        d1.pb = d2;
-        d1.pd1 = d2;
-        return Task.FromResult<TestIntf_ReturnTest2Result>(new TestIntf_ReturnTest2Result(d1, d1, d2));
-    }
-
-    public override Task<B>
-    returnTest3Async(B p1, B p2, Ice.Current current)
-    {
-        return Task.FromResult<B>(p1);
-    }
-
-    public override Task<SS3>
-    sequenceTestAsync(SS1 p1, SS2 p2, Ice.Current current)
-    {
-        return Task.FromResult<SS3>(new SS3(p1, p2));
-    }
-
-    public override Task<TestIntf_DictionaryTestResult>
-    dictionaryTestAsync(Dictionary<int, B> bin, Ice.Current current)
-    {
-        var bout = new Dictionary<int, B>();
-        int i;
-        for(i = 0; i < 10; ++i)
+        public ValueTask CheckSUnknownAsync(AnyClass? obj, Current current, CancellationToken cancel)
         {
-            B b = bin[i];
-            var d2 = new D2();
-            d2.sb = b.sb;
-            d2.pb = b.pb;
-            d2.sd2 = "D2";
-            d2.pd2 = d2;
-            bout[i * 10] = d2;
+            TestHelper.Assert(obj != null);
+            var su = (SUnknown)obj;
+            TestHelper.Assert(su.Su.Equals("SUnknown.su"));
+            return new ValueTask(Task.CompletedTask);
         }
-        var r = new Dictionary<int, B>();
-        for(i = 0; i < 10; ++i)
+
+        public ValueTask<B?> OneElementCycleAsync(Current current, CancellationToken cancel)
         {
-            string s = "D1." + (i * 20).ToString();
+            var b = new B();
+            b.Sb = "B1.sb";
+            b.Pb = b;
+            return new (b);
+        }
+
+        public ValueTask<B?> TwoElementCycleAsync(Current current, CancellationToken cancel)
+        {
+            var b1 = new B();
+            b1.Sb = "B1.sb";
+            var b2 = new B();
+            b2.Sb = "B2.sb";
+            b2.Pb = b1;
+            b1.Pb = b2;
+            return new (b1);
+        }
+
+        public ValueTask<B?> D1AsBAsync(Current current, CancellationToken cancel)
+        {
             var d1 = new D1();
-            d1.sb = s;
-            d1.pb = (i == 0 ? null : r[(i - 1) * 20]);
-            d1.sd1 = s;
-            d1.pd1 = d1;
-            r[i * 20] = d1;
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new (d1);
         }
-        return Task.FromResult<TestIntf_DictionaryTestResult>(new TestIntf_DictionaryTestResult(r, bout));
-    }
 
-    public override Task<PBase>
-    exchangePBaseAsync(PBase pb, Ice.Current current)
-    {
-        return Task.FromResult<PBase>(pb);
-    }
-
-    public override Task<Preserved>
-    PBSUnknownAsPreservedAsync(Ice.Current current)
-    {
-        PSUnknown r = new PSUnknown();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.psu = "unknown";
-        r.graph = null;
-        if(!current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public ValueTask<D1?> D1AsD1Async(Current current, CancellationToken cancel)
         {
-            //
-            // 1.0 encoding doesn't support unmarshaling unknown classes even if referenced
-            // from unread slice.
-            //
-            r.cl = new MyClass(15);
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new (d1);
         }
-        return Task.FromResult<Preserved>(r);
-    }
 
-    public override Task
-    checkPBSUnknownAsync(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public ValueTask<B?> D2AsBAsync(Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            var d2 = new D2();
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            var d1 = new D1();
+            d1.Pb = d2;
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            d1.Pd1 = d2;
+            d2.Pb = d1;
+            d2.Pd2 = d1;
+            return new (d2);
         }
-        else
+
+        public ValueTask<(B?, B?)> ParamTest1Async(Current current, CancellationToken cancel)
+        {
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new ((d1, d2));
+        }
+
+        public ValueTask<(B?, B?)> ParamTest2Async(Current current, CancellationToken cancel)
+        {
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new ((d2, d1));
+        }
+
+        public ValueTask<(B?, B?, B?)> ParamTest3Async(Current current, CancellationToken cancel)
+        {
+            var d2 = new D2();
+            d2.Sb = "D2.sb (p1 1)";
+            d2.Pb = null;
+            d2.Sd2 = "D2.sd2 (p1 1)";
+
+            var d1 = new D1();
+            d1.Sb = "D1.sb (p1 2)";
+            d1.Pb = null;
+            d1.Sd1 = "D1.sd2 (p1 2)";
+            d1.Pd1 = null;
+            d2.Pd2 = d1;
+
+            var d4 = new D2();
+            d4.Sb = "D2.sb (p2 1)";
+            d4.Pb = null;
+            d4.Sd2 = "D2.sd2 (p2 1)";
+
+            var d3 = new D1();
+            d3.Sb = "D1.sb (p2 2)";
+            d3.Pb = null;
+            d3.Sd1 = "D1.sd2 (p2 2)";
+            d3.Pd1 = null;
+            d4.Pd2 = d3;
+
+            return new ((d3, d2, d4));
+        }
+
+        public ValueTask<(B?, B?)> ParamTest4Async(Current current, CancellationToken cancel)
+        {
+            var d4 = new D4();
+            d4.Sb = "D4.sb (1)";
+            d4.Pb = null;
+            d4.P1 = new B();
+            d4.P1.Sb = "B.sb (1)";
+            d4.P2 = new B();
+            d4.P2.Sb = "B.sb (2)";
+            return new ((d4.P2, d4));
+        }
+
+        public ValueTask<(B?, B?, B?)> ReturnTest1Async(Current current, CancellationToken cancel)
+        {
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new ((d2, d2, d1));
+        }
+
+        public ValueTask<(B?, B?, B?)> ReturnTest2Async(Current current, CancellationToken cancel)
+        {
+            var d1 = new D1();
+            d1.Sb = "D1.sb";
+            d1.Sd1 = "D1.sd1";
+            var d2 = new D2();
+            d2.Pb = d1;
+            d2.Sb = "D2.sb";
+            d2.Sd2 = "D2.sd2";
+            d2.Pd2 = d1;
+            d1.Pb = d2;
+            d1.Pd1 = d2;
+            return new ((d1, d1, d2));
+        }
+
+        public ValueTask<B?> ReturnTest3Async(B? p1, B? p2, Current current, CancellationToken cancel) => new (p1);
+
+        public ValueTask<SS3> SequenceTestAsync(SS1? p1, SS2? p2, Current current, CancellationToken cancel) =>
+            new (new SS3(p1, p2));
+
+        public ValueTask<(IReadOnlyDictionary<int, B?>, IReadOnlyDictionary<int, B?>)> DictionaryTestAsync(
+            Dictionary<int, B?> bin,
+            Current current,
+            CancellationToken cancel)
+        {
+            var bout = new Dictionary<int, B?>();
+            int i;
+            for (i = 0; i < 10; ++i)
+            {
+                B? b = bin[i];
+                TestHelper.Assert(b != null);
+                var d2 = new D2();
+                d2.Sb = b.Sb;
+                d2.Pb = b.Pb;
+                d2.Sd2 = "D2";
+                d2.Pd2 = d2;
+                bout[i * 10] = d2;
+            }
+
+            var r = new Dictionary<int, B?>();
+            for (i = 0; i < 10; ++i)
+            {
+                string s = "D1." + (i * 20).ToString();
+                var d1 = new D1();
+                d1.Sb = s;
+                d1.Pb = i == 0 ? null : r[(i - 1) * 20];
+                d1.Sd1 = s;
+                d1.Pd1 = d1;
+                r[i * 20] = d1;
+            }
+            return new ((r, bout));
+        }
+
+        public ValueTask<PBase?> ExchangePBaseAsync(PBase? pb, Current current, CancellationToken cancel) => new (pb);
+
+        public ValueTask<Preserved?> PBSUnknownAsPreservedAsync(Current current, CancellationToken cancel) =>
+            new (new PSUnknown(5, "preserved", "unknown", null, new MyClass(15)));
+
+        public ValueTask CheckPBSUnknownAsync(Preserved? p, Current current, CancellationToken cancel)
         {
             var pu = p as PSUnknown;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.psu.Equals("unknown"));
-            test(pu.graph == null);
-            test(pu.cl != null && pu.cl.i == 15);
+            TestHelper.Assert(pu != null);
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Psu.Equals("unknown"));
+            TestHelper.Assert(pu.Graph == null);
+            TestHelper.Assert(pu.Cl != null && pu.Cl.I == 15);
+            return new ValueTask(Task.CompletedTask);
         }
-        return null;
-    }
 
-    public override Task<Preserved>
-    PBSUnknownAsPreservedWithGraphAsync(Ice.Current current)
-    {
-        var r = new PSUnknown();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.psu = "unknown";
-        r.graph = new PNode();
-        r.graph.next = new PNode();
-        r.graph.next.next = new PNode();
-        r.graph.next.next.next = r.graph;
-        return Task.FromResult<Preserved>(r);
-    }
-
-    public override Task
-    checkPBSUnknownWithGraphAsync(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public ValueTask<Preserved?> PBSUnknownAsPreservedWithGraphAsync(Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            var graph = new PNode();
+            graph.Next = new PNode();
+            graph.Next.Next = new PNode();
+            graph.Next.Next.Next = graph;
+
+            var r = new PSUnknown(5, "preserved", "unknown", graph, null);
+            return new (r);
         }
-        else
+
+        public ValueTask CheckPBSUnknownWithGraphAsync(Preserved? p, Current current, CancellationToken cancel)
         {
-            var pu = p as PSUnknown;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.psu.Equals("unknown"));
-            test(pu.graph != pu.graph.next);
-            test(pu.graph.next != pu.graph.next.next);
-            test(pu.graph.next.next.next == pu.graph);
+            TestHelper.Assert(p is PSUnknown);
+            var pu = (PSUnknown)p;
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Psu.Equals("unknown"));
+            TestHelper.Assert(pu.Graph != pu.Graph!.Next);
+            TestHelper.Assert(pu.Graph.Next != pu.Graph!.Next!.Next);
+            TestHelper.Assert(pu.Graph!.Next!.Next!.Next == pu.Graph);
+            return new ValueTask(Task.CompletedTask);
         }
-        return null;
-    }
 
-    public override Task<Preserved>
-    PBSUnknown2AsPreservedWithGraphAsync(Ice.Current current)
-    {
-        var r = new PSUnknown2();
-        r.pi = 5;
-        r.ps = "preserved";
-        r.pb = r;
-        return Task.FromResult<Preserved>(r);
-    }
-
-    public override Task
-    checkPBSUnknown2WithGraphAsync(Preserved p, Ice.Current current)
-    {
-        if(current.encoding.Equals(Ice.Util.Encoding_1_0))
+        public ValueTask<Preserved?> PBSUnknown2AsPreservedWithGraphAsync(Current current, CancellationToken cancel)
         {
-            test(!(p is PSUnknown2));
-            test(p.pi == 5);
-            test(p.ps.Equals("preserved"));
+            var r = new PSUnknown2(5, "preserved", null);
+            r.Pb = r;
+            return new ValueTask<Preserved?>(r);
         }
-        else
+
+        public ValueTask CheckPBSUnknown2WithGraphAsync(Preserved? p, Current current, CancellationToken cancel)
         {
-            var pu = p as PSUnknown2;
-            test(pu.pi == 5);
-            test(pu.ps.Equals("preserved"));
-            test(pu.pb == pu);
+            TestHelper.Assert(p is PSUnknown2);
+            var pu = (PSUnknown2)p;
+            TestHelper.Assert(pu.Pi == 5);
+            TestHelper.Assert(pu.Ps.Equals("preserved"));
+            TestHelper.Assert(pu.Pb == pu);
+            return new ValueTask(Task.CompletedTask);
         }
-        return null;
-    }
 
-    public override Task<PNode>
-    exchangePNodeAsync(PNode pn, Ice.Current current)
-    {
-        return Task.FromResult<PNode>(pn);
-    }
+        public ValueTask<PNode?> ExchangePNodeAsync(PNode? pn, Current current, CancellationToken cancel) => new (pn);
 
-    public override Task throwBaseAsBaseAsync(Ice.Current current)
-    {
-        var be = new BaseException();
-        be.sbe = "sbe";
-        be.pb = new B();
-        be.pb.sb = "sb";
-        be.pb.pb = be.pb;
-        throw be;
-    }
+        public ValueTask ThrowBaseAsBaseAsync(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb", null);
+            b.Pb = b;
+            throw new BaseException("sbe", b);
+        }
 
-    public override Task throwDerivedAsBaseAsync(Ice.Current current)
-    {
-        DerivedException de = new DerivedException();
-        de.sbe = "sbe";
-        de.pb = new B();
-        de.pb.sb = "sb1";
-        de.pb.pb = de.pb;
-        de.sde = "sde1";
-        de.pd1 = new D1();
-        de.pd1.sb = "sb2";
-        de.pd1.pb = de.pd1;
-        de.pd1.sd1 = "sd2";
-        de.pd1.pd1 = de.pd1;
-        throw de;
-    }
+        public ValueTask ThrowDerivedAsBaseAsync(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb1", null);
+            b.Pb = b;
 
-    public override Task
-    throwDerivedAsDerivedAsync(Ice.Current current)
-    {
-        var de = new DerivedException();
-        de.sbe = "sbe";
-        de.pb = new B();
-        de.pb.sb = "sb1";
-        de.pb.pb = de.pb;
-        de.sde = "sde1";
-        de.pd1 = new D1();
-        de.pd1.sb = "sb2";
-        de.pd1.pb = de.pd1;
-        de.pd1.sd1 = "sd2";
-        de.pd1.pd1 = de.pd1;
-        throw de;
-    }
+            var d = new D1("sb2", null, "sd2", null);
+            d.Pb = d;
+            d.Pd1 = d;
 
-    public override Task throwUnknownDerivedAsBaseAsync(Ice.Current current)
-    {
-        var d2 = new D2();
-        d2.sb = "sb d2";
-        d2.pb = d2;
-        d2.sd2 = "sd2 d2";
-        d2.pd2 = d2;
+            throw new DerivedException("sbe", b, "sde1", d);
+        }
 
-        var ude = new UnknownDerivedException();
-        ude.sbe = "sbe";
-        ude.pb = d2;
-        ude.sude = "sude";
-        ude.pd2 = d2;
+        public ValueTask ThrowDerivedAsDerivedAsync(Current current, CancellationToken cancel)
+        {
+            var b = new B("sb1", null);
+            b.Pb = b;
 
-        throw ude;
-    }
+            var d = new D1("sb2", null, "sd2", null);
+            d.Pb = d;
+            d.Pd1 = d;
 
-    public override Task throwPreservedExceptionAsync(Ice.Current current)
-    {
-        var ue = new PSUnknownException();
-        ue.p = new PSUnknown2();
-        ue.p.pi = 5;
-        ue.p.ps = "preserved";
-        ue.p.pb = ue.p;
+            throw new DerivedException("sbe", b, "sde1", d);
+        }
 
-        throw ue;
-    }
+        public ValueTask ThrowUnknownDerivedAsBaseAsync(Current current, CancellationToken cancel)
+        {
+            var d2 = new D2();
+            d2.Sb = "sb d2";
+            d2.Pb = d2;
+            d2.Sd2 = "sd2 d2";
+            d2.Pd2 = d2;
 
-    public override Task<Forward>
-    useForwardAsync(Ice.Current current)
-    {
-        var f = new Forward();
-        f = new Forward();
-        f.h = new Hidden();
-        f.h.f = f;
-        return Task.FromResult<Forward>(f);
+            throw new UnknownDerivedException("sbe", d2, "sude", d2);
+        }
+
+        public ValueTask ThrowPreservedExceptionAsync(Current current, CancellationToken cancel)
+        {
+            var ue = new PSUnknownException();
+            ue.P = new PSUnknown2(5, "preserved", null);
+            ue.P.Pb = ue.P;
+            throw ue;
+        }
+
+        public ValueTask<Forward?> UseForwardAsync(Current current, CancellationToken cancel)
+        {
+            var f = new Forward();
+            f.H = new Hidden();
+            f.H.F = f;
+            return new ValueTask<Forward?>(f);
+        }
     }
 }

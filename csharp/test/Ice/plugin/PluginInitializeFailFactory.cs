@@ -1,31 +1,21 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-public class PluginInitializeFailFactory : Ice.PluginFactory
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice.Test.Plugin
 {
-    public Ice.Plugin create(Ice.Communicator communicator, string name, string[] args)
+    public class PluginInitializeFailFactory : IPluginFactory
     {
-        return new PluginInitializeFail();
-    }
+        public IPlugin Create(Communicator communicator, string name, string[] args) => new PluginInitializeFail();
 
-    internal class PluginInitializeFail : Ice.Plugin
-    {
-        public void initialize()
+        internal class PluginInitializeFail : IPlugin
         {
-            throw new PluginInitializeFailException();
-        }
+            public void Initialize(PluginInitializationContext context) => throw new PluginInitializeFailException();
 
-        public void destroy()
-        {
-            test(false);
-        }
-
-        private static void test(bool b)
-        {
-            if(!b)
+            public ValueTask DisposeAsync()
             {
-                throw new System.Exception();
+                TestHelper.Assert(false);
+                return new ValueTask(Task.CompletedTask);
             }
         }
     }

@@ -4,8 +4,6 @@
 
 #pragma once
 
-[["suppress-warning:deprecated"]]
-
 module await
 {
 
@@ -21,7 +19,7 @@ struct break
 
 interface case
 {
-    ["amd"] void catch(int checked, out int continue);
+    [amd] void catch(int checked, out int continue);
 }
 
 interface typeof
@@ -36,7 +34,7 @@ class delete
     int export;
 }
 
-interface explicit extends typeof, case
+interface explicit : typeof, case
 {
 }
 
@@ -44,41 +42,41 @@ dictionary<string, break> while;
 
 class package
 {
-    optional(1) break for;
-    optional(2) var goto;
-    optional(3) explicit if;
-    optional(5) while internal;
-    optional(7) string debugger;
-    optional(8) explicit* null;
+    tag(1) break? for;
+    tag(2) var? goto;
+    tag(3) explicit* if;
+    tag(5) while? internal;
+    tag(7) string? debugger;
+    tag(8) explicit* null;
 }
 
 interface optionalParams
 {
-    optional(1) break for(optional(2) var goto,
-                          optional(3) explicit if,
-                          optional(5) while internal,
-                          optional(7) string namespace,
-                          optional(8) explicit* null);
+    tag(1) break? for(tag(2) var? goto,
+                      tag(3) explicit* if,
+                      tag(5) while? internal,
+                      tag(7) string? namespace,
+                      tag(8) explicit* null);
 
-    ["amd"]
-    optional(1) break continue(optional(2) var goto,
-                               optional(3) explicit if,
-                               optional(5) while internal,
-                               optional(7) string namespace,
-                               optional(8) explicit* null);
+    [amd]
+    tag(1) break? continue(tag(2) var? goto,
+                           tag(3) explicit* if,
+                           tag(5) while? internal,
+                           tag(7) string? namespace,
+                           tag(8) explicit* null);
 
-    optional(1) break in(out optional(2) var goto,
-                         out optional(3) explicit if,
-                         out optional(5) while internal,
-                         out optional(7) string namespace,
-                         out optional(8) explicit* null);
+    tag(1) break? in(out tag(2) var? goto,
+                     out tag(3) explicit* if,
+                     out tag(5) while? internal,
+                     out tag(7) string? namespace,
+                     out tag(8) explicit* null);
 
-    ["amd"]
-    optional(1) break foreach(out optional(2) var goto,
-                              out optional(3) explicit if,
-                              out optional(5) while internal,
-                              out optional(7) string namespace,
-                              out optional(8) explicit* null);
+    [amd]
+    tag(1) break? foreach(out tag(2) var? goto,
+                          out tag(3) explicit* if,
+                          out tag(5) while? internal,
+                          out tag(7) string? namespace,
+                          out tag(8) explicit* null);
 }
 
 exception fixed
@@ -86,7 +84,7 @@ exception fixed
     int for;
 }
 
-exception foreach extends fixed
+exception foreach : fixed
 {
     int goto;
     int if;
@@ -109,13 +107,6 @@ exception BaseMethods
     int GetType;
     int ReferenceEquals;
     int ToString;
-}
-
-local interface implicit
-{
-    var in(break internal, delete is, explicit lock, case* namespace, typeof* new, delete null,
-          explicit* operator, int override, int params, int private)
-        throws fixed, foreach;
 }
 
 const int protected = 0;

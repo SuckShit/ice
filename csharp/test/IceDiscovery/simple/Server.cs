@@ -1,45 +1,37 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceDiscoveryTest")]
-[assembly: AssemblyDescription("IceDiscovery test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.Discovery
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
+            await using Communicator communicator = Initialize(ref args);
             int num = 0;
             try
             {
-                num =  Int32.Parse(args[0]);
+                num = int.Parse(args[0]);
             }
-            catch(FormatException)
+            catch (FormatException)
             {
             }
 
-            communicator.getProperties().setProperty("ControlAdapter.Endpoints", getTestEndpoint(num));
-            communicator.getProperties().setProperty("ControlAdapter.AdapterId", "control" + num);
-            communicator.getProperties().setProperty("ControlAdapter.ThreadPool.Size", "1");
+            communicator.SetProperty("ControlAdapter.Endpoints", GetTestEndpoint(num));
+            communicator.SetProperty("ControlAdapter.AdapterId", $"control{num}");
 
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("ControlAdapter");
-            adapter.add(new ControllerI(), Ice.Util.stringToIdentity("controller" + num));
-            adapter.activate();
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("ControlAdapter");
+            adapter.Add($"controller{num}", new Controller());
+            adapter.Add($"faceted-controller{num}#abc", new Controller());
+            await adapter.ActivateAsync();
 
-            communicator.waitForShutdown();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

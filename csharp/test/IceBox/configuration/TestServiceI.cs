@@ -1,21 +1,21 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using IceBox;
+using ZeroC.Ice;
+using ZeroC.IceBox;
 
-class TestServiceI : IceBox.Service
+namespace ZeroC.IceBox.Test.Configuration
 {
-    public void
-    start(string name, Ice.Communicator communicator, string[] args)
+    public class TestService : IService
     {
-        Ice.ObjectAdapter adapter = communicator.createObjectAdapter(name + "OA");
-        adapter.add(new TestI(args), Ice.Util.stringToIdentity("test"));
-        adapter.activate();
-    }
+        public void Start(string name, Communicator communicator, string[] args)
+        {
+            ObjectAdapter adapter = communicator.CreateObjectAdapter(name + "OA");
+            adapter.Add("test", new TestIntf(args));
+            adapter.Activate();
+        }
 
-    public void
-    stop()
-    {
+        public void Stop()
+        {
+        }
     }
 }

@@ -1,26 +1,13 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Inheritance
 {
-    namespace inheritance
+    public sealed class B2 : MB.IB2
     {
-        public sealed class IB2I : Test.MB.IB2Disp_
-        {
-            public IB2I()
-            {
-            }
+        public MA.IAPrx? Iaop(MA.IAPrx? p, Current current, CancellationToken cancel) => p;
 
-            public override Test.MA.IAPrx iaop(Test.MA.IAPrx p, Ice.Current current)
-            {
-                return p;
-            }
-
-            public override Test.MB.IB2Prx ib2op(Test.MB.IB2Prx p, Ice.Current current)
-            {
-                return p;
-            }
-        }
+        public MB.IB2Prx? Ib2op(MB.IB2Prx? p, Current current, CancellationToken cancel) => p;
     }
 }

@@ -4,9 +4,7 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
-
-[["suppress-warning:deprecated"]]
+#include <Ice/Context.ice>
 
 module Test
 {
@@ -18,7 +16,7 @@ interface MyClass
     Ice::Context getContext();
 }
 
-interface MyDerivedClass extends MyClass
+interface MyDerivedClass : MyClass
 {
     Object* echo(Object* obj);
 }

@@ -1,54 +1,79 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Test;
+
+namespace ZeroC.Ice.Test.Timeout
 {
-    namespace timeout
+    public class Server : TestHelper
     {
-        public class Server : global::Test.TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                //
-                // This test kills connections, so we don't want warnings.
-                //
-                properties.setProperty("Ice.Warn.Connections", "0");
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
 
-                //
-                // The client sends large messages to cause the transport
-                // buffers to fill up.
-                //
-                properties.setProperty("Ice.MessageSizeMax", "20000");
+            // This test kills connections, so we don't want warnings.
+            properties["Ice.Warn.Connections"] = "0";
 
-                //
-                // Limit the recv buffer size, this test relies on the socket
-                // send() blocking after sending a given amount of data.
-                //
-                properties.setProperty("Ice.TCP.RcvSize", "50000");
-                using(var communicator = initialize(properties))
+            // The client sends large messages to cause the transport buffers to fill up.
+            properties["Ice.IncomingFrameSizeMax"] = "20M";
+
+            // Limit the recv buffer size, this test relies on the socket send() blocking after sending a given
+            // amount of data.
+            properties["Ice.TCP.RcvSize"] = "50K";
+
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            communicator.SetProperty("ControllerAdapter.Endpoints", GetTestEndpoint(1));
+
+            var schedulerPair = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default);
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter",
+                                                                      taskScheduler: schedulerPair.ExclusiveScheduler);
+            adapter.Add("timeout", new Timeout());
+            adapter.Activate((request, current, next, cancel) =>
                 {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    communicator.getProperties().setProperty("ControllerAdapter.Endpoints", getTestEndpoint(1));
-                    communicator.getProperties().setProperty("ControllerAdapter.ThreadPool.Size", "1");
+                    if (current.Operation == "checkDeadline")
+                    {
+                        if (request.BinaryContext.TryGetValue(10, out ReadOnlyMemory<byte> value))
+                        {
+                            current.Context["deadline"] = value.Read(istr => istr.ReadVarLong()).ToString();
+                        }
+                    }
+                    return next(request, current, cancel);
+                });
 
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new TimeoutI(), Ice.Util.stringToIdentity("timeout"));
-                    adapter.activate();
+            ObjectAdapter controllerAdapter = communicator.CreateObjectAdapter("ControllerAdapter");
+            controllerAdapter.Add("controller", new Controller(schedulerPair.ExclusiveScheduler));
+            controllerAdapter.Activate();
 
-                    var controllerAdapter = communicator.createObjectAdapter("ControllerAdapter");
-                    controllerAdapter.add(new ControllerI(adapter), Ice.Util.stringToIdentity("controller"));
-                    controllerAdapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
+        }
 
-            public static int Main(string[] args)
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
+    }
+
+    internal class Controller : IController
+    {
+        private readonly TaskScheduler _scheduler;
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(0);
+
+        public Controller(TaskScheduler scheduler) => _scheduler = scheduler;
+
+        public void HoldAdapter(int to, Current current, CancellationToken cancel)
+        {
+            Task.Factory.StartNew(() => _semaphore.Wait(), default, TaskCreationOptions.None, _scheduler);
+            if (to >= 0)
             {
-                return global::Test.TestDriver.runTest<Server>(args);
+                Task.Delay(to, cancel).ContinueWith(t => _semaphore.Release(), TaskScheduler.Default);
             }
         }
+
+        public void ResumeAdapter(Current current, CancellationToken cancel) => _ = _semaphore.Release();
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
     }
 }

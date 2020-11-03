@@ -1,26 +1,13 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Facets
 {
-    namespace facets
+    public sealed class C : IC
     {
-        public sealed class CI : Test.CDisp_
-        {
-            public CI()
-            {
-            }
+        public string CallA(Current current, CancellationToken cancel) => "A";
 
-            public override string callA(Ice.Current current)
-            {
-                return "A";
-            }
-
-            public override string callC(Ice.Current current)
-            {
-                return "C";
-            }
-        }
+        public string CallC(Current current, CancellationToken cancel) => "C";
     }
 }

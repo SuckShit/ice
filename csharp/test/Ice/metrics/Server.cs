@@ -1,48 +1,45 @@
-
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Diagnostics;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.Metrics
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.Admin.Endpoints", "tcp");
-        properties.setProperty("Ice.Admin.InstanceName", "server");
-        properties.setProperty("Ice.Warn.Connections", "0");
-        properties.setProperty("Ice.Warn.Dispatch", "0");
-        properties.setProperty("Ice.MessageSizeMax", "50000");
-        properties.setProperty("Ice.Default.Host", "127.0.0.1");
-
-        using(var communicator = initialize(properties))
+        public override async Task RunAsync(string[] args)
         {
-            communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            adapter.add(new MetricsI(), Ice.Util.stringToIdentity("metrics"));
-            adapter.activate();
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            bool ice1 = GetTestProtocol(properties) == Protocol.Ice1;
 
-            communicator.getProperties().setProperty("ControllerAdapter.Endpoints", getTestEndpoint(1));
-            Ice.ObjectAdapter controllerAdapter = communicator.createObjectAdapter("ControllerAdapter");
-            controllerAdapter.add(new ControllerI(adapter), Ice.Util.stringToIdentity("controller"));
-            controllerAdapter.activate();
+            properties["Ice.Admin.Endpoints"] = ice1 ? "tcp -h 127.0.0.1" : "ice+tcp://127.0.0.1:0";
+            properties["Ice.Admin.InstanceName"] = "server";
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.Warn.Dispatch"] = "0";
+            properties["Ice.IncomingFrameSizeMax"] = "50M";
 
-            communicator.waitForShutdown();
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("metrics", new Metrics());
+            await adapter.ActivateAsync();
+
+            var schedulerPair = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default);
+            var adapter2 = communicator.CreateObjectAdapterWithEndpoints("TestAdapterExclusiveTS", GetTestEndpoint(2),
+                taskScheduler: schedulerPair.ExclusiveScheduler);
+            adapter2.Add("metrics", new Metrics());
+            await adapter2.ActivateAsync();
+
+            communicator.SetProperty("ControllerAdapter.Endpoints", GetTestEndpoint(1));
+            ObjectAdapter controllerAdapter = communicator.CreateObjectAdapter("ControllerAdapter");
+
+            controllerAdapter.Add("controller", new Controller(schedulerPair.ExclusiveScheduler));
+            await controllerAdapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

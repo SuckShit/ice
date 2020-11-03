@@ -1,25 +1,25 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice.Test.Objects
 {
-    namespace objects
+    public sealed class UnexpectedObjectExceptionTest : IObject
     {
-        public sealed class UnexpectedObjectExceptionTestI : Ice.Blobject
+        public ValueTask<OutgoingResponseFrame> DispatchAsync(
+            IncomingRequestFrame request,
+            Current current,
+            CancellationToken cancel)
         {
-            public override bool ice_invoke(byte[] inParams, out byte[] outParams, Ice.Current current)
-            {
-                var communicator = current.adapter.getCommunicator();
-                var @out = new Ice.OutputStream(communicator);
-                @out.startEncapsulation(current.encoding, Ice.FormatType.DefaultFormat);
-                var ae = new Test.AlsoEmpty();
-                @out.writeValue(ae);
-                @out.writePendingValues();
-                @out.endEncapsulation();
-                outParams = @out.finished();
-                return true;
-            }
+            var ae = new AlsoEmpty();
+            var responseFrame =
+                OutgoingResponseFrame.WithReturnValue(current,
+                                                      compress: false,
+                                                      format: default,
+                                                      ae,
+                                                      (OutputStream ostr, AlsoEmpty ae) => ostr.WriteClass(ae, null));
+            return new ValueTask<OutgoingResponseFrame>(responseFrame);
         }
     }
 }

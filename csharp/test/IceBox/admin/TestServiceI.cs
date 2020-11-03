@@ -1,39 +1,32 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using IceBox;
+using ZeroC.Ice;
 
-public class TestServiceI : IceBox.Service
+namespace ZeroC.IceBox.Test.Admin
 {
-    public TestServiceI(Ice.Communicator serviceManagerCommunicator)
+    public class TestService : IService
     {
-        TestFacetI facet = new TestFacetI();
-
-        //
-        // Install a custom admin facet.
-        //
-        serviceManagerCommunicator.addAdminFacet(facet, "TestFacet");
-
-        //
-        // The TestFacetI servant also implements PropertiesAdminUpdateCallback.
-        // Set the callback on the admin facet.
-        //
-        Ice.Object propFacet = serviceManagerCommunicator.findAdminFacet("IceBox.Service.TestService.Properties");
-        if(propFacet != null)
+        public TestService(Communicator serviceManagerCommunicator)
         {
-            Ice.NativePropertiesAdmin admin = (Ice.NativePropertiesAdmin)propFacet;
-            admin.addUpdateCallback(facet.updated);
+            var facet = new TestFacet();
+
+            // Install a custom admin facet.
+            serviceManagerCommunicator.AddAdminFacet("TestFacet", facet);
+
+            // The TestFacetI servant also implements PropertiesAdminUpdateCallback. Set the callback on the admin facet.
+            IObject? propFacet = serviceManagerCommunicator.FindAdminFacet("IceBox.Service.TestService.Properties");
+            if (propFacet is IPropertiesAdmin admin)
+            {
+                admin.Updated += (_, updates) => facet.Updated(updates);
+            }
         }
-    }
 
-    public void
-    start(string name, Ice.Communicator communicator, string[] args)
-    {
-    }
+        public void Start(string name, Communicator communicator, string[] args)
+        {
+        }
 
-    public void
-    stop()
-    {
+        public void Stop()
+        {
+        }
     }
 }

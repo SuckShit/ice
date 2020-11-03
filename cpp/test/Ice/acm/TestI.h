@@ -44,12 +44,8 @@ public:
 
 private:
 
-    class HeartbeatCallbackI ICE_FINAL :
-#ifdef ICE_CPP11_MAPPING
+    class HeartbeatCallbackI final :
                                 public std::enable_shared_from_this<HeartbeatCallbackI>,
-#else
-                                public Ice::HeartbeatCallback,
-#endif
                                 private IceUtil::Monitor<IceUtil::Mutex>
     {
     public:

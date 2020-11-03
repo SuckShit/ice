@@ -53,25 +53,11 @@ public:
 };
 ICE_DEFINE_PTR(FIPtr, FI);
 
-#ifdef ICE_CPP11_MAPPING
 class II : public ::Ice::InterfaceByValue<Test::I>
 {
 };
 
 class JI : public ::Ice::InterfaceByValue<Test::J>
-{
-};
-#else
-class II : public Test::I
-{
-};
-
-class JI : public Test::J
-{
-};
-#endif
-
-class HI : public Test::H
 {
 };
 
@@ -90,48 +76,28 @@ public:
     virtual Test::EPtr getE(const Ice::Current&);
     virtual Test::FPtr getF(const Ice::Current&);
 
-    virtual void setRecursive(ICE_IN(Test::RecursivePtr), const Ice::Current&);
+    virtual void setRecursive(Test::RecursivePtr, const Ice::Current&);
     virtual bool supportsClassGraphDepthMax(const Ice::Current&);
 
-#ifdef ICE_CPP11_MAPPING
     virtual GetMBMarshaledResult getMB(const Ice::Current&);
     virtual void getAMDMBAsync(std::function<void(const GetAMDMBMarshaledResult&)>,
                                std::function<void(std::exception_ptr)>,
                                const Ice::Current&);
-#else
-    virtual Test::BPtr getMB(const Ice::Current&);
-    virtual void getAMDMB_async(const Test::AMD_Initial_getAMDMBPtr&, const Ice::Current&);
-#endif
 
     virtual void getAll(Test::BPtr&, Test::BPtr&, Test::CPtr&, Test::DPtr&, const Ice::Current&);
 
-#ifdef ICE_CPP11_MAPPING
-    virtual ::std::shared_ptr<::Ice::Value> getI(const Ice::Current&);
-    virtual ::std::shared_ptr<::Ice::Value> getJ(const Ice::Current&);
-    virtual ::std::shared_ptr<::Ice::Value> getH(const Ice::Current&);
-#else
-    virtual Test::IPtr getI(const Ice::Current&);
-    virtual Test::IPtr getJ(const Ice::Current&);
-    virtual Test::IPtr getH(const Ice::Current&);
-#endif
-
     virtual Test::KPtr getK(const Ice::Current&);
 
-    virtual Ice::ValuePtr opValue(ICE_IN(Ice::ValuePtr), Ice::ValuePtr&, const Ice::Current&);
-    virtual Test::ValueSeq opValueSeq(ICE_IN(Test::ValueSeq), Test::ValueSeq&, const Ice::Current&);
-    virtual Test::ValueMap opValueMap(ICE_IN(Test::ValueMap), Test::ValueMap&, const Ice::Current&);
+    virtual Ice::ValuePtr opClass(Ice::ValuePtr, Ice::ValuePtr&, const Ice::Current&);
+    virtual Test::ClassSeq opClassSeq(Test::ClassSeq, Test::ClassSeq&, const Ice::Current&);
+    virtual Test::ClassMap opClassMap(Test::ClassMap, Test::ClassMap&, const Ice::Current&);
 
-    virtual Test::D1Ptr getD1(ICE_IN(Test::D1Ptr), const Ice::Current&);
+    virtual Test::D1Ptr getD1(Test::D1Ptr, const Ice::Current&);
     virtual void throwEDerived(const Ice::Current&);
 
-    virtual void setG(ICE_IN(Test::GPtr), const Ice::Current&);
+    virtual void setG(Test::GPtr, const Ice::Current&);
 
-#ifdef ICE_CPP11_MAPPING
-    virtual void setI(::std::shared_ptr<::Ice::Value>, const Ice::Current&);
-#else
-    virtual void setI(const Test::IPtr&, const Ice::Current&);
-#endif
-    virtual Test::BaseSeq opBaseSeq(ICE_IN(Test::BaseSeq), Test::BaseSeq&, const Ice::Current&);
+    virtual Test::BaseSeq opBaseSeq(Test::BaseSeq, Test::BaseSeq&, const Ice::Current&);
 
     virtual Test::CompactPtr getCompact(const Ice::Current&);
 
@@ -141,11 +107,11 @@ public:
     virtual void throwInnerEx(const Ice::Current&);
     virtual void throwInnerSubEx(const Ice::Current&);
 
-    virtual Test::MPtr opM(ICE_IN(Test::MPtr), Test::MPtr&, const Ice::Current&);
+    virtual Test::MPtr opM(Test::MPtr, Test::MPtr&, const Ice::Current&);
 
-    virtual Test::F1Ptr opF1(ICE_IN(Test::F1Ptr), Test::F1Ptr&, const Ice::Current&);
-    virtual Test::F2PrxPtr opF2(ICE_IN(Test::F2PrxPtr), Test::F2PrxPtr&, const Ice::Current&);
-    virtual Test::F3Ptr opF3(ICE_IN(Test::F3Ptr), Test::F3Ptr&, const Ice::Current&);
+    virtual Test::F1Ptr opF1(Test::F1Ptr, Test::F1Ptr&, const Ice::Current&);
+    virtual Test::F2PrxPtr opF2(Test::F2PrxPtr, Test::F2PrxPtr&, const Ice::Current&);
+    virtual Test::F3Ptr opF3(Test::F3Ptr, Test::F3Ptr&, const Ice::Current&);
     virtual bool hasF3(const Ice::Current&);
 
 private:
@@ -163,7 +129,7 @@ class UnexpectedObjectExceptionTestI : public Ice::Blobject
 {
 public:
 
-    virtual bool ice_invoke(ICE_IN(std::vector<Ice::Byte>), std::vector<Ice::Byte>&, const Ice::Current&);
+    virtual bool ice_invoke(std::vector<Ice::Byte>, std::vector<Ice::Byte>&, const Ice::Current&);
 };
 ICE_DEFINE_PTR(UnexpectedObjectExceptionTestIPtr, UnexpectedObjectExceptionTestI);
 

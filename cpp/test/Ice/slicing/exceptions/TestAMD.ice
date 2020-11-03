@@ -12,39 +12,39 @@ exception Base
     string b;
 }
 
-exception KnownDerived extends Base
+exception KnownDerived : Base
 {
     string kd;
 }
 
-exception KnownIntermediate extends Base
+exception KnownIntermediate : Base
 {
     string ki;
 }
 
-exception KnownMostDerived extends KnownIntermediate
+exception KnownMostDerived : KnownIntermediate
 {
     string kmd;
 }
 
-["preserve-slice"]
-exception KnownPreserved extends Base
+[preserve-slice]
+exception KnownPreserved : Base
 {
     string kp;
 }
 
-exception KnownPreservedDerived extends KnownPreserved
+exception KnownPreservedDerived : KnownPreserved
 {
     string kpd;
 }
 
-["preserve-slice"]
+[preserve-slice]
 class BaseClass
 {
     string bc;
 }
 
-["format:sliced"]
+[format(sliced)]
 interface Relay
 {
     void knownPreservedAsBase() throws Base;
@@ -54,7 +54,7 @@ interface Relay
     void unknownPreservedAsKnownPreserved() throws KnownPreserved;
 }
 
-["amd", "format:sliced"]
+[amd] [format(sliced)]
 interface TestIntf
 {
     void baseAsBase() throws Base;
@@ -73,7 +73,7 @@ interface TestIntf
     void unknownMostDerived1AsKnownIntermediate() throws KnownIntermediate;
     void unknownMostDerived2AsBase() throws Base;
 
-    ["format:compact"] void unknownMostDerived2AsBaseCompact() throws Base;
+    [format(compact)] void unknownMostDerived2AsBaseCompact() throws Base;
 
     void knownPreservedAsBase() throws Base;
     void knownPreservedAsKnownPreserved() throws KnownPreserved;

@@ -1,32 +1,23 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.NamespaceMD
 {
-    namespace namespacemd
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                using(var communicator = initialize(ref args))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new InitialI(), Ice.Util.stringToIdentity("initial"));
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            await using var communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            var adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("initial", new Initial());
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

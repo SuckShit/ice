@@ -11,12 +11,6 @@
 #include <Ice/LocalException.h>
 #include <IceUtil/FileUtil.h>
 
-#ifdef __IBMCPP__
-// Work-around for xlC visibility bug
-// See "ifstream::tellg visibility error" thread on IBM xlC forum
-extern template class std::fpos<char*>;
-#endif
-
 using namespace std;
 using namespace Ice;
 using namespace IceInternal;
@@ -130,7 +124,7 @@ LoggerPtr
 Ice::LoggerI::cloneWithPrefix(const std::string& prefix)
 {
     IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(outputMutex); // for _sizeMax
-    return ICE_MAKE_SHARED(LoggerI, prefix, _file, _convert, _sizeMax);
+    return std::make_shared<LoggerI>(prefix, _file, _convert, _sizeMax);
 }
 
 void
@@ -232,9 +226,7 @@ Ice::LoggerI::write(const string& message, bool indent)
     }
     else
     {
-#if defined(ICE_OS_UWP)
-        OutputDebugString(stringToWstring(s).c_str());
-#elif defined(_WIN32)
+#if defined(_WIN32)
         //
         // Convert the message from the native narrow string encoding to the console
         // code page encoding for printing. If the _convert member is set to false

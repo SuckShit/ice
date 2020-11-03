@@ -24,7 +24,7 @@ public:
 
     virtual void streamWriteImpl(Ice::OutputStream*) const;
 
-    virtual Ice::EndpointInfoPtr getInfo() const ICE_NOEXCEPT;
+    virtual Ice::EndpointInfoPtr getInfo() const noexcept;
 
     virtual Ice::Int timeout() const;
     virtual EndpointIPtr timeout(Ice::Int) const;
@@ -36,13 +36,8 @@ public:
     virtual AcceptorPtr acceptor(const std::string&) const;
     virtual std::string options() const;
 
-#ifdef ICE_CPP11_MAPPING
     virtual bool operator==(const Ice::Endpoint&) const;
     virtual bool operator<(const Ice::Endpoint&) const;
-#else
-    virtual bool operator==(const Ice::LocalObject&) const;
-    virtual bool operator<(const Ice::LocalObject&) const;
-#endif
 
     UdpEndpointIPtr endpoint(const UdpTransceiverPtr&) const;
 

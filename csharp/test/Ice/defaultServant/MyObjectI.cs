@@ -1,44 +1,30 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.DefaultServant
 {
-    namespace defaultServant
+    public sealed class MyObject : IMyObject
     {
-        public sealed class MyObjectI : Test.MyObjectDisp_
+        public void IcePing(Current current, CancellationToken cancel)
         {
-            public override void
-            ice_ping(Ice.Current current)
+            string name = current.Identity.Name;
+
+            if (name == "ObjectNotExist")
             {
-                string name = current.id.name;
-
-                if(name == "ObjectNotExist")
-                {
-                    throw new Ice.ObjectNotExistException();
-                }
-                else if(name == "FacetNotExist")
-                {
-                    throw new Ice.FacetNotExistException();
-                }
+                throw new ObjectNotExistException();
             }
+        }
 
-            public override string
-            getName(Ice.Current current)
+        public string GetName(Current current, CancellationToken cancel)
+        {
+            string name = current.Identity.Name;
+
+            if (name == "ObjectNotExist")
             {
-                string name = current.id.name;
-
-                if(name == "ObjectNotExist")
-                {
-                    throw new Ice.ObjectNotExistException();
-                }
-                else if(name == "FacetNotExist")
-                {
-                    throw new Ice.FacetNotExistException();
-                }
-
-                return name;
+                throw new ObjectNotExistException();
             }
+            return name;
         }
     }
 }

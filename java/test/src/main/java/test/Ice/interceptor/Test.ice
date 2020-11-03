@@ -4,17 +4,13 @@
 
 #pragma once
 
-[["java:package:test.Ice.interceptor"]]
+[[java:package(test.Ice.interceptor)]]
 module Test
 {
 
 exception InvalidInputException
 {
     string message;
-}
-
-local exception RetryException
-{
 }
 
 interface MyObject
@@ -51,27 +47,27 @@ interface MyObject
     //
     // Simple add
     //
-    ["amd"] int amdAdd(int x, int y);
+    [amd] int amdAdd(int x, int y);
 
     //
     // Will throw RetryException until current.ctx["retry"] is "no"
     //
-    ["amd"] int amdAddWithRetry(int x, int y);
+    [amd] int amdAddWithRetry(int x, int y);
 
     //
     // Raise user exception
     //
-    ["amd"] int amdBadAdd(int x, int y) throws InvalidInputException;
+    [amd] int amdBadAdd(int x, int y) throws InvalidInputException;
 
     //
     // Raise ONE
     //
-    ["amd"] int amdNotExistAdd(int x, int y);
+    [amd] int amdNotExistAdd(int x, int y);
 
     //
     // Raise system exception
     //
-    ["amd"] int amdBadSystemAdd(int x, int y);
+    [amd] int amdBadSystemAdd(int x, int y);
 
 }
 

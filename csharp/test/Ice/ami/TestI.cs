@@ -1,247 +1,161 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.AMI
 {
-    namespace ami
+    public class TestIntf : ITestIntf
     {
-        public class TestI : Test.TestIntfDisp_
+        private readonly object _mutex = new object();
+
+        public void Op(Current current, CancellationToken cancel)
         {
-            protected static void test(bool b)
-            {
-                if(!b)
-                {
-                    Debug.Assert(false);
-                    throw new System.Exception();
-                }
-            }
-
-            public TestI()
-            {
-            }
-
-            override public void
-            op(Ice.Current current)
-            {
-            }
-
-            override public int
-            opWithResult(Ice.Current current)
-            {
-                return 15;
-            }
-
-            override public void
-            opWithUE(Ice.Current current)
-            {
-                throw new Test.TestIntfException();
-            }
-
-            override public void
-            opWithPayload(byte[] seq, Ice.Current current)
-            {
-            }
-
-            override public void
-            opBatch(Ice.Current current)
-            {
-                lock(this)
-                {
-                    ++_batchCount;
-                    Monitor.Pulse(this);
-                }
-            }
-
-            override public int
-            opBatchCount(Ice.Current current)
-            {
-                lock(this)
-                {
-                    return _batchCount;
-                }
-            }
-
-            override public bool
-            waitForBatch(int count, Ice.Current current)
-            {
-                lock(this)
-                {
-                    while(_batchCount < count)
-                    {
-                        test(Monitor.Wait(this, 10000));
-                    }
-                    bool result = count == _batchCount;
-                    _batchCount = 0;
-                    return result;
-                }
-            }
-
-            override public void
-            close(Test.CloseMode mode, Ice.Current current)
-            {
-                current.con.close((Ice.ConnectionClose)((int)mode));
-            }
-
-            override public void
-            sleep(int ms, Ice.Current current)
-            {
-                Thread.Sleep(ms);
-            }
-
-            override public void
-            shutdown(Ice.Current current)
-            {
-                lock(this)
-                {
-                    _shutdown = true;
-                    if(_pending != null)
-                    {
-                        _pending.SetResult(null);
-                        _pending = null;
-                    }
-                    current.adapter.getCommunicator().shutdown();
-                }
-            }
-
-            override public bool
-            supportsAMD(Ice.Current current)
-            {
-                return true;
-            }
-
-            override public bool
-            supportsFunctionalTests(Ice.Current current)
-            {
-                return false;
-            }
-
-            override public async Task
-            opAsyncDispatchAsync(Ice.Current current)
-            {
-                await Task.Delay(10);
-            }
-
-            override public async Task<int>
-            opWithResultAsyncDispatchAsync(Ice.Current current)
-            {
-                await Task.Delay(10);
-                test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
-                var r = await self(current).opWithResultAsync();
-                test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
-                return r;
-            }
-
-            override public async Task
-            opWithUEAsyncDispatchAsync(Ice.Current current)
-            {
-                test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
-                await Task.Delay(10);
-                test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
-                await self(current).opWithUEAsync();
-            }
-
-            override public void
-            pingBiDir(Test.PingReplyPrx reply, Ice.Current current)
-            {
-                reply = Test.PingReplyPrxHelper.uncheckedCast(reply.ice_fixed(current.con));
-                Thread dispatchThread = Thread.CurrentThread;
-                reply.replyAsync().ContinueWith(
-                   (t) =>
-                    {
-                        Thread callbackThread = Thread.CurrentThread;
-                        test(dispatchThread != callbackThread);
-                        test(callbackThread.Name.Contains("Ice.ThreadPool.Server"));
-                    },
-                    reply.ice_scheduler()).Wait();
-            }
-
-            Test.TestIntfPrx
-            self(Ice.Current current)
-            {
-                return Test.TestIntfPrxHelper.uncheckedCast(current.adapter.createProxy(current.id));
-            }
-
-            override public Task
-            startDispatchAsync(Ice.Current current)
-            {
-                lock(this)
-                {
-                    if(_shutdown)
-                    {
-                        // Ignore, this can occur with the forcefull connection close test, shutdown can be dispatch
-                        // before start dispatch.
-                        var v = new TaskCompletionSource<object>();
-                        v.SetResult(null);
-                        return v.Task;
-                    }
-                    else if(_pending != null)
-                    {
-                        _pending.SetResult(null);
-                    }
-                    _pending = new TaskCompletionSource<object>();
-                    return _pending.Task;
-                }
-            }
-
-            override public void
-            finishDispatch(Ice.Current current)
-            {
-                lock(this)
-                {
-                    if(_shutdown)
-                    {
-                        return;
-                    }
-                    else if(_pending != null) // Pending might not be set yet if startDispatch is dispatch out-of-order
-                    {
-                        _pending.SetResult(null);
-                        _pending = null;
-                    }
-                }
-            }
-
-            private int _batchCount;
-            private bool _shutdown;
-            private TaskCompletionSource<object> _pending = null;
         }
 
-        public class TestII : Test.Outer.Inner.TestIntfDisp_
+        public int OpWithResult(Current current, CancellationToken cancel) => 15;
+
+        public void OpWithUE(Current current, CancellationToken cancel) => throw new TestIntfException();
+
+        public void OpWithPayload(byte[] seq, Current current, CancellationToken cancel)
         {
-            override public int
-            op(int i, out int j, Ice.Current current)
+        }
+
+        public void Close(CloseMode mode, Current current, CancellationToken cancel)
+        {
+            if (mode == CloseMode.Gracefully)
             {
-                j = i;
-                return i;
+                current.Connection.GoAwayAsync(cancel: cancel);
+            }
+            else
+            {
+                current.Connection.AbortAsync();
             }
         }
 
-        public class TestControllerI : Test.TestIntfControllerDisp_
+        public void Sleep(int ms, Current current, CancellationToken cancel)
         {
-            override public void
-            holdAdapter(Ice.Current current)
+            try
             {
-                _adapter.hold();
+                Task.Delay(ms, cancel).Wait(cancel);
+                // Cancellation isn't supported with Ice1
+                TestHelper.Assert(!current.Context.ContainsKey("cancel") ||
+                                  current.Context["cancel"] == "mightSucceed" ||
+                                  current.Protocol == Protocol.Ice1);
             }
-
-            override public void
-            resumeAdapter(Ice.Current current)
+            catch (System.AggregateException ex) when (ex.InnerException is TaskCanceledException)
             {
-                _adapter.activate();
+                // Expected if the request is canceled.
+                TestHelper.Assert(current.Context.ContainsKey("cancel"));
             }
-
-            public
-            TestControllerI(Ice.ObjectAdapter adapter)
-            {
-                _adapter = adapter;
-            }
-
-            private Ice.ObjectAdapter _adapter;
         }
+
+        public void Shutdown(Current current, CancellationToken cancel)
+        {
+            lock (_mutex)
+            {
+                _shutdown = true;
+                if (_pending != null)
+                {
+                    _pending.SetResult(null);
+                    _pending = null;
+                }
+                current.Adapter.Communicator.ShutdownAsync();
+            }
+        }
+
+        public bool SupportsAMD(Current current, CancellationToken cancel) => true;
+
+        public bool SupportsFunctionalTests(Current current, CancellationToken cancel) => false;
+
+        public async ValueTask OpAsyncDispatchAsync(Current current, CancellationToken cancel) =>
+            await Task.Delay(10, cancel);
+
+        public async ValueTask<int> OpWithResultAsyncDispatchAsync(Current current, CancellationToken cancel)
+        {
+            await Task.Delay(10, cancel);
+            return await Self(current).OpWithResultAsync(cancel: cancel);
+        }
+
+        public async ValueTask OpWithUEAsyncDispatchAsync(Current current, CancellationToken cancel)
+        {
+            await Task.Delay(10, cancel);
+            try
+            {
+                await Self(current).OpWithUEAsync(cancel: cancel);
+            }
+            catch (RemoteException ex)
+            {
+                ex.ConvertToUnhandled = false;
+                throw;
+            }
+        }
+
+        private static ITestIntfPrx Self(Current current) =>
+            current.Adapter.CreateProxy(current.Identity, ITestIntfPrx.Factory);
+
+        public ValueTask StartDispatchAsync(Current current, CancellationToken cancel)
+        {
+            lock (_mutex)
+            {
+                if (_shutdown)
+                {
+                    // Ignore, this can occur with the forceful connection close test, shutdown can be dispatch
+                    // before start dispatch.
+                    var v = new TaskCompletionSource<object?>();
+                    v.SetResult(null);
+                    return new ValueTask(v.Task);
+                }
+                else if (_pending != null)
+                {
+                    _pending.SetResult(null);
+                }
+                _pending = new TaskCompletionSource<object?>();
+                return new ValueTask(_pending.Task);
+            }
+        }
+
+        public void FinishDispatch(Current current, CancellationToken cancel)
+        {
+            lock (_mutex)
+            {
+                if (_shutdown)
+                {
+                    return;
+                }
+                else if (_pending != null) // Pending might not be set yet if startDispatch is dispatch out-of-order
+                {
+                    _pending.SetResult(null);
+                    _pending = null;
+                }
+            }
+        }
+
+        public int Set(int newValue, Current current, CancellationToken cancel)
+        {
+            int oldValue = _value;
+            _value = newValue;
+            return oldValue;
+        }
+
+        public void SetOneway(int previousValue, int newValue, Current current, CancellationToken cancel)
+        {
+            if (_value != previousValue)
+            {
+                System.Console.Error.WriteLine($"previous value `{_value}' is not the expected value `{previousValue}'");
+            }
+            TestHelper.Assert(_value == previousValue);
+            _value = newValue;
+        }
+
+        private bool _shutdown;
+        private TaskCompletionSource<object?>? _pending;
+        private int _value;
+    }
+
+    public class TestIntf2 : Outer.Inner.ITestIntf
+    {
+        public (int, int) Op(int i, Current current, CancellationToken cancel) => (i, i);
     }
 }

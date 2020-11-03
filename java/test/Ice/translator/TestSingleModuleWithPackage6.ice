@@ -6,7 +6,7 @@
 
 #include <SingleModuleWithPackage.ice>
 
-[["java:package:smwpTest6"]]
+[[java:package(smwpTest6)]]
 
 module T1
 {
@@ -27,9 +27,9 @@ sequence<M::smwpStruct> smwpTest6StructSeq;
 
 dictionary<M::smwpStruct, M::smwpBaseClass> smwpTest6StructClassSeq;
 
-interface smwpTest6Interface extends M::smwpInterface {}
+interface smwpTest6Interface : M::smwpInterface {}
 
-exception smwpTest6Exception extends M::smwpException
+exception smwpTest6Exception : M::smwpException
 {
     M::smwpEnum e1;
     M::smwpStruct s1;
@@ -39,7 +39,7 @@ exception smwpTest6Exception extends M::smwpException
     M::smwpInterface i1;
 }
 
-class smwpTest6Class extends M::smwpBaseClass implements M::smwpBaseInterface
+class smwpTest6Class : M::smwpBaseClass implements M::smwpBaseInterface
 {
     M::smwpStruct
     smwpTest6Op1(M::smwpEnum i1,
@@ -56,7 +56,7 @@ class smwpTest6Class extends M::smwpBaseClass implements M::smwpBaseInterface
                  out M::smwpClass o6)
         throws M::smwpException;
 
-    ["amd"]
+    [amd]
     M::smwpStruct
     smwpTest6Op3(M::smwpEnum i1,
                  M::smwpStruct i2,

@@ -1,53 +1,42 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.AMI
 {
-    namespace ami
+    public class Collocated : TestHelper
     {
-        public class Collocated : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                Ice.Properties properties = createTestProperties(ref args);
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
 
-                properties.setProperty("Ice.Warn.AMICallback", "0");
-                //
-                // Limit the send buffer size, this test relies on the socket
-                // send() blocking after sending a given amount of data.
-                //
-                properties.setProperty("Ice.TCP.SndSize", "50000");
-                //
-                // We use a client thread pool with more than one thread to test
-                // that task inlining works.
-                //
-                properties.setProperty("Ice.ThreadPool.Client.Size", "5");
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    communicator.getProperties().setProperty("ControllerAdapter.Endpoints", getTestEndpoint(1));
-                    communicator.getProperties().setProperty("ControllerAdapter.ThreadPool.Size", "1");
+            properties["Ice.Warn.AMICallback"] = "0";
+            // Limit the send buffer size, this test relies on the socket send() blocking after sending a given amount
+            // of data.
+            properties["Ice.TCP.SndSize"] = "50K";
 
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("ControllerAdapter");
+            // This test kills connections, so we don't want warnings.
+            properties["Ice.Warn.Connections"] = "0";
 
-                    adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
-                    adapter.add(new TestII(), Ice.Util.stringToIdentity("test2"));
-                    //adapter.activate(); // Collocated test doesn't need to activate the OA
-                    adapter2.add(new TestControllerI(adapter), Ice.Util.stringToIdentity("testController"));
-                    //adapter2.activate(); // Collocated test doesn't need to activate the OA
+            await using Communicator communicator = Initialize(properties);
 
-                    AllTests.allTests(this, true);
-                }
-            }
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            communicator.SetProperty("TestAdapter2.Endpoints", GetTestEndpoint(1));
 
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Collocated>(args);
-            }
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new TestIntf());
+            adapter.Add("test2", new TestIntf2());
+            // Don't activate OA to ensure collocation is used.
+
+            ObjectAdapter adapter2 = communicator.CreateObjectAdapter("TestAdapter2", serializeDispatch: true);
+            adapter2.Add("serialized", new TestIntf());
+            // Don't activate OA to ensure collocation is used.
+
+            AllTests.Run(this);
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Collocated>(args);
     }
 }

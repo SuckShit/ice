@@ -22,8 +22,6 @@
 #ifndef ICE_OPTIONAL_H
 #define ICE_OPTIONAL_H
 
-#ifdef ICE_CPP11_MAPPING
-
 # include <utility>
 # include <type_traits>
 # include <initializer_list>
@@ -210,7 +208,7 @@ template <class T> inline constexpr typename std::remove_reference<T>::type&& co
 #if defined NDEBUG
 # define TR2_OPTIONAL_ASSERTED_EXPRESSION(CHECK, EXPR) (EXPR)
 #else
-# define TR2_OPTIONAL_ASSERTED_EXPRESSION(CHECK, EXPR) ((CHECK) ? (EXPR) : ([]{assert(!#CHECK);}(), (EXPR)))
+# define TR2_OPTIONAL_ASSERTED_EXPRESSION(CHECK, EXPR) ((CHECK) ? (EXPR) : ([]{assert(false && #CHECK);}(), (EXPR)))
 #endif
 
 namespace detail_
@@ -1094,21 +1092,9 @@ using std::experimental::Ice::in_place;
 namespace IceUtil
 {
 
-/**
- * For compatibility with the Ice C++98 mapping, do not use in new code:
- */
 template<class T> using Optional = std::experimental::Ice::optional<T>;
-/**
- * For compatibility with the Ice C++98 mapping, do not use in new code:
- */
 constexpr std::experimental::Ice::nullopt_t None{std::experimental::Ice::nullopt_t::init()};
 
 }
-
-#else // C++98 mapping
-
-#   include <IceUtil/Optional.h>
-
-#endif
 
 #endif

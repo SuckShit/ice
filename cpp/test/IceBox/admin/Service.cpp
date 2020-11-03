@@ -30,11 +30,7 @@ extern "C"
 // Factory function
 //
 ICE_DECLSPEC_EXPORT ::IceBox::Service*
-#ifdef ICE_CPP11_MAPPING
 create(const shared_ptr<Communicator>& communicator)
-#else
-create(CommunicatorPtr communicator)
-#endif
 {
     return new ServiceI(communicator);
 }
@@ -43,7 +39,7 @@ create(CommunicatorPtr communicator)
 
 ServiceI::ServiceI(const CommunicatorPtr& serviceManagerCommunicator)
 {
-    TestFacetIPtr facet = ICE_MAKE_SHARED(TestFacetI);
+    TestFacetIPtr facet = std::make_shared<TestFacetI>();
 
     //
     // Install a custom admin facet.
@@ -58,11 +54,7 @@ ServiceI::ServiceI(const CommunicatorPtr& serviceManagerCommunicator)
     NativePropertiesAdminPtr admin = ICE_DYNAMIC_CAST(NativePropertiesAdmin, propFacet);
     assert(admin);
 
-#ifdef ICE_CPP11_MAPPING
     admin->addUpdateCallback([facet](const Ice::PropertyDict& changes) { facet->updated(changes); });
-#else
-    admin->addUpdateCallback(facet);
-#endif
 }
 
 ServiceI::~ServiceI()

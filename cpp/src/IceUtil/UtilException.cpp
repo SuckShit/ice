@@ -2,7 +2,7 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-#if defined(_MSC_VER) && _MSC_VER >= 1700
+#if defined(_MSC_VER)
 //
 // DbgHelp.dll on Windows XP does not contain Unicode functions, so we
 // "switch on" Unicode only with VS2012 and up
@@ -43,7 +43,7 @@
 #       endif
 #   endif
 
-#   if !defined(_AIX) && !defined(__sun) && !defined(__FreeBSD__) && !defined(__MINGW32__) && !defined(ICE_STATIC_LIBS)
+#   if !defined(_AIX) && !defined(__sun) && !defined(__FreeBSD__) && !defined(ICE_STATIC_LIBS)
 #       include <execinfo.h>
 #       include <cxxabi.h>
 #       include <stdint.h>
@@ -54,15 +54,11 @@
 //
 // The Slice compilers don't retrieve the exception stack traces so we don't need the DbgHelp calls.
 //
-#if defined(_WIN32) && !defined(ICE_OS_UWP) && !defined(__MINGW32__) && !defined(ICE_BUILDING_SLICE_COMPILERS)
+#if defined(_WIN32) && !defined(ICE_BUILDING_SLICE_COMPILERS)
 #   define ICE_DBGHELP
-#   if defined(_MSC_VER) && (_MSC_VER >= 1700)
-#       define DBGHELP_TRANSLATE_TCHAR
-#       include <IceUtil/StringConverter.h>
-#       if _MSC_VER >= 1900
-#           pragma warning(disable:4091) // VS 2015 RC issues this warning for code in DbgHelp.h
-#       endif
-#   endif
+#   define DBGHELP_TRANSLATE_TCHAR
+#   include <IceUtil/StringConverter.h>
+#   pragma warning(disable:4091) // VS 2015 RC issues this warning for code in DbgHelp.h
 #   include <DbgHelp.h>
 #   include <tchar.h>
 #endif
@@ -391,7 +387,7 @@ getStackTrace(const vector<void*>& stackFrames)
     }
     lock.release();
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1600)
+#if defined(_MSC_VER)
 #   if defined(DBGHELP_TRANSLATE_TCHAR)
     static_assert(sizeof(TCHAR) == sizeof(wchar_t), "Bad TCHAR - should be wchar_t");
 #   else
@@ -534,12 +530,6 @@ IceUtil::Exception::Exception(const char* file, int line) :
 {
 }
 
-#ifndef ICE_CPP11_COMPILER
-IceUtil::Exception::~Exception() throw()
-{
-}
-#endif
-
 void
 IceUtil::Exception::ice_print(ostream& out) const
 {
@@ -551,7 +541,7 @@ IceUtil::Exception::ice_print(ostream& out) const
 }
 
 const char*
-IceUtil::Exception::what() const ICE_NOEXCEPT
+IceUtil::Exception::what() const noexcept
 {
     try
     {
@@ -572,14 +562,6 @@ IceUtil::Exception::what() const ICE_NOEXCEPT
     return "";
 }
 
-#ifndef ICE_CPP11_MAPPING
-string
-IceUtil::Exception::ice_name() const
-{
-    return ice_id().substr(2);
-}
-#endif
-
 const char*
 IceUtil::Exception::ice_file() const
 {
@@ -598,13 +580,11 @@ IceUtil::Exception::ice_stackTrace() const
     return getStackTrace(_stackFrames);
 }
 
-#ifdef ICE_CPP11_MAPPING
 unique_ptr<IceUtil::Exception>
 IceUtil::Exception::ice_clone() const
 {
     return unique_ptr<Exception>(ice_cloneImpl());
 }
-#endif
 
 ostream&
 IceUtil::operator<<(ostream& out, const IceUtil::Exception& ex)
@@ -628,14 +608,6 @@ IceUtil::NullHandleException::ice_id() const
     return "::IceUtil::NullHandleException";
 }
 
-#ifndef ICE_CPP11_MAPPING
-IceUtil::NullHandleException*
-IceUtil::NullHandleException::ice_clone() const
-{
-    return new NullHandleException(*this);
-}
-#endif
-
 IceUtil::IllegalArgumentException::IllegalArgumentException(const char* file, int line) :
     ExceptionHelper<IllegalArgumentException>(file, line)
 {
@@ -646,12 +618,6 @@ IceUtil::IllegalArgumentException::IllegalArgumentException(const char* file, in
     _reason(r)
 {
 }
-
-#ifndef ICE_CPP11_COMPILER
-IceUtil::IllegalArgumentException::~IllegalArgumentException() throw()
-{
-}
-#endif
 
 void
 IceUtil::IllegalArgumentException::ice_print(ostream& out) const
@@ -665,14 +631,6 @@ IceUtil::IllegalArgumentException::ice_id() const
 {
     return "::IceUtil::IllegalArgumentException";
 }
-
-#ifndef ICE_CPP11_MAPPING
-IceUtil::IllegalArgumentException*
-IceUtil::IllegalArgumentException::ice_clone() const
-{
-    return new IllegalArgumentException(*this);
-}
-#endif
 
 string
 IceUtil::IllegalArgumentException::reason() const
@@ -695,12 +653,6 @@ IceUtil::IllegalConversionException::IllegalConversionException(const char* file
 {
 }
 
-#ifndef ICE_CPP11_COMPILER
-IceUtil::IllegalConversionException::~IllegalConversionException() throw()
-{
-}
-#endif
-
 void
 IceUtil::IllegalConversionException::ice_print(ostream& out) const
 {
@@ -715,14 +667,6 @@ IceUtil::IllegalConversionException::ice_id() const
     return "::IceUtil::IllegalConversionException";
 }
 
-#ifndef ICE_CPP11_MAPPING
-IceUtil::IllegalConversionException*
-IceUtil::IllegalConversionException::ice_clone() const
-{
-    return new IllegalConversionException(*this);
-}
-#endif
-
 string
 IceUtil::IllegalConversionException::reason() const
 {
@@ -734,12 +678,6 @@ IceUtil::SyscallException::SyscallException(const char* file, int line, int err 
     _error(err)
 {
 }
-
-#ifndef ICE_CPP11_COMPILER
-IceUtil::SyscallException::~SyscallException() throw()
-{
-}
-#endif
 
 void
 IceUtil::SyscallException::ice_print(ostream& os) const
@@ -757,14 +695,6 @@ IceUtil::SyscallException::ice_id() const
     return "::IceUtil::SyscallException";
 }
 
-#ifndef ICE_CPP11_MAPPING
-IceUtil::SyscallException*
-IceUtil::SyscallException::ice_clone() const
-{
-    return new SyscallException(*this);
-}
-#endif
-
 int
 IceUtil::SyscallException::error() const
 {
@@ -777,12 +707,6 @@ IceUtil::FileLockException::FileLockException(const char* file, int line, int er
     _path(path)
 {
 }
-
-#ifndef ICE_CPP11_COMPILER
-IceUtil::FileLockException::~FileLockException() throw()
-{
-}
-#endif
 
 void
 IceUtil::FileLockException::ice_print(ostream& os) const
@@ -800,14 +724,6 @@ IceUtil::FileLockException::ice_id() const
 {
     return "::IceUtil::FileLockException";
 }
-
-#ifndef ICE_CPP11_MAPPING
-IceUtil::FileLockException*
-IceUtil::FileLockException::ice_clone() const
-{
-    return new FileLockException(*this);
-}
-#endif
 
 int
 IceUtil::FileLockException::error() const
@@ -829,11 +745,3 @@ IceUtil::OptionalNotSetException::ice_id() const
 {
     return "::IceUtil::OptionalNotSetException";
 }
-
-#ifndef ICE_CPP11_MAPPING
-IceUtil::OptionalNotSetException*
-IceUtil::OptionalNotSetException::ice_clone() const
-{
-    return new OptionalNotSetException(*this);
-}
-#endif

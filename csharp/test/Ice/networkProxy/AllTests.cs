@@ -1,71 +1,58 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-public class AllTests : Test.AllTests
+using System.IO;
+using Test;
+
+namespace ZeroC.Ice.Test.NetworkProxy
 {
-    private static Ice.IPConnectionInfo getIPConnectionInfo(Ice.ConnectionInfo info)
+    public static class AllTests
     {
-        for(; info != null; info = info.underlying)
+        public static void Run(TestHelper helper)
         {
-            if(info is Ice.IPConnectionInfo)
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            string sref = helper.GetTestProxy("test", 0);
+            var testPrx = ITestIntfPrx.Parse(sref, communicator);
+
+            int proxyPort = communicator.GetPropertyAsInt("Ice.HTTPProxyPort") ??
+                            communicator.GetPropertyAsInt("Ice.SOCKSProxyPort") ?? 0;
+
+            TextWriter output = helper.Output;
+            output.Write("testing connection... ");
+            output.Flush();
             {
-                return info as Ice.IPConnectionInfo;
+                testPrx.IcePing();
             }
-        }
-        return null;
-    }
+            output.WriteLine("ok");
 
-    public static void allTests(Test.TestHelper helper)
-    {
-        Ice.Communicator communicator = helper.communicator();
-        string sref = "test:" + helper.getTestEndpoint(0);
-        Ice.ObjectPrx obj = communicator.stringToProxy(sref);
-        test(obj != null);
-
-        int proxyPort = communicator.getProperties().getPropertyAsInt("Ice.HTTPProxyPort");
-        if(proxyPort == 0)
-        {
-            proxyPort = communicator.getProperties().getPropertyAsInt("Ice.SOCKSProxyPort");
-        }
-
-        Test.TestIntfPrx testPrx = Test.TestIntfPrxHelper.checkedCast(obj);
-        test(testPrx != null);
-        var output = helper.getWriter();
-        output.Write("testing connection... ");
-        output.Flush();
-        {
-            testPrx.ice_ping();
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing connection information... ");
-        output.Flush();
-        {
-            Ice.IPConnectionInfo info = getIPConnectionInfo(testPrx.ice_getConnection().getInfo());
-            test(info.remotePort == proxyPort); // make sure we are connected to the proxy port.
-        }
-        output.WriteLine("ok");
-
-        output.Write("shutting down server... ");
-        output.Flush();
-        {
-            testPrx.shutdown();
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing connection failure... ");
-        output.Flush();
-        {
-            try
+            output.Write("testing connection information... ");
+            output.Flush();
             {
-                testPrx.ice_ping();
-                test(false);
+                var connection = (IPConnection)testPrx.GetConnection();
+                TestHelper.Assert(connection.RemoteEndpoint!.Port == proxyPort); // make sure we are connected to the proxy port.
             }
-            catch(Ice.LocalException)
+            output.WriteLine("ok");
+
+            output.Write("shutting down server... ");
+            output.Flush();
             {
+                testPrx.Shutdown();
             }
+            output.WriteLine("ok");
+
+            output.Write("testing connection failure... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch
+                {
+                }
+            }
+            output.WriteLine("ok");
         }
-        output.WriteLine("ok");
     }
 }

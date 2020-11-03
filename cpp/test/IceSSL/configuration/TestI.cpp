@@ -33,28 +33,15 @@ ServerI::noCert(const Ice::Current& c)
 }
 
 void
-ServerI::checkCert(ICE_IN(string) subjectDN, ICE_IN(string) issuerDN, const Ice::Current& c)
+ServerI::checkCert(string subjectDN, string issuerDN, const Ice::Current& c)
 {
     try
     {
         IceSSL::ConnectionInfoPtr info = ICE_DYNAMIC_CAST(IceSSL::ConnectionInfo, c.con->getInfo());
         test(info->verified);
         test(info->certs.size() == 2);
-        if(c.ctx.find("uwp") != c.ctx.end())
-        {
-            //
-            // UWP client just provide the subject and issuer CN, and not the full Subject and Issuer DN
-            //
-            string subject(info->certs[0]->getSubjectDN());
-            test(subject.find(subjectDN) != string::npos);
-            string issuer(info->certs[0]->getIssuerDN());
-            test(issuer.find(issuerDN) != string::npos);
-        }
-        else
-        {
-            test(info->certs[0]->getSubjectDN() == IceSSL::DistinguishedName(subjectDN));
-            test(info->certs[0]->getIssuerDN() == IceSSL::DistinguishedName(issuerDN));
-        }
+        test(info->certs[0]->getSubjectDN() == IceSSL::DistinguishedName(subjectDN));
+        test(info->certs[0]->getIssuerDN() == IceSSL::DistinguishedName(issuerDN));
     }
     catch(const Ice::LocalException&)
     {
@@ -63,7 +50,7 @@ ServerI::checkCert(ICE_IN(string) subjectDN, ICE_IN(string) issuerDN, const Ice:
 }
 
 void
-ServerI::checkCipher(ICE_IN(string) cipher, const Ice::Current& c)
+ServerI::checkCipher(string cipher, const Ice::Current& c)
 {
     try
     {
@@ -87,7 +74,7 @@ ServerFactoryI::ServerFactoryI(const string& defaultDir) : _defaultDir(defaultDi
 }
 
 Test::ServerPrxPtr
-ServerFactoryI::createServer(ICE_IN(Test::Properties) props, const Current&)
+ServerFactoryI::createServer(Test::Properties props, const Current&)
 {
     InitializationData initData;
     initData.properties = createProperties();
@@ -99,7 +86,7 @@ ServerFactoryI::createServer(ICE_IN(Test::Properties) props, const Current&)
 
     CommunicatorPtr communicator = initialize(initData);
     ObjectAdapterPtr adapter = communicator->createObjectAdapterWithEndpoints("ServerAdapter", "ssl");
-    ServerIPtr server = ICE_MAKE_SHARED(ServerI, communicator);
+    ServerIPtr server = std::make_shared<ServerI>(communicator);
     ObjectPrxPtr obj = adapter->addWithUUID(server);
     _servers[obj->ice_getIdentity()] = server;
     adapter->activate();
@@ -108,7 +95,7 @@ ServerFactoryI::createServer(ICE_IN(Test::Properties) props, const Current&)
 }
 
 void
-ServerFactoryI::destroyServer(ICE_IN(Test::ServerPrxPtr) srv, const Ice::Current&)
+ServerFactoryI::destroyServer(Test::ServerPrxPtr srv, const Ice::Current&)
 {
     map<Identity, ServerIPtr>::iterator p = _servers.find(srv->ice_getIdentity());
     if(p != _servers.end())

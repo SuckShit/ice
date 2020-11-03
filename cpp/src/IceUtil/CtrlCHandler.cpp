@@ -20,7 +20,7 @@ using namespace IceUtil;
 namespace
 {
 
-CtrlCHandlerCallback _callback = ICE_NULLPTR;
+CtrlCHandlerCallback _callback = nullptr;
 
 const CtrlCHandler* _handler = 0;
 
@@ -56,14 +56,6 @@ CtrlCHandlerException::ice_id() const
 {
     return "::IceUtil::CtrlCHandlerException";
 }
-
-#ifndef ICE_CPP11_MAPPING
-CtrlCHandlerException*
-CtrlCHandlerException::ice_clone() const
-{
-    return new CtrlCHandlerException(*this);
-}
-#endif
 
 CtrlCHandlerCallback
 CtrlCHandler::setCallback(CtrlCHandlerCallback callback)
@@ -126,7 +118,7 @@ CtrlCHandler::~CtrlCHandler()
     {
         IceUtilInternal::MutexPtrLock<IceUtil::Mutex> lock(globalMutex);
         _handler = 0;
-        _callback = ICE_NULLPTR;
+        _callback = nullptr;
     }
 }
 
@@ -238,7 +230,7 @@ CtrlCHandler::~CtrlCHandler()
     {
         IceUtilInternal::MutexPtrLock<IceUtil::Mutex> lock(globalMutex);
         _handler = 0;
-        _callback = ICE_NULLPTR;
+        _callback = nullptr;
     }
 
     //

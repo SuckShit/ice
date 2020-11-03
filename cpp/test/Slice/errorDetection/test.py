@@ -5,6 +5,7 @@
 
 import glob
 import os
+import re
 import shutil
 
 
@@ -31,11 +32,13 @@ class SliceErrorDetectionTestCase(ClientTestCase):
                 slice2cpp.run(current, args=args, exitstatus=0 if file.find("Warning") >= 0 else 1)
                 output = slice2cpp.getOutput(current)
 
-                regex1 = re.compile("\.ice$", re.IGNORECASE)
+                regex1 = re.compile("\\.ice$", re.IGNORECASE)
                 lines1 = output.strip().splitlines()
                 with open(os.path.join(testdir, regex1.sub(".err", file)), "r") as f:
                     lines2 = f.readlines()
                     if len(lines1) != len(lines2):
+                        current.writeln("lines1 = {0}".format(lines1))
+                        current.writeln("lines2 = {0}".format(lines2))
                         raise RuntimeError("failed (lines1 = {0}, lines2 = {1})!".format(len(lines1), len(lines2)))
 
                     regex2 = re.compile("^.*(?=" + os.path.basename(file) + ")")
@@ -49,7 +52,8 @@ class SliceErrorDetectionTestCase(ClientTestCase):
                     else:
                         current.writeln("ok")
 
-            for language in ["cpp", "cs", "html", "java", "js", "matlab", "objc", "php", "py", "rb", "swift"]:
+            current.write("Forward.ice... ")
+            for language in ["cpp", "cs", "java", "js", "matlab", "swift"]:
                 compiler = SliceTranslator('slice2%s' % language)
                 if not os.path.isfile(compiler.getCommandLine(current)):
                     continue
@@ -59,4 +63,5 @@ class SliceErrorDetectionTestCase(ClientTestCase):
             if os.path.exists(outdir):
                 shutil.rmtree(outdir)
 
-TestSuite(__name__, [ SliceErrorDetectionTestCase() ])
+
+TestSuite(__name__, [SliceErrorDetectionTestCase()])

@@ -47,7 +47,7 @@
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(MSBuildThisFileDirectory)\..\..\..\..\msbuild\ice.cpp98.props" />
+  <Import Project="$(MSBuildThisFileDirectory)\..\..\..\..\msbuild\ice.source.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -66,25 +66,25 @@
   </ImportGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ICE_BUILDING_SLICE_COMPILERS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -112,7 +112,6 @@
     <ClCompile Include="..\..\UUID.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\include\IceUtil\Atomic.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\Cond.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\Config.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\ConsoleUtil.h" />
@@ -121,7 +120,6 @@
     <ClInclude Include="..\..\..\..\include\IceUtil\DisableWarnings.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\Exception.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\FileUtil.h" />
-    <ClInclude Include="..\..\..\..\include\IceUtil\Functional.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\Handle.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\IceUtil.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\InputUtil.h" />
@@ -132,7 +130,6 @@
     <ClInclude Include="..\..\..\..\include\IceUtil\MutexProtocol.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\MutexPtrLock.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\MutexPtrTryLock.h" />
-    <ClInclude Include="..\..\..\..\include\IceUtil\Optional.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\Options.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\OutputUtil.h" />
     <ClInclude Include="..\..\..\..\include\IceUtil\PopDisableWarnings.h" />

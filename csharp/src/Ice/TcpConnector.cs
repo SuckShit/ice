@@ -1,93 +1,84 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System.Net;
+
+namespace ZeroC.Ice
 {
-    using System.Net;
-
-    sealed class TcpConnector : Connector
+    internal sealed class TcpConnector : IConnector
     {
-        public Transceiver connect()
+        public Connection Connect(string connectionId)
         {
-            return new TcpTransceiver(_instance, new StreamSocket(_instance, _proxy, _addr, _sourceAddr));
+            ITransceiver transceiver = _endpoint.CreateTransceiver(this, _addr, _proxy);
+
+            MultiStreamTransceiverWithUnderlyingTransceiver multiStreamTranceiver = _endpoint.Protocol switch
+            {
+                Protocol.Ice1 => new LegacyTransceiver(transceiver, _endpoint, null),
+                _ => new SlicTransceiver(transceiver, _endpoint, null)
+            };
+
+            return _endpoint.CreateConnection(_endpoint.Communicator.OutgoingConnectionFactory,
+                                              multiStreamTranceiver,
+                                              this,
+                                              connectionId,
+                                              null);
         }
 
-        public short type()
+        internal TcpConnector(TcpEndpoint endpoint, EndPoint addr, INetworkProxy? proxy)
         {
-            return _instance.type();
-        }
-
-        //
-        // Only for use by TcpEndpoint
-        //
-        internal TcpConnector(ProtocolInstance instance, EndPoint addr, NetworkProxy proxy, EndPoint sourceAddr,
-                              int timeout, string connectionId)
-        {
-            _instance = instance;
+            _endpoint = endpoint;
             _addr = addr;
             _proxy = proxy;
-            _sourceAddr = sourceAddr;
-            _timeout = timeout;
-            _connectionId = connectionId;
 
-            _hashCode = 5381;
-            HashUtil.hashAdd(ref _hashCode, _addr);
-            if(_sourceAddr != null)
+            var hash = new System.HashCode();
+            hash.Add(_endpoint.Protocol);
+            hash.Add(_endpoint.Transport);
+            hash.Add(_addr);
+            if (_endpoint.SourceAddress != null)
             {
-                HashUtil.hashAdd(ref _hashCode, _sourceAddr);
+                hash.Add(_endpoint.SourceAddress);
             }
-            HashUtil.hashAdd(ref _hashCode, _timeout);
-            HashUtil.hashAdd(ref _hashCode, _connectionId);
+            _hashCode = hash.ToHashCode();
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
-            if(!(obj is TcpConnector))
-            {
-                return false;
-            }
-
-            if(this == obj)
+            if (ReferenceEquals(this, obj))
             {
                 return true;
             }
 
-            TcpConnector p = (TcpConnector)obj;
-            if(_timeout != p._timeout)
+            if (obj is TcpConnector tcpConnector)
+            {
+                if (_endpoint.Protocol != tcpConnector._endpoint.Protocol)
+                {
+                    return false;
+                }
+
+                if (_endpoint.Transport != tcpConnector._endpoint.Transport)
+                {
+                    return false;
+                }
+
+                if (!Equals(_endpoint.SourceAddress, tcpConnector._endpoint.SourceAddress))
+                {
+                    return false;
+                }
+
+                return _addr.Equals(tcpConnector._addr);
+            }
+            else
             {
                 return false;
             }
-
-            if(!Network.addressEquals(_sourceAddr, p._sourceAddr))
-            {
-                return false;
-            }
-
-            if(!_connectionId.Equals(p._connectionId))
-            {
-                return false;
-            }
-
-            return _addr.Equals(p._addr);
         }
 
-        public override string ToString()
-        {
-            return Network.addrToString(_proxy == null ? _addr : _proxy.getAddress());
-        }
+        public override string ToString() => (_proxy?.Address ?? _addr).ToString()!;
 
-        public override int GetHashCode()
-        {
-            return _hashCode;
-        }
+        public override int GetHashCode() => _hashCode;
 
-        private ProtocolInstance _instance;
-        private EndPoint _addr;
-        private NetworkProxy _proxy;
-        private EndPoint _sourceAddr;
-        private int _timeout;
-        private string _connectionId;
-        private int _hashCode;
+        private readonly TcpEndpoint _endpoint;
+        private readonly EndPoint _addr;
+        private readonly INetworkProxy? _proxy;
+        private readonly int _hashCode;
     }
 }

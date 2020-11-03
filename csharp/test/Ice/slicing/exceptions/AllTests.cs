@@ -1,1274 +1,882 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Diagnostics;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using Test;
 
-public class AllTests : Test.AllTests
+namespace ZeroC.Ice.Test.Slicing.Exceptions
 {
-    private class Callback
+    public static class AllTests
     {
-        internal Callback()
+        private class Relay : IRelay
         {
-            _called = false;
-        }
+            public void KnownPreservedAsBase(Current current, CancellationToken cancel) =>
+                throw new KnownPreservedDerived("base", "preserved", "derived");
 
-        public virtual void check()
-        {
-            lock(this)
+            public void KnownPreservedAsKnownPreserved(Current current, CancellationToken cancel) =>
+                throw new KnownPreservedDerived("base", "preserved", "derived");
+
+            public void UnknownPreservedAsBase(Current current, CancellationToken cancel)
             {
-                while(!_called)
-                {
-                    Monitor.Wait(this);
-                }
-
-                _called = false;
+                var p = new PreservedClass("bc", "pc");
+                throw new Preserved2("base", "preserved", "derived", p, p);
             }
-        }
 
-        public virtual void called()
-        {
-            lock(this)
+            public void UnknownPreservedAsKnownPreserved(Current current, CancellationToken cancel)
             {
-                Debug.Assert(!_called);
-                _called = true;
-                Monitor.Pulse(this);
+                var p = new PreservedClass("bc", "pc");
+                throw new Preserved2("base", "preserved", "derived", p, p);
             }
+
+            public void ClientPrivateException(Current current, CancellationToken cancel) =>
+                throw new ClientPrivateException("ClientPrivate");
         }
 
-        private bool _called;
-    }
-
-    private class RelayI : RelayDisp_
-    {
-        public override void knownPreservedAsBase(Ice.Current current)
+        public static ITestIntfPrx Run(TestHelper helper)
         {
-            KnownPreservedDerived ex = new KnownPreservedDerived();
-            ex.b = "base";
-            ex.kp = "preserved";
-            ex.kpd = "derived";
-            throw ex;
-        }
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            TextWriter? output = helper.Output;
+            output.Write("testing stringToProxy... ");
+            output.Flush();
+            var testPrx = ITestIntfPrx.Parse(helper.GetTestProxy("Test", 0), communicator);
+            output.WriteLine("ok");
 
-        public override void knownPreservedAsKnownPreserved(Ice.Current current)
-        {
-            KnownPreservedDerived ex = new KnownPreservedDerived();
-            ex.b = "base";
-            ex.kp = "preserved";
-            ex.kpd = "derived";
-            throw ex;
-        }
-
-        public override void unknownPreservedAsBase(Ice.Current current)
-        {
-            Preserved2 ex = new Preserved2();
-            ex.b = "base";
-            ex.kp = "preserved";
-            ex.kpd = "derived";
-            ex.p1 = new PreservedClass("bc", "pc");
-            ex.p2 = ex.p1;
-            throw ex;
-        }
-
-        public override void unknownPreservedAsKnownPreserved(Ice.Current current)
-        {
-            Preserved2 ex = new Preserved2();
-            ex.b = "base";
-            ex.kp = "preserved";
-            ex.kpd = "derived";
-            ex.p1 = new PreservedClass("bc", "pc");
-            ex.p2 = ex.p1;
-            throw ex;
-        }
-    }
-
-    public static TestIntfPrx allTests(Test.TestHelper helper, bool collocated)
-    {
-        Ice.Communicator communicator = helper.communicator();
-        var output = helper.getWriter();
-        output.Write("testing stringToProxy... ");
-        output.Flush();
-        String @ref = "Test:" + helper.getTestEndpoint(0) + " -t 2000";
-        Ice.ObjectPrx @base = communicator.stringToProxy(@ref);
-        test(@base != null);
-        output.WriteLine("ok");
-
-        output.Write("testing checked cast... ");
-        output.Flush();
-        TestIntfPrx testPrx = TestIntfPrxHelper.checkedCast(@base);
-        test(testPrx != null);
-        test(testPrx.Equals(@base));
-        output.WriteLine("ok");
-
-        output.Write("base... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.baseAsBase();
-                test(false);
-            }
-            catch(Base b)
-            {
-                test(b.b.Equals("Base.b"));
-                test(b.GetType().FullName.Equals("Test.Base"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_baseAsBase().whenCompleted(
-                () =>
-                {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
-                {
-                    try
-                    {
-                        throw ex;
-                    }
-                    catch(Base b)
-                    {
-                        test(b.b.Equals("Base.b"));
-                        test(b.GetType().Name.Equals("Base"));
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.baseAsBaseAsync().Wait();
-                test(false);
-            }
-            catch(AggregateException ae)
+            output.Write("base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.BaseAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(Base b)
+                catch (Base b)
                 {
-                    test(b.b.Equals("Base.b"));
-                    test(b.GetType().Name.Equals("Base"));
+                    TestHelper.Assert(b.B.Equals("Base.b"));
+                    TestHelper.Assert(b.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.Base"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of unknown derived... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.unknownDerivedAsBase();
-                test(false);
-            }
-            catch(Base b)
-            {
-                test(b.b.Equals("UnknownDerived.b"));
-                test(b.GetType().FullName.Equals("Test.Base"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of unknown derived (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_unknownDerivedAsBase().whenCompleted(
-                () =>
-                {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
-                {
-                    try
-                    {
-                        throw ex;
-                    }
-                    catch(Base b)
-                    {
-                        test(b.b.Equals("UnknownDerived.b"));
-                        test(b.GetType().Name.Equals("Base"));
-                    }
-                    catch(Exception)
-                    {
-                        test(false);
-                    }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.unknownDerivedAsBaseAsync().Wait();
-                test(false);
-            }
-            catch(AggregateException ae)
+            output.Write("base (AMI)... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.BaseAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
                 }
-                catch(Base b)
-                {
-                    test(b.b.Equals("UnknownDerived.b"));
-                    test(b.GetType().Name.Equals("Base"));
-                }
-                catch(Exception)
-                {
-                    test(false);
-                }
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known derived as base... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.knownDerivedAsBase();
-                test(false);
-            }
-            catch(KnownDerived k)
-            {
-                test(k.b.Equals("KnownDerived.b"));
-                test(k.kd.Equals("KnownDerived.kd"));
-                test(k.GetType().FullName.Equals("Test.KnownDerived"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known derived as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownDerivedAsBase().whenCompleted(
-                () =>
-                {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownDerived k)
+                    catch (Base b)
                     {
-                        test(k.b.Equals("KnownDerived.b"));
-                        test(k.kd.Equals("KnownDerived.kd"));
-                        test(k.GetType().Name.Equals("KnownDerived"));
+                        TestHelper.Assert(b.B.Equals("Base.b"));
+                        TestHelper.Assert(b.GetType().Name.Equals("Base"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownDerivedAsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown derived... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.UnknownDerivedAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownDerived k)
+                catch (Base b)
                 {
-                    test(k.b.Equals("KnownDerived.b"));
-                    test(k.kd.Equals("KnownDerived.kd"));
-                    test(k.GetType().Name.Equals("KnownDerived"));
+                    TestHelper.Assert(b.B.Equals("UnknownDerived.b"));
+                    TestHelper.Assert(b.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.Base"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("non-slicing of known derived as derived... ");
-        output.Flush();
-        {
-            try
+            output.Write("slicing of unknown derived (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownDerivedAsKnownDerived();
-                test(false);
-            }
-            catch(KnownDerived k)
-            {
-                test(k.b.Equals("KnownDerived.b"));
-                test(k.kd.Equals("KnownDerived.kd"));
-                test(k.GetType().FullName.Equals("Test.KnownDerived"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known derived as derived (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownDerivedAsKnownDerived().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.UnknownDerivedAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownDerived k)
+                    catch (Base b)
                     {
-                        test(k.b.Equals("KnownDerived.b"));
-                        test(k.kd.Equals("KnownDerived.kd"));
-                        test(k.GetType().Name.Equals("KnownDerived"));
+                        TestHelper.Assert(b.B.Equals("UnknownDerived.b"));
+                        TestHelper.Assert(b.GetType().Name.Equals("Base"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownDerivedAsKnownDerivedAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("non-slicing of known derived as base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownDerivedAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownDerived k)
+                catch (KnownDerived k)
                 {
-                    test(k.b.Equals("KnownDerived.b"));
-                    test(k.kd.Equals("KnownDerived.kd"));
-                    test(k.GetType().Name.Equals("KnownDerived"));
+                    TestHelper.Assert(k.B.Equals("KnownDerived.b"));
+                    TestHelper.Assert(k.Kd.Equals("KnownDerived.kd"));
+                    TestHelper.Assert(k.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownDerived"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of unknown intermediate as base... ");
-        output.Flush();
-        {
-            try
+            output.Write("non-slicing of known derived as base (AMI)... ");
+            output.Flush();
             {
-                testPrx.unknownIntermediateAsBase();
-                test(false);
-            }
-            catch(Base b)
-            {
-                test(b.b.Equals("UnknownIntermediate.b"));
-                test(b.GetType().FullName.Equals("Test.Base"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of unknown intermediate as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_unknownIntermediateAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownDerivedAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(Base b)
+                    catch (KnownDerived k)
                     {
-                        test(b.b.Equals("UnknownIntermediate.b"));
-                        test(b.GetType().Name.Equals("Base"));
+                        TestHelper.Assert(k.B.Equals("KnownDerived.b"));
+                        TestHelper.Assert(k.Kd.Equals("KnownDerived.kd"));
+                        TestHelper.Assert(k.GetType().Name.Equals("KnownDerived"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.unknownIntermediateAsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("non-slicing of known derived as derived... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownDerivedAsKnownDerived();
+                    TestHelper.Assert(false);
                 }
-                catch(Base b)
+                catch (KnownDerived k)
                 {
-                    test(b.b.Equals("UnknownIntermediate.b"));
-                    test(b.GetType().Name.Equals("Base"));
+                    TestHelper.Assert(k.B.Equals("KnownDerived.b"));
+                    TestHelper.Assert(k.Kd.Equals("KnownDerived.kd"));
+                    TestHelper.Assert(k.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownDerived"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of known intermediate as base... ");
-        output.Flush();
-        {
-            try
+            output.Write("non-slicing of known derived as derived (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownIntermediateAsBase();
-                test(false);
-            }
-            catch(KnownIntermediate ki)
-            {
-                test(ki.b.Equals("KnownIntermediate.b"));
-                test(ki.ki.Equals("KnownIntermediate.ki"));
-                test(ki.GetType().FullName.Equals("Test.KnownIntermediate"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of known intermediate as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownIntermediateAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownDerivedAsKnownDerivedAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownIntermediate ki)
+                    catch (KnownDerived k)
                     {
-                        test(ki.b.Equals("KnownIntermediate.b"));
-                        test(ki.ki.Equals("KnownIntermediate.ki"));
-                        test(ki.GetType().Name.Equals("KnownIntermediate"));
+                        TestHelper.Assert(k.B.Equals("KnownDerived.b"));
+                        TestHelper.Assert(k.Kd.Equals("KnownDerived.kd"));
+                        TestHelper.Assert(k.GetType().Name.Equals("KnownDerived"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownIntermediateAsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown intermediate as base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.UnknownIntermediateAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownIntermediate ki)
+                catch (Base b)
                 {
-                    test(ki.b.Equals("KnownIntermediate.b"));
-                    test(ki.ki.Equals("KnownIntermediate.ki"));
-                    test(ki.GetType().Name.Equals("KnownIntermediate"));
+                    TestHelper.Assert(b.B.Equals("UnknownIntermediate.b"));
+                    TestHelper.Assert(b.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.Base"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of known most derived as base... ");
-        output.Flush();
-        {
-            try
+            output.Write("slicing of unknown intermediate as base (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownMostDerivedAsBase();
-                test(false);
-            }
-            catch(KnownMostDerived kmd)
-            {
-                test(kmd.b.Equals("KnownMostDerived.b"));
-                test(kmd.ki.Equals("KnownMostDerived.ki"));
-                test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                test(kmd.GetType().FullName.Equals("Test.KnownMostDerived"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of known most derived as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownMostDerivedAsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.UnknownIntermediateAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownMostDerived kmd)
+                    catch (Base b)
                     {
-                        test(kmd.b.Equals("KnownMostDerived.b"));
-                        test(kmd.ki.Equals("KnownMostDerived.ki"));
-                        test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                        test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                        TestHelper.Assert(b.B.Equals("UnknownIntermediate.b"));
+                        TestHelper.Assert(b.GetType().Name.Equals("Base"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownMostDerivedAsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of known intermediate as base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownIntermediateAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownMostDerived kmd)
+                catch (KnownIntermediate ki)
                 {
-                    test(kmd.b.Equals("KnownMostDerived.b"));
-                    test(kmd.ki.Equals("KnownMostDerived.ki"));
-                    test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                    test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                    TestHelper.Assert(ki.B.Equals("KnownIntermediate.b"));
+                    TestHelper.Assert(ki.Ki.Equals("KnownIntermediate.ki"));
+                    TestHelper.Assert(ki.GetType().FullName!.Equals(
+                        "ZeroC.Ice.Test.Slicing.Exceptions.KnownIntermediate"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("non-slicing of known intermediate as intermediate... ");
-        output.Flush();
-        {
-            try
+            output.Write("slicing of known intermediate as base (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownIntermediateAsKnownIntermediate();
-                test(false);
-            }
-            catch(KnownIntermediate ki)
-            {
-                test(ki.b.Equals("KnownIntermediate.b"));
-                test(ki.ki.Equals("KnownIntermediate.ki"));
-                test(ki.GetType().FullName.Equals("Test.KnownIntermediate"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known intermediate as intermediate (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownIntermediateAsKnownIntermediate().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownIntermediateAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownIntermediate ki)
+                    catch (KnownIntermediate ki)
                     {
-                        test(ki.b.Equals("KnownIntermediate.b"));
-                        test(ki.ki.Equals("KnownIntermediate.ki"));
-                        test(ki.GetType().Name.Equals("KnownIntermediate"));
+                        TestHelper.Assert(ki.B.Equals("KnownIntermediate.b"));
+                        TestHelper.Assert(ki.Ki.Equals("KnownIntermediate.ki"));
+                        TestHelper.Assert(ki.GetType().Name.Equals("KnownIntermediate"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownIntermediateAsKnownIntermediateAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of known most derived as base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownMostDerivedAsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownIntermediate ki)
+                catch (KnownMostDerived kmd)
                 {
-                    test(ki.b.Equals("KnownIntermediate.b"));
-                    test(ki.ki.Equals("KnownIntermediate.ki"));
-                    test(ki.GetType().Name.Equals("KnownIntermediate"));
+                    TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                    TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                    TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                    TestHelper.Assert(kmd.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownMostDerived"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("non-slicing of known most derived as intermediate... ");
-        output.Flush();
-        {
-            try
+            output.Write("slicing of known most derived as base (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownMostDerivedAsKnownIntermediate();
-                test(false);
-            }
-            catch(KnownMostDerived kmd)
-            {
-                test(kmd.b.Equals("KnownMostDerived.b"));
-                test(kmd.ki.Equals("KnownMostDerived.ki"));
-                test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                test(kmd.GetType().FullName.Equals("Test.KnownMostDerived"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known most derived as intermediate (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownMostDerivedAsKnownIntermediate().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownMostDerivedAsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownMostDerived kmd)
+                    catch (KnownMostDerived kmd)
                     {
-                        test(kmd.b.Equals("KnownMostDerived.b"));
-                        test(kmd.ki.Equals("KnownMostDerived.ki"));
-                        test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                        test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                        TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                        TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                        TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                        TestHelper.Assert(kmd.GetType().Name.Equals("KnownMostDerived"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownMostDerivedAsKnownIntermediateAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("non-slicing of known intermediate as intermediate... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownIntermediateAsKnownIntermediate();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownMostDerived kmd)
+                catch (KnownIntermediate ki)
                 {
-                    test(kmd.b.Equals("KnownMostDerived.b"));
-                    test(kmd.ki.Equals("KnownMostDerived.ki"));
-                    test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                    test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                    TestHelper.Assert(ki.B.Equals("KnownIntermediate.b"));
+                    TestHelper.Assert(ki.Ki.Equals("KnownIntermediate.ki"));
+                    TestHelper.Assert(ki.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownIntermediate"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("non-slicing of known most derived as most derived... ");
-        output.Flush();
-        {
-            try
+            output.Write("non-slicing of known intermediate as intermediate (AMI)... ");
+            output.Flush();
             {
-                testPrx.knownMostDerivedAsKnownMostDerived();
-                test(false);
-            }
-            catch(KnownMostDerived kmd)
-            {
-                test(kmd.b.Equals("KnownMostDerived.b"));
-                test(kmd.ki.Equals("KnownMostDerived.ki"));
-                test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                test(kmd.GetType().FullName.Equals("Test.KnownMostDerived"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("non-slicing of known most derived as most derived (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_knownMostDerivedAsKnownMostDerived().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownIntermediateAsKnownIntermediateAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownMostDerived kmd)
+                    catch (KnownIntermediate ki)
                     {
-                        test(kmd.b.Equals("KnownMostDerived.b"));
-                        test(kmd.ki.Equals("KnownMostDerived.ki"));
-                        test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                        test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                        TestHelper.Assert(ki.B.Equals("KnownIntermediate.b"));
+                        TestHelper.Assert(ki.Ki.Equals("KnownIntermediate.ki"));
+                        TestHelper.Assert(ki.GetType().Name.Equals("KnownIntermediate"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.knownMostDerivedAsKnownMostDerivedAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("non-slicing of known most derived as intermediate... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownMostDerivedAsKnownIntermediate();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownMostDerived kmd)
+                catch (KnownMostDerived kmd)
                 {
-                    test(kmd.b.Equals("KnownMostDerived.b"));
-                    test(kmd.ki.Equals("KnownMostDerived.ki"));
-                    test(kmd.kmd.Equals("KnownMostDerived.kmd"));
-                    test(kmd.GetType().Name.Equals("KnownMostDerived"));
+                    TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                    TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                    TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                    TestHelper.Assert(kmd.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownMostDerived"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of unknown most derived, known intermediate as base... ");
-        output.Flush();
-        {
-            try
+            output.Write("non-slicing of known most derived as intermediate (AMI)... ");
+            output.Flush();
             {
-                testPrx.unknownMostDerived1AsBase();
-                test(false);
-            }
-            catch(KnownIntermediate ki)
-            {
-                test(ki.b.Equals("UnknownMostDerived1.b"));
-                test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                test(ki.GetType().FullName.Equals("Test.KnownIntermediate"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of unknown most derived, known intermediate as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_unknownMostDerived1AsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownMostDerivedAsKnownIntermediateAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownIntermediate ki)
+                    catch (KnownMostDerived kmd)
                     {
-                        test(ki.b.Equals("UnknownMostDerived1.b"));
-                        test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                        test(ki.GetType().Name.Equals("KnownIntermediate"));
+                        TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                        TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                        TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                        TestHelper.Assert(kmd.GetType().Name.Equals("KnownMostDerived"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.unknownMostDerived1AsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("non-slicing of known most derived as most derived... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.KnownMostDerivedAsKnownMostDerived();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownIntermediate ki)
+                catch (KnownMostDerived kmd)
                 {
-                    test(ki.b.Equals("UnknownMostDerived1.b"));
-                    test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                    test(ki.GetType().Name.Equals("KnownIntermediate"));
+                    TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                    TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                    TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                    TestHelper.Assert(kmd.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownMostDerived"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of unknown most derived, known intermediate as intermediate... ");
-        output.Flush();
-        {
-            try
+            output.Write("non-slicing of known most derived as most derived (AMI)... ");
+            output.Flush();
             {
-                testPrx.unknownMostDerived1AsKnownIntermediate();
-                test(false);
-            }
-            catch(KnownIntermediate ki)
-            {
-                test(ki.b.Equals("UnknownMostDerived1.b"));
-                test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                test(ki.GetType().FullName.Equals("Test.KnownIntermediate"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of unknown most derived, known intermediate as intermediate (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_unknownMostDerived1AsKnownIntermediate().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.KnownMostDerivedAsKnownMostDerivedAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(KnownIntermediate ki)
+                    catch (KnownMostDerived kmd)
                     {
-                        test(ki.b.Equals("UnknownMostDerived1.b"));
-                        test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                        test(ki.GetType().Name.Equals("KnownIntermediate"));
+                        TestHelper.Assert(kmd.B.Equals("KnownMostDerived.b"));
+                        TestHelper.Assert(kmd.Ki.Equals("KnownMostDerived.ki"));
+                        TestHelper.Assert(kmd.Kmd.Equals("KnownMostDerived.kmd"));
+                        TestHelper.Assert(kmd.GetType().Name.Equals("KnownMostDerived"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.unknownMostDerived1AsKnownIntermediateAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown most derived, known intermediate as base... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.UnknownMostDerived1AsBase();
+                    TestHelper.Assert(false);
                 }
-                catch(KnownIntermediate ki)
+                catch (KnownIntermediate ki)
                 {
-                    test(ki.b.Equals("UnknownMostDerived1.b"));
-                    test(ki.ki.Equals("UnknownMostDerived1.ki"));
-                    test(ki.GetType().Name.Equals("KnownIntermediate"));
+                    TestHelper.Assert(ki.B.Equals("UnknownMostDerived1.b"));
+                    TestHelper.Assert(ki.Ki.Equals("UnknownMostDerived1.ki"));
+                    TestHelper.Assert(ki.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownIntermediate"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
-        }
-        output.WriteLine("ok");
+            output.WriteLine("ok");
 
-        output.Write("slicing of unknown most derived, unknown intermediate thrown as base... ");
-        output.Flush();
-        {
-            try
+            output.Write("slicing of unknown most derived, known intermediate as base (AMI)... ");
+            output.Flush();
             {
-                testPrx.unknownMostDerived2AsBase();
-                test(false);
-            }
-            catch(Base b)
-            {
-                test(b.b.Equals("UnknownMostDerived2.b"));
-                test(b.GetType().FullName.Equals("Test.Base"));
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("slicing of unknown most derived, unknown intermediate thrown as base (AMI)... ");
-        output.Flush();
-        {
-            Callback cb = new Callback();
-            testPrx.begin_unknownMostDerived2AsBase().whenCompleted(
-                () =>
+                try
                 {
-                    test(false);
-                },
-                (Ice.Exception ex) =>
+                    testPrx.UnknownMostDerived1AsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
                 {
                     try
                     {
-                        throw ex;
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
                     }
-                    catch(Base b)
+                    catch (KnownIntermediate ki)
                     {
-                        test(b.b.Equals("UnknownMostDerived2.b"));
-                        test(b.GetType().Name.Equals("Base"));
+                        TestHelper.Assert(ki.B.Equals("UnknownMostDerived1.b"));
+                        TestHelper.Assert(ki.Ki.Equals("UnknownMostDerived1.ki"));
+                        TestHelper.Assert(ki.GetType().Name.Equals("KnownIntermediate"));
                     }
-                    catch(Exception)
+                    catch
                     {
-                        test(false);
+                        TestHelper.Assert(false);
                     }
-                    cb.called();
-                });
-            cb.check();
-
-            try
-            {
-                testPrx.unknownMostDerived2AsBaseAsync().Wait();
-                test(false);
+                }
             }
-            catch(AggregateException ae)
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown most derived, known intermediate as intermediate... ");
+            output.Flush();
             {
                 try
                 {
-                    throw ae.InnerException;
+                    testPrx.UnknownMostDerived1AsKnownIntermediate();
+                    TestHelper.Assert(false);
                 }
-                catch(Base b)
+                catch (KnownIntermediate ki)
                 {
-                    test(b.b.Equals("UnknownMostDerived2.b"));
-                    test(b.GetType().Name.Equals("Base"));
+                    TestHelper.Assert(ki.B.Equals("UnknownMostDerived1.b"));
+                    TestHelper.Assert(ki.Ki.Equals("UnknownMostDerived1.ki"));
+                    TestHelper.Assert(ki.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.KnownIntermediate"));
                 }
-                catch(Exception)
+                catch
                 {
-                    test(false);
+                    TestHelper.Assert(false);
                 }
             }
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown most derived, known intermediate as intermediate (AMI)... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.UnknownMostDerived1AsKnownIntermediateAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
+                {
+                    try
+                    {
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
+                    }
+                    catch (KnownIntermediate ki)
+                    {
+                        TestHelper.Assert(ki.B.Equals("UnknownMostDerived1.b"));
+                        TestHelper.Assert(ki.Ki.Equals("UnknownMostDerived1.ki"));
+                        TestHelper.Assert(ki.GetType().Name.Equals("KnownIntermediate"));
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown most derived, unknown intermediate thrown as base... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.UnknownMostDerived2AsBase();
+                    TestHelper.Assert(false);
+                }
+                catch (Base b)
+                {
+                    TestHelper.Assert(b.B.Equals("UnknownMostDerived2.b"));
+                    TestHelper.Assert(b.GetType().FullName!.Equals("ZeroC.Ice.Test.Slicing.Exceptions.Base"));
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("slicing of unknown most derived, unknown intermediate thrown as base (AMI)... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.UnknownMostDerived2AsBaseAsync().Wait();
+                    TestHelper.Assert(false);
+                }
+                catch (AggregateException ae)
+                {
+                    try
+                    {
+                        TestHelper.Assert(ae.InnerException != null);
+                        throw ae.InnerException;
+                    }
+                    catch (Base b)
+                    {
+                        TestHelper.Assert(b.B.Equals("UnknownMostDerived2.b"));
+                        TestHelper.Assert(b.GetType().Name.Equals("Base"));
+                    }
+                    catch
+                    {
+                        TestHelper.Assert(false);
+                    }
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("unknown most derived in compact format... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.UnknownMostDerived2AsBaseCompact();
+                    TestHelper.Assert(false);
+                }
+                catch (Base)
+                {
+                    // Exceptions are always marshaled in sliced format; format:compact applies only to in-parameters and
+                    // return values.
+                }
+                catch (OperationNotExistException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("completely unknown server-private exception... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.ServerPrivateException();
+                    TestHelper.Assert(false);
+                }
+                catch (RemoteException ex)
+                {
+                    SlicedData slicedData = ex.GetSlicedData()!.Value;
+                    TestHelper.Assert(slicedData.Slices.Count == 1);
+                    TestHelper.Assert(slicedData.Slices[0].TypeId! == "::ZeroC::Ice::Test::Slicing::Exceptions::ServerPrivateException");
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("preserved exceptions... ");
+            output.Flush();
+            {
+                try
+                {
+                    testPrx.UnknownPreservedAsBase();
+                    TestHelper.Assert(false);
+                }
+                catch (Base ex)
+                {
+                    IReadOnlyList<SliceInfo> slices = ex.GetSlicedData()!.Value.Slices;
+                    TestHelper.Assert(slices.Count == 2);
+                    TestHelper.Assert(slices[1].TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Exceptions::SPreserved1"));
+                    TestHelper.Assert(slices[0].TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Exceptions::SPreserved2"));
+                }
+
+                try
+                {
+                    testPrx.UnknownPreservedAsKnownPreserved();
+                    TestHelper.Assert(false);
+                }
+                catch (KnownPreserved ex)
+                {
+                    TestHelper.Assert(ex.Kp.Equals("preserved"));
+                    IReadOnlyList<SliceInfo> slices = ex.GetSlicedData()!.Value.Slices;
+                    TestHelper.Assert(slices.Count == 2);
+                    TestHelper.Assert(slices[1].TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Exceptions::SPreserved1"));
+                    TestHelper.Assert(slices[0].TypeId!.Equals("::ZeroC::Ice::Test::Slicing::Exceptions::SPreserved2"));
+                }
+
+                ObjectAdapter adapter = communicator.CreateObjectAdapter(protocol: helper.Protocol);
+                IRelayPrx relay = adapter.AddWithUUID(new Relay(), IRelayPrx.Factory);
+                adapter.Activate();
+                testPrx.GetConnection().Adapter = adapter;
+
+                try
+                {
+                    testPrx.RelayKnownPreservedAsBase(relay);
+                    TestHelper.Assert(false);
+                }
+                catch (KnownPreservedDerived ex)
+                {
+                    TestHelper.Assert(ex.B.Equals("base"));
+                    TestHelper.Assert(ex.Kp.Equals("preserved"));
+                    TestHelper.Assert(ex.Kpd.Equals("derived"));
+                }
+                catch (OperationNotExistException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    testPrx.RelayKnownPreservedAsKnownPreserved(relay);
+                    TestHelper.Assert(false);
+                }
+                catch (KnownPreservedDerived ex)
+                {
+                    TestHelper.Assert(ex.B.Equals("base"));
+                    TestHelper.Assert(ex.Kp.Equals("preserved"));
+                    TestHelper.Assert(ex.Kpd.Equals("derived"));
+                }
+                catch (OperationNotExistException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    testPrx.RelayUnknownPreservedAsBase(relay);
+                    TestHelper.Assert(false);
+                }
+                catch (Preserved2 ex)
+                {
+                    TestHelper.Assert(ex.B.Equals("base"));
+                    TestHelper.Assert(ex.Kp.Equals("preserved"));
+                    TestHelper.Assert(ex.Kpd.Equals("derived"));
+                    TestHelper.Assert(ex.P1!.GetType().GetIceTypeId()!.Equals(typeof(PreservedClass).GetIceTypeId()));
+                    var pc = ex.P1 as PreservedClass;
+                    TestHelper.Assert(pc!.Bc.Equals("bc"));
+                    TestHelper.Assert(pc!.Pc.Equals("pc"));
+                    TestHelper.Assert(ex.P2 == ex.P1);
+                }
+                catch (OperationNotExistException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    testPrx.RelayUnknownPreservedAsKnownPreserved(relay);
+                    TestHelper.Assert(false);
+                }
+                catch (Preserved2 ex)
+                {
+                    TestHelper.Assert(ex.B.Equals("base"));
+                    TestHelper.Assert(ex.Kp.Equals("preserved"));
+                    TestHelper.Assert(ex.Kpd.Equals("derived"));
+                    TestHelper.Assert(ex.P1!.GetType().GetIceTypeId()!.Equals(typeof(PreservedClass).GetIceTypeId()));
+                    var pc = ex.P1 as PreservedClass;
+                    TestHelper.Assert(pc!.Bc.Equals("bc"));
+                    TestHelper.Assert(pc!.Pc.Equals("pc"));
+                    TestHelper.Assert(ex.P2 == ex.P1);
+                }
+                catch (OperationNotExistException)
+                {
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                try
+                {
+                    testPrx.RelayClientPrivateException(relay);
+                    TestHelper.Assert(false);
+                }
+                catch (ClientPrivateException ex)
+                {
+                    TestHelper.Assert(ex.Cpe == "ClientPrivate");
+                }
+                catch
+                {
+                    TestHelper.Assert(false);
+                }
+
+                adapter.Dispose();
+            }
+            output.WriteLine("ok");
+
+            return testPrx;
         }
-        output.WriteLine("ok");
-
-        output.Write("unknown most derived in compact format... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.unknownMostDerived2AsBaseCompact();
-                test(false);
-            }
-            catch(Base)
-            {
-                //
-                // For the 1.0 encoding, the unknown exception is sliced to Base.
-                //
-                test(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-            }
-            catch(Ice.UnknownUserException)
-            {
-                //
-                // A MarshalException is raised for the compact format because the
-                // most-derived type is unknown and the exception cannot be sliced.
-                //
-                test(!testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-            }
-            catch(Ice.OperationNotExistException)
-            {
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("preserved exceptions... ");
-        output.Flush();
-        {
-            try
-            {
-                testPrx.unknownPreservedAsBase();
-                test(false);
-            }
-            catch(Base ex)
-            {
-                if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-                {
-                    test(ex.ice_getSlicedData() == null);
-                }
-                else
-                {
-                    Ice.SlicedData slicedData = ex.ice_getSlicedData();
-                    test(slicedData != null);
-                    test(slicedData.slices.Length == 2);
-                    test(slicedData.slices[1].typeId.Equals("::Test::SPreserved1"));
-                    test(slicedData.slices[0].typeId.Equals("::Test::SPreserved2"));
-                }
-            }
-
-            try
-            {
-                testPrx.unknownPreservedAsKnownPreserved();
-                test(false);
-            }
-            catch(KnownPreserved ex)
-            {
-                test(ex.kp.Equals("preserved"));
-                if(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0))
-                {
-                    test(ex.ice_getSlicedData() == null);
-                }
-                else
-                {
-                    Ice.SlicedData slicedData = ex.ice_getSlicedData();
-                    test(slicedData != null);
-                    test(slicedData.slices.Length == 2);
-                    test(slicedData.slices[1].typeId.Equals("::Test::SPreserved1"));
-                    test(slicedData.slices[0].typeId.Equals("::Test::SPreserved2"));
-                }
-            }
-
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("");
-            RelayPrx relay = RelayPrxHelper.uncheckedCast(adapter.addWithUUID(new RelayI()));
-            adapter.activate();
-            testPrx.ice_getConnection().setAdapter(adapter);
-
-            try
-            {
-                testPrx.relayKnownPreservedAsBase(relay);
-                test(false);
-            }
-            catch(KnownPreservedDerived ex)
-            {
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-            }
-            catch(Ice.OperationNotExistException)
-            {
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-
-            try
-            {
-                testPrx.relayKnownPreservedAsKnownPreserved(relay);
-                test(false);
-            }
-            catch(KnownPreservedDerived ex)
-            {
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-            }
-            catch(Ice.OperationNotExistException)
-            {
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-
-            try
-            {
-                testPrx.relayUnknownPreservedAsBase(relay);
-                test(false);
-            }
-            catch(Preserved2 ex)
-            {
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-                test(ex.p1.ice_id().Equals(PreservedClass.ice_staticId()));
-                PreservedClass pc = ex.p1 as PreservedClass;
-                test(pc.bc.Equals("bc"));
-                test(pc.pc.Equals("pc"));
-                test(ex.p2 == ex.p1);
-            }
-            catch(KnownPreservedDerived ex)
-            {
-                //
-                // For the 1.0 encoding, the unknown exception is sliced to KnownPreserved.
-                //
-                test(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-            }
-            catch(Ice.OperationNotExistException)
-            {
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-
-            try
-            {
-                testPrx.relayUnknownPreservedAsKnownPreserved(relay);
-                test(false);
-            }
-            catch(Preserved2 ex)
-            {
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-                test(ex.p1.ice_id().Equals(PreservedClass.ice_staticId()));
-                PreservedClass pc = ex.p1 as PreservedClass;
-                test(pc.bc.Equals("bc"));
-                test(pc.pc.Equals("pc"));
-                test(ex.p2 == ex.p1);
-            }
-            catch(KnownPreservedDerived ex)
-            {
-                //
-                // For the 1.0 encoding, the unknown exception is sliced to KnownPreserved.
-                //
-                test(testPrx.ice_getEncodingVersion().Equals(Ice.Util.Encoding_1_0));
-                test(ex.b.Equals("base"));
-                test(ex.kp.Equals("preserved"));
-                test(ex.kpd.Equals("derived"));
-            }
-            catch(Ice.OperationNotExistException)
-            {
-            }
-            catch(Exception)
-            {
-                test(false);
-            }
-
-            adapter.destroy();
-        }
-        output.WriteLine("ok");
-
-        return testPrx;
     }
 }

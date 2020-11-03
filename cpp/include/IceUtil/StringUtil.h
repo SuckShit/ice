@@ -14,11 +14,7 @@ namespace IceUtilInternal
 //
 // Must be kept in sync with Ice::ToStringMode
 //
-#ifdef ICE_CPP11_MAPPING
 enum class ToStringMode : unsigned char
-#else
-enum ToStringMode
-#endif
 { Unicode, ASCII, Compat };
 
 //
@@ -72,7 +68,7 @@ ICE_API bool match(const std::string&, const std::string&, bool = false);
 //
 ICE_API std::string lastErrorToString();
 #ifdef _WIN32
-ICE_API std::string errorToString(int, LPCVOID = ICE_NULLPTR);
+ICE_API std::string errorToString(int, LPCVOID = nullptr);
 #else
 ICE_API std::string errorToString(int);
 #endif

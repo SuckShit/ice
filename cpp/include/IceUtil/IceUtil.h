@@ -15,11 +15,10 @@
 #include <IceUtil/Config.h>
 #include <IceUtil/Cond.h>
 #include <IceUtil/ConsoleUtil.h>
-#if !defined(ICE_OS_UWP) && (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
+#if (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
 #   include <IceUtil/CtrlCHandler.h>
 #endif
 #include <IceUtil/Exception.h>
-#include <IceUtil/Functional.h>
 #include <IceUtil/Handle.h>
 #include <IceUtil/Lock.h>
 #include <IceUtil/Monitor.h>

@@ -1,1697 +1,701 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice
 {
-    using System;
-    using System.Diagnostics;
-    using System.Net.Sockets;
-    using System.Security.Cryptography;
-    using System.Text;
-
-    sealed class WSTransceiver : Transceiver
+    internal sealed class WSTransceiver : ITransceiver
     {
-        public Socket fd()
+        public Socket? Socket => _underlying.Socket;
+        public SslStream? SslStream => (_underlying.Underlying as SslTransceiver)?.SslStream;
+        internal IReadOnlyDictionary<string, string> Headers => _parser.GetHeaders();
+
+        private enum OpCode : byte
         {
-            return _delegate.fd();
+            Continuation = 0x0,
+            Text = 0x1,
+            Data = 0x2,
+            Close = 0x8,
+            Ping = 0x9,
+            Pong = 0xA
         }
 
-        public int initialize(Buffer readBuffer, Buffer writeBuffer, ref bool hasMoreData)
+        private enum ClosureStatusCode : short
         {
-            //
-            // Delegate logs exceptions that occur during initialize(), so there's no need to trap them here.
-            //
-            if(_state == StateInitializeDelegate)
-            {
-                int op = _delegate.initialize(readBuffer, writeBuffer, ref hasMoreData);
-                if(op != 0)
-                {
-                    return op;
-                }
-                _state = StateConnected;
-            }
+            Normal = 1000,
+            Shutdown = 1001
+        }
+
+        private const byte FlagFinal = 0x80;   // Last frame
+        private const byte FlagMasked = 0x80;   // Payload is masked
+        private const string IceProtocol = "ice.zeroc.com";
+        private const string WsUUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+        private static readonly UTF8Encoding _utf8 = new UTF8Encoding(false, true);
+
+        private bool _closing;
+        private readonly Communicator _communicator;
+        private readonly IConnector? _connector;
+        private readonly bool _incoming;
+        private readonly string _host;
+        private string _key;
+        private readonly HttpParser _parser;
+        private readonly object _mutex = new object();
+        private readonly BufferedReadTransceiver _underlying;
+        private readonly Random _rand;
+        private bool _receiveLastFrame;
+        private readonly byte[] _receiveMask = new byte[4];
+        private int _receivePayloadLength;
+        private int _receivePayloadOffset;
+        private string _resource;
+        private readonly string _transportName;
+        private readonly byte[] _sendMask;
+        private readonly IList<ArraySegment<byte>> _sendBuffer;
+        private Task _sendTask = Task.CompletedTask;
+
+        public void CheckSendSize(int size) => _underlying.CheckSendSize(size);
+
+        public async ValueTask CloseAsync(Exception exception, CancellationToken cancel)
+        {
+            byte[] payload = new byte[2];
+            short reason = System.Net.IPAddress.HostToNetworkOrder(
+                (short)(exception is ObjectDisposedException ? ClosureStatusCode.Shutdown : ClosureStatusCode.Normal));
+            MemoryMarshal.Write(payload, ref reason);
+
+            _closing = true;
+
+            // Send the close frame.
+            await SendImplAsync(OpCode.Close, new List<ArraySegment<byte>> { payload }, cancel).ConfigureAwait(false);
+        }
+
+        public void Dispose() => _underlying.Dispose();
+
+        public async ValueTask InitializeAsync(CancellationToken cancel)
+        {
+            await _underlying.InitializeAsync(cancel).ConfigureAwait(false);
 
             try
             {
-                if(_state == StateConnected)
+                // The server waits for the client's upgrade request, the client sends the upgrade request.
+                if (!_incoming)
                 {
-                    //
-                    // We don't know how much we'll need to read.
-                    //
-                    _readBuffer.resize(1024, true);
-                    _readBuffer.b.position(0);
-                    _readBufferPos = 0;
+                    // Compose the upgrade request.
+                    var sb = new StringBuilder();
+                    sb.Append("GET " + _resource + " HTTP/1.1\r\n");
+                    sb.Append("Host: " + _host + "\r\n");
+                    sb.Append("Upgrade: websocket\r\n");
+                    sb.Append("Connection: Upgrade\r\n");
+                    sb.Append("Sec-WebSocket-Protocol: " + IceProtocol + "\r\n");
+                    sb.Append("Sec-WebSocket-Version: 13\r\n");
+                    sb.Append("Sec-WebSocket-Key: ");
 
-                    //
-                    // The server waits for the client's upgrade request, the
-                    // client sends the upgrade request.
-                    //
-                    _state = StateUpgradeRequestPending;
-                    if(!_incoming)
-                    {
-                        //
-                        // Compose the upgrade request.
-                        //
-                        StringBuilder @out = new StringBuilder();
-                        @out.Append("GET " + _resource + " HTTP/1.1\r\n");
-                        @out.Append("Host: " + _host + "\r\n");
-                        @out.Append("Upgrade: websocket\r\n");
-                        @out.Append("Connection: Upgrade\r\n");
-                        @out.Append("Sec-WebSocket-Protocol: " + _iceProtocol + "\r\n");
-                        @out.Append("Sec-WebSocket-Version: 13\r\n");
-                        @out.Append("Sec-WebSocket-Key: ");
+                    // The value for Sec-WebSocket-Key is a 16-byte random number, encoded with Base64.
+                    byte[] key = new byte[16];
+                    _rand.NextBytes(key);
+                    _key = Convert.ToBase64String(key);
+                    sb.Append(_key + "\r\n\r\n"); // EOM
+                    byte[] data = _utf8.GetBytes(sb.ToString());
+                    _sendBuffer.Add(data);
 
-                        //
-                        // The value for Sec-WebSocket-Key is a 16-byte random number,
-                        // encoded with Base64.
-                        //
-                        byte[] key = new byte[16];
-                        _rand.NextBytes(key);
-                        _key = System.Convert.ToBase64String(key);
-                        @out.Append(_key + "\r\n\r\n"); // EOM
-
-                        byte[] bytes = _utf8.GetBytes(@out.ToString());
-                        _writeBuffer.resize(bytes.Length, false);
-                        _writeBuffer.b.position(0);
-                        _writeBuffer.b.put(bytes);
-                        _writeBuffer.b.flip();
-                    }
+                    await _underlying.SendAsync(_sendBuffer, cancel).ConfigureAwait(false);
                 }
+                _sendBuffer.Clear();
 
-                //
-                // Try to write the client's upgrade request.
-                //
-                if(_state == StateUpgradeRequestPending && !_incoming)
+                // Try to read the client's upgrade request or the server's response.
+                var httpBuffer = new ArraySegment<byte>();
+                while (true)
                 {
-                    if(_writeBuffer.b.hasRemaining())
+                    ReadOnlyMemory<byte> buffer = await _underlying.ReceiveAsync(0, cancel).ConfigureAwait(false);
+                    if (httpBuffer.Count + buffer.Length > _communicator.IncomingFrameSizeMax)
                     {
-                        int s = _delegate.write(_writeBuffer);
-                        if(s != 0)
-                        {
-                            return s;
-                        }
-                    }
-                    Debug.Assert(!_writeBuffer.b.hasRemaining());
-                    _state = StateUpgradeResponsePending;
-                }
-
-                while(true)
-                {
-                    if(_readBuffer.b.hasRemaining())
-                    {
-                        int s = _delegate.read(_readBuffer, ref hasMoreData);
-                        if(s == SocketOperation.Write || _readBuffer.b.position() == 0)
-                        {
-                            return s;
-                        }
+                        throw new InvalidDataException(
+                            "WebSocket frame size is greater than the configured IncomingFrameSizeMax value");
                     }
 
-                    //
-                    // Try to read the client's upgrade request or the server's response.
-                    //
-                    if((_state == StateUpgradeRequestPending && _incoming) ||
-                       (_state == StateUpgradeResponsePending && !_incoming))
+                    ArraySegment<byte> tmpBuffer = new byte[httpBuffer.Count + buffer.Length];
+                    if (httpBuffer.Count > 0)
                     {
-                        //
-                        // Check if we have enough data for a complete message.
-                        //
-                        int p = _parser.isCompleteMessage(_readBuffer.b, 0, _readBuffer.b.position());
-                        if(p == -1)
-                        {
-                            if(_readBuffer.b.hasRemaining())
-                            {
-                                return SocketOperation.Read;
-                            }
-
-                            //
-                            // Enlarge the buffer and try to read more.
-                            //
-                            int oldSize = _readBuffer.b.position();
-                            if(oldSize + 1024 > _instance.messageSizeMax())
-                            {
-                                throw new Ice.MemoryLimitException();
-                            }
-                            _readBuffer.resize(oldSize + 1024, true);
-                            _readBuffer.b.position(oldSize);
-                            continue; // Try again to read the response/request
-                        }
-
-                        //
-                        // Set _readBufferPos at the end of the response/request message.
-                        //
-                        _readBufferPos = p;
+                        httpBuffer.CopyTo(tmpBuffer);
                     }
+                    buffer.CopyTo(tmpBuffer.Slice(httpBuffer.Count));
+                    httpBuffer = tmpBuffer;
 
-                    //
-                    // We're done, the client's upgrade request or server's response is read.
-                    //
-                    break;
+                    // Check if we have enough data for a complete frame.
+                    int endPos = HttpParser.IsCompleteMessage(httpBuffer);
+                    if (endPos != -1)
+                    {
+                        // Add back the un-consumed data to the buffer.
+                        _underlying.Rewind(httpBuffer.Count - endPos);
+                        httpBuffer = httpBuffer.Slice(0, endPos);
+                        break; // Done
+                    }
                 }
 
                 try
                 {
-                    //
-                    // Parse the client's upgrade request.
-                    //
-                    if(_state == StateUpgradeRequestPending && _incoming)
+                    if (_parser.Parse(httpBuffer))
                     {
-                        if(_parser.parse(_readBuffer.b, 0, _readBufferPos))
+                        if (_incoming)
                         {
-                            handleRequest(_writeBuffer);
-                            _state = StateUpgradeResponsePending;
+                            (bool addProtocol, string key) = ReadUpgradeRequest();
+
+                            // Compose the response.
+                            var sb = new StringBuilder();
+                            sb.Append("HTTP/1.1 101 Switching Protocols\r\n");
+                            sb.Append("Upgrade: websocket\r\n");
+                            sb.Append("Connection: Upgrade\r\n");
+                            if (addProtocol)
+                            {
+                                sb.Append($"Sec-WebSocket-Protocol: {IceProtocol}\r\n");
+                            }
+
+                            // The response includes:
+                            //
+                            // "A |Sec-WebSocket-Accept| header field.  The value of this header field is constructed
+                            // by concatenating /key/, defined above in step 4 in Section 4.2.2, with the string
+                            // "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", taking the SHA-1 hash of this concatenated value
+                            // to obtain a 20-byte value and base64-encoding (see Section 4 of [RFC4648]) this 20-byte
+                            // hash.
+                            sb.Append("Sec-WebSocket-Accept: ");
+                            string input = key + WsUUID;
+#pragma warning disable CA5350 // Do Not Use Weak Cryptographic Algorithms
+                            using var sha1 = SHA1.Create();
+                            byte[] hash = sha1.ComputeHash(_utf8.GetBytes(input));
+#pragma warning restore CA5350 // Do Not Use Weak Cryptographic Algorithms
+                            sb.Append(Convert.ToBase64String(hash) + "\r\n" + "\r\n"); // EOM
+
+                            Debug.Assert(_sendBuffer.Count == 0);
+                            byte[] data = _utf8.GetBytes(sb.ToString());
+                            _sendBuffer.Add(data);
+                            await _underlying.SendAsync(_sendBuffer, cancel).ConfigureAwait(false);
+                            _sendBuffer.Clear();
                         }
                         else
                         {
-                            throw new Ice.ProtocolException("incomplete request message");
+                            ReadUpgradeResponse();
                         }
                     }
-
-                    if(_state == StateUpgradeResponsePending)
+                    else
                     {
-                        if(_incoming)
-                        {
-                            if(_writeBuffer.b.hasRemaining())
-                            {
-                                int s = _delegate.write(_writeBuffer);
-                                if(s != 0)
-                                {
-                                    return s;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            //
-                            // Parse the server's response
-                            //
-                            if(_parser.parse(_readBuffer.b, 0, _readBufferPos))
-                            {
-                                handleResponse();
-                            }
-                            else
-                            {
-                                throw new Ice.ProtocolException("incomplete response message");
-                            }
-                        }
+                        throw new InvalidDataException("incomplete WebSocket request frame");
                     }
                 }
-                catch(WebSocketException ex)
+                catch (WebSocketException ex)
                 {
-                    throw new Ice.ProtocolException(ex.Message);
+                    throw new InvalidDataException(ex.Message, ex);
                 }
-
-                _state = StateOpened;
-                _nextState = StateOpened;
-
-                hasMoreData = _readBufferPos < _readBuffer.b.position();
             }
-            catch(Ice.LocalException ex)
+            catch (Exception ex)
             {
-                if(_instance.traceLevel() >= 2)
+                if (_communicator.TraceLevels.Transport >= 2)
                 {
-                    _instance.logger().trace(_instance.traceCategory(),
-                        protocol() + " connection HTTP upgrade request failed\n" + ToString() + "\n" + ex);
+                    _communicator.Logger.Trace(TraceLevels.TransportCategory,
+                        $"{_transportName} connection HTTP upgrade request failed\n{this}\n{ex}");
                 }
                 throw;
             }
 
-            if(_instance.traceLevel() >= 1)
+            if (_communicator.TraceLevels.Transport >= 1)
             {
-                if(_incoming)
+                if (_incoming)
                 {
-                    _instance.logger().trace(_instance.traceCategory(),
-                        "accepted " + protocol() + " connection HTTP upgrade request\n" + ToString());
+                    _communicator.Logger.Trace(TraceLevels.TransportCategory,
+                        $"accepted {_transportName} connection HTTP upgrade request\n{this}");
                 }
                 else
                 {
-                    _instance.logger().trace(_instance.traceCategory(),
-                        protocol() + " connection HTTP upgrade request accepted\n" + ToString());
+                    _communicator.Logger.Trace(TraceLevels.TransportCategory,
+                        $"{_transportName} connection HTTP upgrade request accepted\n{this}");
                 }
-            }
-
-            return SocketOperation.None;
-        }
-
-        public int closing(bool initiator, Ice.LocalException reason)
-        {
-            if(_instance.traceLevel() >= 1)
-            {
-                _instance.logger().trace(_instance.traceCategory(),
-                    "gracefully closing " + protocol() + " connection\n" + ToString());
-            }
-
-            int s = _nextState == StateOpened ? _state : _nextState;
-
-            if(s == StateClosingRequestPending && _closingInitiator)
-            {
-                //
-                // If we initiated a close connection but also received a
-                // close connection, we assume we didn't initiated the
-                // connection and we send the close frame now. This is to
-                // ensure that if both peers close the connection at the same
-                // time we don't hang having both peer waiting for the close
-                // frame of the other.
-                //
-                Debug.Assert(!initiator);
-                _closingInitiator = false;
-                return SocketOperation.Write;
-            }
-            else if(s >= StateClosingRequestPending)
-            {
-                return SocketOperation.None;
-            }
-
-            _closingInitiator = initiator;
-            if(reason is Ice.CloseConnectionException)
-            {
-                _closingReason = CLOSURE_NORMAL;
-            }
-            else if(reason is Ice.ObjectAdapterDeactivatedException ||
-                    reason is Ice.CommunicatorDestroyedException)
-            {
-                _closingReason = CLOSURE_SHUTDOWN;
-            }
-            else if(reason is Ice.ProtocolException)
-            {
-                _closingReason  = CLOSURE_PROTOCOL_ERROR;
-            }
-            else if(reason is Ice.MemoryLimitException)
-            {
-                _closingReason = CLOSURE_TOO_BIG;
-            }
-
-            if(_state == StateOpened)
-            {
-                _state = StateClosingRequestPending;
-                return initiator ? SocketOperation.Read : SocketOperation.Write;
-            }
-            else
-            {
-                _nextState = StateClosingRequestPending;
-                return SocketOperation.None;
             }
         }
+        public ValueTask<ArraySegment<byte>> ReceiveDatagramAsync(CancellationToken cancel) =>
+            throw new InvalidOperationException("only supported by datagram transports");
 
-        public void close()
+        public async ValueTask<int> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancel)
         {
-            _delegate.close();
-            _state = StateClosed;
-
-            //
-            // Clear the buffers now instead of waiting for destruction.
-            //
-            if(!_readPending)
+            // If we've fully read the previous DATA frame payload, read a new frame
+            if (_receivePayloadOffset == _receivePayloadLength)
             {
-                _readBuffer.clear();
-            }
-            if(!_writePending)
-            {
-                _writeBuffer.clear();
-            }
-        }
-
-        public EndpointI bind()
-        {
-            Debug.Assert(false);
-            return null;
-        }
-
-        public void destroy()
-        {
-            _delegate.destroy();
-        }
-
-        public int write(Buffer buf)
-        {
-            if(_writePending)
-            {
-                return SocketOperation.Write;
+                _receivePayloadLength = await ReceiveFrameAsync(cancel).ConfigureAwait(false);
+                _receivePayloadOffset = 0;
             }
 
-            if(_state < StateOpened)
+            if (_receivePayloadLength == 0)
             {
-                if(_state < StateConnected)
+                throw new ConnectionLostException(RetryPolicy.AfterDelay(TimeSpan.Zero), _connector);
+            }
+
+            // Read the payload
+            int length = Math.Min(_receivePayloadLength, buffer.Count);
+            int received = await _underlying.ReceiveAsync(buffer[0..length], cancel).ConfigureAwait(false);
+
+            if (_incoming)
+            {
+                for (int i = 0; i < received; ++i)
                 {
-                    return _delegate.write(buf);
-                }
-                else
-                {
-                    return _delegate.write(_writeBuffer);
-                }
-            }
-
-            int s = SocketOperation.None;
-            do
-            {
-                if(preWrite(buf))
-                {
-                    if(_writeState == WriteStateFlush)
-                    {
-                        //
-                        // Invoke write() even though there's nothing to write.
-                        //
-                        Debug.Assert(!buf.b.hasRemaining());
-                        s = _delegate.write(buf);
-                    }
-
-                    if(s == SocketOperation.None && _writeBuffer.b.hasRemaining())
-                    {
-                        s = _delegate.write(_writeBuffer);
-                    }
-                    else if(s == SocketOperation.None && _incoming && !buf.empty() && _writeState == WriteStatePayload)
-                    {
-                        s = _delegate.write(buf);
-                    }
-                }
-            }
-            while(postWrite(buf, s));
-
-            if(s != SocketOperation.None)
-            {
-                return s;
-            }
-            if(_state == StateClosingResponsePending && !_closingInitiator)
-            {
-                return SocketOperation.Read;
-            }
-            return SocketOperation.None;
-        }
-
-        public int read(Buffer buf, ref bool hasMoreData)
-        {
-            if(_readPending)
-            {
-                return SocketOperation.Read;
-            }
-
-            if(_state < StateOpened)
-            {
-                if(_state < StateConnected)
-                {
-                    return _delegate.read(buf, ref hasMoreData);
-                }
-                else
-                {
-                    if(_delegate.read(_readBuffer, ref hasMoreData) == SocketOperation.Write)
-                    {
-                        return SocketOperation.Write;
-                    }
-                    else
-                    {
-                        return SocketOperation.None;
-                    }
-                }
-            }
-
-            if(!buf.b.hasRemaining())
-            {
-                hasMoreData |= _readBufferPos < _readBuffer.b.position();
-                return SocketOperation.None;
-            }
-
-            int s = SocketOperation.None;
-            do
-            {
-                if(preRead(buf))
-                {
-                    if(_readState == ReadStatePayload)
-                    {
-                        //
-                        // If the payload length is smaller than what remains to be read, we read
-                        // no more than the payload length. The remaining of the buffer will be
-                        // sent over in another frame.
-                        //
-                        int readSz = _readPayloadLength - (buf.b.position() - _readStart);
-                        if(buf.b.remaining() > readSz)
-                        {
-                            int size = buf.size();
-                            buf.resize(buf.b.position() + readSz, true);
-                            s = _delegate.read(buf, ref hasMoreData);
-                            buf.resize(size, true);
-                        }
-                        else
-                        {
-                            s = _delegate.read(buf, ref hasMoreData);
-                        }
-                    }
-                    else
-                    {
-                        s = _delegate.read(_readBuffer, ref hasMoreData);
-                    }
-
-                    if(s == SocketOperation.Write)
-                    {
-                        postRead(buf);
-                        return s;
-                    }
-                }
-            }
-            while(postRead(buf));
-
-            if(!buf.b.hasRemaining())
-            {
-                hasMoreData |= _readBufferPos < _readBuffer.b.position();
-                s = SocketOperation.None;
-            }
-            else
-            {
-                hasMoreData = false;
-                s = SocketOperation.Read;
-            }
-
-            if(((_state == StateClosingRequestPending && !_closingInitiator) ||
-                (_state == StateClosingResponsePending && _closingInitiator) ||
-                _state == StatePingPending ||
-                _state == StatePongPending) &&
-               _writeState == WriteStateHeader)
-            {
-                // We have things to write, ask to be notified when writes are ready.
-                s |= SocketOperation.Write;
-            }
-
-            return s;
-        }
-
-        public bool startRead(Buffer buf, AsyncCallback callback, object state)
-        {
-            _readPending = true;
-            if(_state < StateOpened)
-            {
-                _finishRead = true;
-                if(_state < StateConnected)
-                {
-                    return _delegate.startRead(buf, callback, state);
-                }
-                else
-                {
-                    return _delegate.startRead(_readBuffer, callback, state);
-                }
-            }
-
-            if(preRead(buf))
-            {
-                _finishRead = true;
-                if(_readState == ReadStatePayload)
-                {
-                    //
-                    // If the payload length is smaller than what remains to be read, we read
-                    // no more than the payload length. The remaining of the buffer will be
-                    // sent over in another frame.
-                    //
-                    int readSz = _readPayloadLength  - (buf.b.position() - _readStart);
-                    if(buf.b.remaining() > readSz)
-                    {
-                        int size = buf.size();
-                        buf.resize(buf.b.position() + readSz, true);
-                        bool completedSynchronously = _delegate.startRead(buf, callback, state);
-                        buf.resize(size, true);
-                        return completedSynchronously;
-                    }
-                    else
-                    {
-                        return _delegate.startRead(buf, callback, state);
-                    }
-                }
-                else
-                {
-                    return _delegate.startRead(_readBuffer, callback, state);
+                    buffer[i] = (byte)(buffer[i] ^ _receiveMask[_receivePayloadOffset++ % 4]);
                 }
             }
             else
             {
-                return true;
+                _receivePayloadOffset += received;
             }
+            return received;
         }
 
-        public void finishRead(Buffer buf)
+        public ValueTask<int> SendAsync(IList<ArraySegment<byte>> buffers, CancellationToken cancel) =>
+             SendImplAsync(OpCode.Data, buffers, cancel);
+
+        public override string ToString() => _underlying.ToString()!;
+
+        internal WSTransceiver(
+            Communicator communicator,
+            ITransceiver del,
+            string host,
+            string resource,
+            IConnector? connector)
+            : this(communicator, del)
         {
-            Debug.Assert(_readPending);
-            _readPending = false;
-
-            if(_state < StateOpened)
-            {
-                Debug.Assert(_finishRead);
-                _finishRead = false;
-                if(_state < StateConnected)
-                {
-                    _delegate.finishRead(buf);
-                }
-                else
-                {
-                    _delegate.finishRead(_readBuffer);
-                }
-                return;
-            }
-
-            if(!_finishRead)
-            {
-                // Nothing to do.
-            }
-            else if(_readState == ReadStatePayload)
-            {
-                Debug.Assert(_finishRead);
-                _finishRead = false;
-                _delegate.finishRead(buf);
-            }
-            else
-            {
-                Debug.Assert(_finishRead);
-                _finishRead = false;
-                _delegate.finishRead(_readBuffer);
-            }
-
-            if(_state == StateClosed)
-            {
-                _readBuffer.clear();
-                return;
-            }
-
-            postRead(buf);
-        }
-
-        public bool startWrite(Buffer buf, AsyncCallback callback, object state,
-                               out bool completed)
-        {
-            _writePending = true;
-            if(_state < StateOpened)
-            {
-                if(_state < StateConnected)
-                {
-                    return _delegate.startWrite(buf, callback, state, out completed);
-                }
-                else
-                {
-                    return _delegate.startWrite(_writeBuffer, callback, state, out completed);
-                }
-            }
-
-            if(preWrite(buf))
-            {
-                if(_writeBuffer.b.hasRemaining())
-                {
-                    return _delegate.startWrite(_writeBuffer, callback, state, out completed);
-                }
-                else
-                {
-                    Debug.Assert(_incoming);
-                    return _delegate.startWrite(buf, callback, state, out completed);
-                }
-            }
-            else
-            {
-                completed = true;
-                return false;
-            }
-        }
-
-        public void finishWrite(Buffer buf)
-        {
-            _writePending = false;
-
-            if(_state < StateOpened)
-            {
-                if(_state < StateConnected)
-                {
-                    _delegate.finishWrite(buf);
-                }
-                else
-                {
-                    _delegate.finishWrite(_writeBuffer);
-                }
-                return;
-            }
-
-            if(_writeBuffer.b.hasRemaining())
-            {
-                _delegate.finishWrite(_writeBuffer);
-            }
-            else if(!buf.empty() && buf.b.hasRemaining())
-            {
-                Debug.Assert(_incoming);
-                _delegate.finishWrite(buf);
-            }
-
-            if(_state == StateClosed)
-            {
-                _writeBuffer.clear();
-                return;
-            }
-
-            postWrite(buf, SocketOperation.None);
-        }
-
-        public string protocol()
-        {
-            return _instance.protocol();
-        }
-
-        public Ice.ConnectionInfo getInfo()
-        {
-            Ice.WSConnectionInfo info = new Ice.WSConnectionInfo();
-            info.headers = _parser.getHeaders();
-            info.underlying = _delegate.getInfo();
-            return info;
-        }
-
-        public void checkSendSize(Buffer buf)
-        {
-            _delegate.checkSendSize(buf);
-        }
-
-        public void setBufferSize(int rcvSize, int sndSize)
-        {
-            _delegate.setBufferSize(rcvSize, sndSize);
-        }
-
-        public override string ToString()
-        {
-            return _delegate.ToString();
-        }
-
-        public string toDetailedString()
-        {
-            return _delegate.toDetailedString();
-        }
-
-        internal
-        WSTransceiver(ProtocolInstance instance, Transceiver del, string host, string resource)
-        {
-            init(instance, del);
+            _connector = connector;
             _host = host;
             _resource = resource;
             _incoming = false;
-
-            //
-            // Use a 16KB write buffer size. We use 16KB for the write
-            // buffer size because all the data needs to be copied to the
-            // write buffer for the purpose of masking. A 16KB buffer
-            // appears to be a good compromise to reduce the number of
-            // socket write calls and not consume too much memory.
-            //
-            _writeBufferSize = 16 * 1024;
-
-            //
-            // Write and read buffer size must be large enough to hold the frame header!
-            //
-            Debug.Assert(_writeBufferSize > 256);
-            Debug.Assert(_readBufferSize > 256);
+            _transportName = (del is SslTransceiver) ? "wss" : "ws";
         }
 
-        internal WSTransceiver(ProtocolInstance instance, Transceiver del)
+        internal WSTransceiver(Communicator communicator, ITransceiver underlying)
         {
-            init(instance, del);
+            _communicator = communicator;
+            _underlying = new BufferedReadTransceiver(underlying);
+            _parser = new HttpParser();
+            _receiveLastFrame = true;
+            _sendBuffer = new List<ArraySegment<byte>>();
+            _sendMask = new byte[4];
+            _key = "";
+            _rand = new Random();
             _host = "";
             _resource = "";
             _incoming = true;
-
-            //
-            // Write and read buffer size must be large enough to hold the frame header!
-            //
-            Debug.Assert(_writeBufferSize > 256);
-            Debug.Assert(_readBufferSize > 256);
+            _transportName = (underlying is SslTransceiver) ? "wss" : "ws";
         }
 
-        private void init(ProtocolInstance instance, Transceiver del)
+        private ArraySegment<byte> PrepareHeaderForSend(OpCode opCode, int payloadLength)
         {
-            _instance = instance;
-            _delegate = del;
-            _state = StateInitializeDelegate;
-            _parser = new HttpParser();
-            _readState = ReadStateOpcode;
-            _readBuffer = new Buffer(ByteBuffer.ByteOrder.BIG_ENDIAN); // Network byte order
-            _readBufferSize = 1024;
-            _readLastFrame = true;
-            _readOpCode = 0;
-            _readHeaderLength = 0;
-            _readPayloadLength = 0;
-            _writeState = WriteStateHeader;
-            _writeBuffer = new Buffer(ByteBuffer.ByteOrder.BIG_ENDIAN); // Network byte order
-            _writeBufferSize = 1024;
-            _readPending = false;
-            _finishRead = false;
-            _writePending = false;
-            _readMask = new byte[4];
-            _writeMask = new byte[4];
-            _key = "";
-            _pingPayload = new byte[0];
-            _rand = new Random();
+            // Prepare the frame header.
+            byte[] buffer = new byte[16];
+            int i = 0;
+
+            // Set the opcode - this is the one and only data frame.
+            buffer[i++] = (byte)((byte)opCode | FlagFinal);
+
+            // Set the payload length.
+            if (payloadLength <= 125)
+            {
+                buffer[i++] = (byte)payloadLength;
+            }
+            else if (payloadLength > 125 && payloadLength <= 65535)
+            {
+                // Use an extra 16 bits to encode the payload length.
+                buffer[i++] = 126;
+                short length = System.Net.IPAddress.HostToNetworkOrder((short)payloadLength);
+                MemoryMarshal.Write(buffer.AsSpan(i, 2), ref length);
+                i += 2;
+            }
+            else if (payloadLength > 65535)
+            {
+                // Use an extra 64 bits to encode the payload length.
+                buffer[i++] = 127;
+                long length = System.Net.IPAddress.HostToNetworkOrder((long)payloadLength);
+                MemoryMarshal.Write(buffer.AsSpan(i, 8), ref length);
+                i += 8;
+            }
+
+            if (!_incoming)
+            {
+                // Add a random 32-bit mask to every outgoing frame, copy the payload data, and apply the mask.
+                buffer[1] = (byte)(buffer[1] | FlagMasked);
+                _rand.NextBytes(_sendMask);
+                Buffer.BlockCopy(_sendMask, 0, buffer, i, _sendMask.Length);
+                i += _sendMask.Length;
+            }
+            return new ArraySegment<byte>(buffer, 0, i);
         }
 
-        private void handleRequest(Buffer responseBuffer)
+        private async ValueTask<int> ReceiveFrameAsync(CancellationToken cancel)
         {
-            //
+            while (true)
+            {
+                // Read the first 2 bytes of the WS frame header
+                ReadOnlyMemory<byte> header = await _underlying.ReceiveAsync(2, cancel).ConfigureAwait(false);
+                // Most-significant bit indicates if this is the last frame, least-significant four bits hold the opcode.
+                var opCode = (OpCode)(header.Span[0] & 0xf);
+
+                // Check if the OpCode is compatible of the FIN flag of the previous frame.
+                if (opCode == OpCode.Data && !_receiveLastFrame)
+                {
+                    throw new InvalidDataException("invalid WebSocket data frame, no FIN on previous frame");
+                }
+                else if (opCode == OpCode.Continuation && _receiveLastFrame)
+                {
+                    throw new InvalidDataException("invalid WebSocket continuation frame, previous frame FIN set");
+                }
+
+                // Remember the FIN flag of this frame for the previous check.
+                _receiveLastFrame = (header.Span[0] & FlagFinal) == FlagFinal;
+
+                // Messages sent by a client must be masked; frames sent by a server must not be masked.
+                bool masked = (header.Span[1] & FlagMasked) == FlagMasked;
+                if (masked != _incoming)
+                {
+                    throw new InvalidDataException("invalid WebSocket masking");
+                }
+
+                // Extract the payload length, which can have the following values:
+                // 0-125: The payload length
+                // 126:   The subsequent two bytes contain the payload length
+                // 127:   The subsequent eight bytes contain the payload length
+                int payloadLength = header.Span[1] & 0x7f;
+                if (payloadLength == 126)
+                {
+                    header = await _underlying.ReceiveAsync(2, cancel).ConfigureAwait(false);
+                    ushort length = header.Span.ReadUShort();
+                    payloadLength = (ushort)System.Net.IPAddress.NetworkToHostOrder((short)length);
+                }
+                else if (payloadLength == 127)
+                {
+                    header = await _underlying.ReceiveAsync(8, cancel).ConfigureAwait(false);
+                    long length = System.Net.IPAddress.NetworkToHostOrder(header.Span.ReadLong());
+                    if (length > int.MaxValue)
+                    {
+                        // We never send payloads with such length, we shouldn't get any.
+                        throw new InvalidDataException("WebSocket payload length is not supported");
+                    }
+                    payloadLength = (int)length;
+                }
+
+                if (_incoming)
+                {
+                    // Read the mask if this is an incoming connection.
+                    (await _underlying.ReceiveAsync(4, cancel).ConfigureAwait(false)).CopyTo(_receiveMask);
+                }
+
+                if (_communicator.TraceLevels.Transport >= 3)
+                {
+                    _communicator.Logger.Trace(TraceLevels.TransportCategory,
+                        $"received {_transportName} {opCode} frame with {payloadLength} bytes payload\n{this}");
+                }
+
+                switch (opCode)
+                {
+                    case OpCode.Text:
+                    {
+                        throw new InvalidDataException("WebSocket text frames not supported");
+                    }
+                    case OpCode.Data:
+                    case OpCode.Continuation:
+                    {
+                        if (payloadLength <= 0)
+                        {
+                            throw new InvalidDataException("WebSocket payload length is invalid");
+                        }
+                        return payloadLength;
+                    }
+                    case OpCode.Close:
+                    {
+                        // Read the Close frame payload.
+                        ReadOnlyMemory<byte> payloadBuffer =
+                            await _underlying.ReceiveAsync(payloadLength, cancel).ConfigureAwait(false);
+
+                        byte[] payload = payloadBuffer.ToArray();
+                        if (_incoming)
+                        {
+                            for (int i = 0; i < payload.Length; ++i)
+                            {
+                                payload[i] = (byte)(payload[i] ^ _receiveMask[i % 4]);
+                            }
+                        }
+
+                        // If we've received a close frame and we were waiting for it, notify the task. Otherwise,
+                        // we didn't send a close frame and we should reply back with a close frame.
+                        if (_closing)
+                        {
+                            return 0;
+                        }
+                        else
+                        {
+                            var sendBuffer = new List<ArraySegment<byte>> { payload };
+                            await SendImplAsync(OpCode.Close, sendBuffer, cancel).ConfigureAwait(false);
+                        }
+                        break;
+                    }
+                    case OpCode.Ping:
+                    {
+                        // Read the ping payload.
+                        ReadOnlyMemory<byte> payload =
+                            await _underlying.ReceiveAsync(payloadLength, cancel).ConfigureAwait(false);
+
+                        // Send a Pong frame with the received payload.
+                        var sendBuffer = new List<ArraySegment<byte>> { payload.ToArray() };
+                        await SendImplAsync(OpCode.Pong, sendBuffer, cancel).ConfigureAwait(false);
+                        break;
+                    }
+                    case OpCode.Pong:
+                    {
+                        // Read the pong payload.
+                        ReadOnlyMemory<byte> payload =
+                            await _underlying.ReceiveAsync(payloadLength, cancel).ConfigureAwait(false);
+
+                        // Nothing to do, this can be received even if we don't send a ping frame if the peer sends
+                        // an unidirectional heartbeat.
+                        break;
+                    }
+                    default:
+                    {
+                        throw new InvalidDataException($"unsupported WebSocket opcode: {opCode}");
+                    }
+                }
+            }
+        }
+
+        private (bool, string) ReadUpgradeRequest()
+        {
             // HTTP/1.1
-            //
-            if(_parser.versionMajor() != 1 || _parser.versionMinor() != 1)
+            if (_parser.VersionMajor() != 1 || _parser.VersionMinor() != 1)
             {
                 throw new WebSocketException("unsupported HTTP version");
             }
 
-            //
-            // "An |Upgrade| header field containing the value 'websocket',
-            //  treated as an ASCII case-insensitive value."
-            //
-            string val = _parser.getHeader("Upgrade", true);
-            if(val == null)
+            // "An |Upgrade| header field containing the value 'websocket', treated as an ASCII case-insensitive value."
+            string? value = _parser.GetHeader("Upgrade", true);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for Upgrade field");
             }
-            else if(!val.Equals("websocket"))
+            else if (!value.Equals("websocket"))
             {
-                throw new WebSocketException("invalid value `" + val + "' for Upgrade field");
+                throw new WebSocketException($"invalid value `{value}' for Upgrade field");
             }
 
-            //
-            // "A |Connection| header field that includes the token 'Upgrade',
-            //  treated as an ASCII case-insensitive value.
-            //
-            val = _parser.getHeader("Connection", true);
-            if(val == null)
+            // "A |Connection| header field that includes the token 'Upgrade', treated as an ASCII case-insensitive
+            // value.
+            value = _parser.GetHeader("Connection", true);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for Connection field");
             }
-            else if(val.IndexOf("upgrade") == -1)
+            else if (!value.Contains("upgrade"))
             {
-                throw new WebSocketException("invalid value `" + val + "' for Connection field");
+                throw new WebSocketException($"invalid value `{value}' for Connection field");
             }
 
-            //
             // "A |Sec-WebSocket-Version| header field, with a value of 13."
-            //
-            val = _parser.getHeader("Sec-WebSocket-Version", false);
-            if(val == null)
+            value = _parser.GetHeader("Sec-WebSocket-Version", false);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for WebSocket version");
             }
-            else if(!val.Equals("13"))
+            else if (!value.Equals("13"))
             {
-                throw new WebSocketException("unsupported WebSocket version `" + val + "'");
+                throw new WebSocketException($"unsupported WebSocket version `{value}'");
             }
 
-            //
-            // "Optionally, a |Sec-WebSocket-Protocol| header field, with a list
-            //  of values indicating which protocols the client would like to
-            //  speak, ordered by preference."
-            //
+            // "Optionally, a |Sec-WebSocket-Protocol| header field, with a list of values indicating which protocols
+            // the client would like to speak, ordered by preference."
             bool addProtocol = false;
-            val = _parser.getHeader("Sec-WebSocket-Protocol", true);
-            if(val != null)
+            value = _parser.GetHeader("Sec-WebSocket-Protocol", true);
+            if (value != null)
             {
-                string[] protocols = IceUtilInternal.StringUtil.splitString(val, ",");
-                if(protocols == null)
+                string[]? protocols = StringUtil.SplitString(value, ",");
+                if (protocols == null)
                 {
-                    throw new WebSocketException("invalid value `" + val + "' for WebSocket protocol");
+                    throw new WebSocketException($"invalid value `{value}' for WebSocket protocol");
                 }
-                foreach(string p in protocols)
+
+                foreach (string protocol in protocols)
                 {
-                    if(!p.Trim().Equals(_iceProtocol))
+                    if (!protocol.Trim().Equals(IceProtocol))
                     {
-                        throw new WebSocketException("unknown value `" + p + "' for WebSocket protocol");
+                        throw new WebSocketException($"unknown value `{protocol}' for WebSocket protocol");
                     }
                     addProtocol = true;
                 }
             }
 
-            //
-            // "A |Sec-WebSocket-Key| header field with a base64-encoded
-            //  value that, when decoded, is 16 bytes in length."
-            //
-            string key = _parser.getHeader("Sec-WebSocket-Key", false);
-            if(key == null)
+            // "A |Sec-WebSocket-Key| header field with a base64-encoded value that, when decoded, is 16 bytes in
+            // length."
+            string? key = _parser.GetHeader("Sec-WebSocket-Key", false);
+            if (key == null)
             {
                 throw new WebSocketException("missing value for WebSocket key");
             }
 
             byte[] decodedKey = Convert.FromBase64String(key);
-            if(decodedKey.Length != 16)
+            if (decodedKey.Length != 16)
             {
-                throw new WebSocketException("invalid value `" + key + "' for WebSocket key");
+                throw new WebSocketException($"invalid value `{key}' for WebSocket key");
             }
 
-            //
             // Retain the target resource.
-            //
-            _resource = _parser.uri();
+            _resource = _parser.Uri();
 
-            //
-            // Compose the response.
-            //
-            StringBuilder @out = new StringBuilder();
-            @out.Append("HTTP/1.1 101 Switching Protocols\r\n");
-            @out.Append("Upgrade: websocket\r\n");
-            @out.Append("Connection: Upgrade\r\n");
-            if(addProtocol)
-            {
-                @out.Append("Sec-WebSocket-Protocol: " + _iceProtocol + "\r\n");
-            }
-
-            //
-            // The response includes:
-            //
-            // "A |Sec-WebSocket-Accept| header field.  The value of this
-            //  header field is constructed by concatenating /key/, defined
-            //  above in step 4 in Section 4.2.2, with the string "258EAFA5-
-            //  E914-47DA-95CA-C5AB0DC85B11", taking the SHA-1 hash of this
-            //  concatenated value to obtain a 20-byte value and base64-
-            //  encoding (see Section 4 of [RFC4648]) this 20-byte hash.
-            //
-            @out.Append("Sec-WebSocket-Accept: ");
-            string input = key + _wsUUID;
-            byte[] hash = SHA1.Create().ComputeHash(_utf8.GetBytes(input));
-            @out.Append(Convert.ToBase64String(hash) + "\r\n" + "\r\n"); // EOM
-
-            byte[] bytes = _utf8.GetBytes(@out.ToString());
-            Debug.Assert(bytes.Length == @out.Length);
-            responseBuffer.resize(bytes.Length, false);
-            responseBuffer.b.position(0);
-            responseBuffer.b.put(bytes);
-            responseBuffer.b.flip();
+            return (addProtocol, key);
         }
 
-        private void handleResponse()
+        private void ReadUpgradeResponse()
         {
-            string val;
-
-            //
             // HTTP/1.1
-            //
-            if(_parser.versionMajor() != 1 || _parser.versionMinor() != 1)
+            if (_parser.VersionMajor() != 1 || _parser.VersionMinor() != 1)
             {
                 throw new WebSocketException("unsupported HTTP version");
             }
 
-            //
-            // "If the status code received from the server is not 101, the
-            //  client handles the response per HTTP [RFC2616] procedures.  In
-            //  particular, the client might perform authentication if it
-            //  receives a 401 status code; the server might redirect the client
-            //  using a 3xx status code (but clients are not required to follow
-            //  them), etc."
-            //
-            if(_parser.status() != 101)
+            // "If the status code received from the server is not 101, the client handles the response per HTTP
+            // [RFC2616] procedures. In particular, the client might perform authentication if it receives a 401 status
+            // code; the server might redirect the client using a 3xx status code (but clients are not required to
+            // follow them), etc."
+            if (_parser.Status() != 101)
             {
-                StringBuilder @out = new StringBuilder("unexpected status value " + _parser.status());
-                if(_parser.reason().Length > 0)
+                var sb = new StringBuilder("unexpected status value " + _parser.Status());
+                if (_parser.Reason().Length > 0)
                 {
-                    @out.Append(":\n" + _parser.reason());
+                    sb.Append(":\n" + _parser.Reason());
                 }
-                throw new WebSocketException(@out.ToString());
+                throw new WebSocketException(sb.ToString());
             }
 
-            //
-            // "If the response lacks an |Upgrade| header field or the |Upgrade|
-            //  header field contains a value that is not an ASCII case-
-            //  insensitive match for the value "websocket", the client MUST
-            //  _Fail the WebSocket Connection_."
-            //
-            val = _parser.getHeader("Upgrade", true);
-            if(val == null)
+            // "If the response lacks an |Upgrade| header field or the |Upgrade| header field contains a value that is
+            // not an ASCII case-insensitive match for the value "websocket", the client MUST_Fail the WebSocket
+            // Connection_."
+            string? value = _parser.GetHeader("Upgrade", true);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for Upgrade field");
             }
-            else if(!val.Equals("websocket"))
+            else if (!value.Equals("websocket"))
             {
-                throw new WebSocketException("invalid value `" + val + "' for Upgrade field");
+                throw new WebSocketException($"invalid value `{value}' for Upgrade field");
             }
 
-            //
-            // "If the response lacks a |Connection| header field or the
-            //  |Connection| header field doesn't contain a token that is an
-            //  ASCII case-insensitive match for the value "Upgrade", the client
-            //  MUST _Fail the WebSocket Connection_."
-            //
-            val = _parser.getHeader("Connection", true);
-            if(val == null)
+            // "If the response lacks a |Connection| header field or the |Connection| header field doesn't contain a
+            // token that is an ASCII case-insensitive match for the value "Upgrade", the client MUST _Fail the
+            // WebSocket Connection_."
+            value = _parser.GetHeader("Connection", true);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for Connection field");
             }
-            else if(val.IndexOf("upgrade") == -1)
+            else if (!value.Contains("upgrade"))
             {
-                throw new WebSocketException("invalid value `" + val + "' for Connection field");
+                throw new WebSocketException($"invalid value `{value}' for Connection field");
             }
 
-            //
-            // "If the response includes a |Sec-WebSocket-Protocol| header field
-            //  and this header field indicates the use of a subprotocol that was
-            //  not present in the client's handshake (the server has indicated a
-            //  subprotocol not requested by the client), the client MUST _Fail
-            //  the WebSocket Connection_."
-            //
-            val = _parser.getHeader("Sec-WebSocket-Protocol", true);
-            if(val != null && !val.Equals(_iceProtocol))
+            // "If the response includes a |Sec-WebSocket-Protocol| header field and this header field indicates the
+            // use of a subprotocol that was not present in the client's handshake (the server has indicated a
+            // subprotocol not requested by the client), the client MUST _Fail the WebSocket Connection_."
+            value = _parser.GetHeader("Sec-WebSocket-Protocol", true);
+            if (value != null && !value.Equals(IceProtocol))
             {
-                throw new WebSocketException("invalid value `" + val + "' for WebSocket protocol");
+                throw new WebSocketException($"invalid value `{value}' for WebSocket protocol");
             }
 
-            //
-            // "If the response lacks a |Sec-WebSocket-Accept| header field or
-            //  the |Sec-WebSocket-Accept| contains a value other than the
-            //  base64-encoded SHA-1 of the concatenation of the |Sec-WebSocket-
-            //  Key| (as a string, not base64-decoded) with the string "258EAFA5-
-            //  E914-47DA-95CA-C5AB0DC85B11" but ignoring any leading and
-            //  trailing whitespace, the client MUST _Fail the WebSocket
-            //  Connection_."
-            //
-            val = _parser.getHeader("Sec-WebSocket-Accept", false);
-            if(val == null)
+            // "If the response lacks a |Sec-WebSocket-Accept| header field or the |Sec-WebSocket-Accept| contains a
+            // value other than the base64-encoded SHA-1 of the concatenation of the |Sec-WebSocket-Key| (as a string,
+            // not base64-decoded) with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" but ignoring any leading and
+            // trailing whitespace, the client MUST _Fail the WebSocket Connection_."
+            value = _parser.GetHeader("Sec-WebSocket-Accept", false);
+            if (value == null)
             {
                 throw new WebSocketException("missing value for Sec-WebSocket-Accept");
             }
 
-            string input = _key + _wsUUID;
-            byte[] hash = SHA1.Create().ComputeHash(_utf8.GetBytes(input));
-            if(!val.Equals(Convert.ToBase64String(hash)))
+            string input = _key + WsUUID;
+#pragma warning disable CA5350 // Do Not Use Weak Cryptographic Algorithms
+            using var sha1 = SHA1.Create();
+            byte[] hash = sha1.ComputeHash(_utf8.GetBytes(input));
+#pragma warning restore CA5350 // Do Not Use Weak Cryptographic Algorithms
+            if (!value.Equals(Convert.ToBase64String(hash)))
             {
-                throw new WebSocketException("invalid value `" + val + "' for Sec-WebSocket-Accept");
+                throw new WebSocketException($"invalid value `{value}' for Sec-WebSocket-Accept");
             }
         }
 
-        private bool preRead(Buffer buf)
+        private async ValueTask<int> SendImplAsync(
+            OpCode opCode,
+            IList<ArraySegment<byte>> buffers,
+            CancellationToken cancel)
         {
-            while(true)
+            // Write can be called concurrently because it's called from both ReadAsync and WriteAsync. For example,
+            // the reading of a ping frame requires writing a pong frame.
+            Task<int> task;
+            lock (_mutex)
             {
-                if(_readState == ReadStateOpcode)
+                ValueTask<int> writeTask = PerformWriteAsync(opCode, buffers, cancel);
+
+                // Optimization: we check if the write completed already and avoid creating a Task if it did.
+                if (writeTask.IsCompletedSuccessfully)
                 {
-                    //
-                    // Is there enough data available to read the opcode?
-                    //
-                    if(!readBuffered(2))
-                    {
-                        return true;
-                    }
-
-                    //
-                    // Most-significant bit indicates whether this is the
-                    // last frame. Least-significant four bits hold the
-                    // opcode.
-                    //
-                    int ch = _readBuffer.b.get(_readBufferPos++);
-                    _readOpCode = ch & 0xf;
-
-                    //
-                    // Remember if last frame if we're going to read a data or
-                    // continuation frame, this is only for protocol
-                    // correctness checking purpose.
-                    //
-                    if(_readOpCode == OP_DATA)
-                    {
-                        if(!_readLastFrame)
-                        {
-                            throw new Ice.ProtocolException("invalid data frame, no FIN on previous frame");
-                        }
-                        _readLastFrame = (ch & FLAG_FINAL) == FLAG_FINAL;
-                    }
-                    else if(_readOpCode == OP_CONT)
-                    {
-                        if(_readLastFrame)
-                        {
-                            throw new Ice.ProtocolException("invalid continuation frame, previous frame FIN set");
-                        }
-                        _readLastFrame = (ch & FLAG_FINAL) == FLAG_FINAL;
-                    }
-
-                    ch = _readBuffer.b.get(_readBufferPos++);
-
-                    //
-                    // Check the MASK bit. Messages sent by a client must be masked;
-                    // messages sent by a server must not be masked.
-                    //
-                    bool masked = (ch & FLAG_MASKED) == FLAG_MASKED;
-                    if(masked != _incoming)
-                    {
-                        throw new Ice.ProtocolException("invalid masking");
-                    }
-
-                    //
-                    // Extract the payload length, which can have the following values:
-                    //
-                    // 0-125: The payload length
-                    // 126:   The subsequent two bytes contain the payload length
-                    // 127:   The subsequent eight bytes contain the payload length
-                    //
-                    _readPayloadLength = (ch & 0x7f);
-                    if(_readPayloadLength < 126)
-                    {
-                        _readHeaderLength = 0;
-                    }
-                    else if(_readPayloadLength == 126)
-                    {
-                        _readHeaderLength = 2; // Need to read a 16-bit payload length.
-                    }
-                    else
-                    {
-                        _readHeaderLength = 8; // Need to read a 64-bit payload length.
-                    }
-                    if(masked)
-                    {
-                        _readHeaderLength += 4; // Need to read a 32-bit mask.
-                    }
-
-                    _readState = ReadStateHeader;
+                    _sendTask = Task.CompletedTask;
+                    return writeTask.Result;
                 }
 
-                if(_readState == ReadStateHeader)
-                {
-                    //
-                    // Is there enough data available to read the header?
-                    //
-                    if(_readHeaderLength > 0 && !readBuffered(_readHeaderLength))
-                    {
-                        return true;
-                    }
-
-                    if(_readPayloadLength == 126)
-                    {
-                        _readPayloadLength = _readBuffer.b.getShort(_readBufferPos); // Uses network byte order.
-                        if(_readPayloadLength < 0)
-                        {
-                            _readPayloadLength += 65536;
-                        }
-                        _readBufferPos += 2;
-                    }
-                    else if(_readPayloadLength == 127)
-                    {
-                        long l = _readBuffer.b.getLong(_readBufferPos); // Uses network byte order.
-                        _readBufferPos += 8;
-                        if(l < 0 || l > Int32.MaxValue)
-                        {
-                            throw new Ice.ProtocolException("invalid WebSocket payload length: " + l);
-                        }
-                        _readPayloadLength = (int)l;
-                    }
-
-                    //
-                    // Read the mask if this is an incoming connection.
-                    //
-                    if(_incoming)
-                    {
-                        //
-                        // We must have needed to read the mask.
-                        //
-                        Debug.Assert(_readBuffer.b.position() - _readBufferPos >= 4);
-                        for(int i = 0; i < 4; ++i)
-                        {
-                            _readMask[i] = _readBuffer.b.get(_readBufferPos++); // Copy the mask.
-                        }
-                    }
-
-                    switch(_readOpCode)
-                    {
-                    case OP_TEXT: // Text frame
-                    {
-                        throw new Ice.ProtocolException("text frames not supported");
-                    }
-                    case OP_DATA: // Data frame
-                    case OP_CONT: // Continuation frame
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(), "received " + protocol() +
-                                                     (_readOpCode == OP_DATA ? " data" : " continuation") +
-                                                     " frame with payload length of " + _readPayloadLength +
-                                                     " bytes\n" + ToString());
-                        }
-
-                        if(_readPayloadLength <= 0)
-                        {
-                            throw new Ice.ProtocolException("payload length is 0");
-                        }
-                        _readState = ReadStatePayload;
-                        Debug.Assert(buf.b.hasRemaining());
-                        _readFrameStart = buf.b.position();
-                        break;
-                    }
-                    case OP_CLOSE: // Connection close
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "received " + protocol() + " connection close frame\n" + ToString());
-                        }
-
-                        _readState = ReadStateControlFrame;
-                        int s = _nextState == StateOpened ? _state : _nextState;
-                        if(s == StateClosingRequestPending)
-                        {
-                            //
-                            // If we receive a close frame while we were actually
-                            // waiting to send one, change the role and send a
-                            // close frame response.
-                            //
-                            if(!_closingInitiator)
-                            {
-                                _closingInitiator = true;
-                            }
-                            if(_state == StateClosingRequestPending)
-                            {
-                                _state = StateClosingResponsePending;
-                            }
-                            else
-                            {
-                                _nextState = StateClosingResponsePending;
-                            }
-                            return false; // No longer interested in reading
-                        }
-                        else
-                        {
-                            throw new Ice.ConnectionLostException();
-                        }
-                    }
-                    case OP_PING:
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "received " + protocol() + " connection ping frame\n" + ToString());
-                        }
-                        _readState = ReadStateControlFrame;
-                        break;
-                    }
-                    case OP_PONG: // Pong
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "received " + protocol() + " connection pong frame\n" + ToString());
-                        }
-                        _readState = ReadStateControlFrame;
-                        break;
-                    }
-                    default:
-                    {
-                        throw new Ice.ProtocolException("unsupported opcode: " + _readOpCode);
-                    }
-                    }
-                }
-
-                if(_readState == ReadStateControlFrame)
-                {
-                    if(_readPayloadLength > 0 && !readBuffered(_readPayloadLength))
-                    {
-                        return true;
-                    }
-
-                    if(_readPayloadLength > 0 && _readOpCode == OP_PING)
-                    {
-                        _pingPayload = new byte[_readPayloadLength];
-                        System.Buffer.BlockCopy(_readBuffer.b.rawBytes(), _readBufferPos, _pingPayload, 0,
-                                                _readPayloadLength);
-                    }
-
-                    _readBufferPos += _readPayloadLength;
-                    _readPayloadLength = 0;
-
-                    if(_readOpCode == OP_PING)
-                    {
-                        if(_state == StateOpened)
-                        {
-                            _state = StatePongPending; // Send pong frame now
-                        }
-                        else if(_nextState < StatePongPending)
-                        {
-                            _nextState = StatePongPending; // Send pong frame next
-                        }
-                    }
-
-                    //
-                    // We've read the payload of the PING/PONG frame, we're ready
-                    // to read a new frame.
-                    //
-                    _readState = ReadStateOpcode;
-                }
-
-                if(_readState == ReadStatePayload)
-                {
-                    //
-                    // This must be assigned before the check for the buffer. If the buffer is empty
-                    // or already read, postRead will return false.
-                    //
-                    _readStart = buf.b.position();
-
-                    if(buf.empty() || !buf.b.hasRemaining())
-                    {
-                        return false;
-                    }
-
-                    int n = Math.Min(_readBuffer.b.position() - _readBufferPos, buf.b.remaining());
-                    if(n > _readPayloadLength)
-                    {
-                        n = _readPayloadLength;
-                    }
-                    if(n > 0)
-                    {
-                        System.Buffer.BlockCopy(_readBuffer.b.rawBytes(), _readBufferPos, buf.b.rawBytes(),
-                                                buf.b.position(), n);
-                        buf.b.position(buf.b.position() + n);
-                        _readBufferPos += n;
-                    }
-
-                    //
-                    // Continue reading if we didn't read the full message, otherwise give back
-                    // the control to the connection
-                    //
-                    return buf.b.hasRemaining() && n < _readPayloadLength;
-                }
+                task = writeTask.AsTask();
+                _sendTask = task;
             }
-        }
+            return await task.ConfigureAwait(false);
 
-        private bool postRead(Buffer buf)
-        {
-            if(_readState != ReadStatePayload)
+            async ValueTask<int> PerformWriteAsync(
+                OpCode opCode,
+                IList<ArraySegment<byte>> buffers,
+                CancellationToken cancel)
             {
-                return _readStart < _readBuffer.b.position(); // Returns true if data was read.
-            }
+                // Wait for the current write to be done.
+                await _sendTask.ConfigureAwait(false);
 
-            if(_readStart == buf.b.position())
-            {
-                return false; // Nothing was read or nothing to read.
-            }
-            Debug.Assert(_readStart < buf.b.position());
-
-            if(_incoming)
-            {
-                //
-                // Unmask the data we just read.
-                //
-                int pos = buf.b.position();
-                byte[] arr = buf.b.rawBytes();
-                for(int n = _readStart; n < pos; ++n)
+                // Write the given buffer.
+                Debug.Assert(_sendBuffer.Count == 0);
+                int size = buffers.GetByteCount();
+                _sendBuffer.Add(PrepareHeaderForSend(opCode, size));
+                if (_communicator.TraceLevels.Transport >= 3)
                 {
-                    arr[n] = (byte)(arr[n] ^ _readMask[(n - _readFrameStart) % 4]);
+                    _communicator.Logger.Trace(TraceLevels.TransportCategory,
+                        $"sending {_transportName} {opCode} frame with {size} bytes payload\n{this}");
                 }
-            }
 
-            _readPayloadLength -= buf.b.position() - _readStart;
-            _readStart = buf.b.position();
-            if(_readPayloadLength == 0)
-            {
-                //
-                // We've read the complete payload, we're ready to read a new frame.
-                //
-                _readState = ReadStateOpcode;
-            }
-            return buf.b.hasRemaining();
-        }
-
-        private bool preWrite(Buffer buf)
-        {
-            if(_writeState == WriteStateHeader)
-            {
-                if(_state == StateOpened)
+                if (_incoming || opCode == OpCode.Pong)
                 {
-                    if(buf.empty() || !buf.b.hasRemaining())
+                    foreach (ArraySegment<byte> segment in buffers)
                     {
-                        return false;
+                        _sendBuffer.Add(segment); // Borrow data from the buffer
                     }
-
-                    Debug.Assert(buf.b.position() == 0);
-                    prepareWriteHeader((byte)OP_DATA, buf.size());
-
-                    _writeState = WriteStatePayload;
-                }
-                else if(_state == StatePingPending)
-                {
-                    prepareWriteHeader((byte)OP_PING, 0); // Don't send any payload
-
-                    _writeState = WriteStateControlFrame;
-                    _writeBuffer.b.flip();
-                }
-                else if(_state == StatePongPending)
-                {
-                    prepareWriteHeader((byte)OP_PONG, _pingPayload.Length);
-                    if(_pingPayload.Length > _writeBuffer.b.remaining())
-                    {
-                        int pos = _writeBuffer.b.position();
-                        _writeBuffer.resize(pos + _pingPayload.Length, false);
-                        _writeBuffer.b.position(pos);
-                    }
-                    _writeBuffer.b.put(_pingPayload);
-                    _pingPayload = new byte[0];
-
-                    _writeState = WriteStateControlFrame;
-                    _writeBuffer.b.flip();
-                }
-                else if((_state == StateClosingRequestPending && !_closingInitiator) ||
-                        (_state == StateClosingResponsePending && _closingInitiator))
-                {
-                    prepareWriteHeader((byte)OP_CLOSE, 2);
-
-                    // Write closing reason
-                    _writeBuffer.b.putShort((short)_closingReason);
-
-                    if(!_incoming)
-                    {
-                        byte b;
-                        int pos = _writeBuffer.b.position() - 2;
-                        b = (byte)(_writeBuffer.b.get(pos) ^ _writeMask[0]);
-                        _writeBuffer.b.put(pos, b);
-                        pos++;
-                        b = (byte)(_writeBuffer.b.get(pos) ^ _writeMask[1]);
-                        _writeBuffer.b.put(pos, b);
-                    }
-
-                    _writeState = WriteStateControlFrame;
-                    _writeBuffer.b.flip();
                 }
                 else
                 {
-                    Debug.Assert(_state != StateClosed);
-                    return false; // Nothing to write in this state
-                }
-
-                _writePayloadLength = 0;
-            }
-
-            if(_writeState == WriteStatePayload)
-            {
-                //
-                // For an outgoing connection, each message must be masked with a random
-                // 32-bit value, so we copy the entire message into the internal buffer
-                // for writing. For incoming connections, we just copy the start of the
-                // message in the internal buffer after the hedaer. If the message is
-                // larger, the reminder is sent directly from the message buffer to avoid
-                // copying.
-                //
-                if(!_incoming && (_writePayloadLength == 0 || !_writeBuffer.b.hasRemaining()))
-                {
-                    if(!_writeBuffer.b.hasRemaining())
+                    // For an outgoing connection, each frame must be masked with a random 32-bit value.
+                    int n = 0;
+                    foreach (ArraySegment<byte> segment in buffers)
                     {
-                        _writeBuffer.b.position(0);
+                        byte[] data = new byte[segment.Count];
+                        for (int i = 0; i < segment.Count; ++i, ++n)
+                        {
+                            data[i] = (byte)(segment[i] ^ _sendMask[n % 4]);
+                        }
+                        _sendBuffer.Add(data);
                     }
-
-                    int n = buf.b.position();
-                    int sz = buf.size();
-                    int pos = _writeBuffer.b.position();
-                    int count = Math.Min(sz - n, _writeBuffer.b.remaining());
-                    byte[] src = buf.b.rawBytes();
-                    byte[] dest = _writeBuffer.b.rawBytes();
-                    for(int i = 0; i < count; ++i, ++n, ++pos)
-                    {
-                        dest[pos] = (byte)(src[n] ^ _writeMask[n % 4]);
-                    }
-                    _writeBuffer.b.position(pos);
-                    _writePayloadLength = n;
-
-                    _writeBuffer.b.flip();
                 }
-                else if(_writePayloadLength == 0)
-                {
-                    Debug.Assert(_incoming);
-                    if(_writeBuffer.b.hasRemaining())
-                    {
-                        Debug.Assert(buf.b.position() == 0);
-                        int n = Math.Min(_writeBuffer.b.remaining(), buf.b.remaining());
-                        int pos = _writeBuffer.b.position();
-                        System.Buffer.BlockCopy(buf.b.rawBytes(), 0, _writeBuffer.b.rawBytes(), pos, n);
-                        _writeBuffer.b.position(pos + n);
-                        _writePayloadLength = n;
-                   }
-                    _writeBuffer.b.flip();
-                }
-                return true;
-            }
-            else if(_writeState == WriteStateControlFrame)
-            {
-                return _writeBuffer.b.hasRemaining();
-            }
-            else
-            {
-                Debug.Assert(_writeState == WriteStateFlush);
-                return true;
+                await _underlying.SendAsync(_sendBuffer, cancel).ConfigureAwait(false);
+                _sendBuffer.Clear();
+                return size;
             }
         }
-
-        private bool postWrite(Buffer buf, int status)
-        {
-            if(_state > StateOpened && _writeState == WriteStateControlFrame)
-            {
-                if(!_writeBuffer.b.hasRemaining())
-                {
-                    if(_state == StatePingPending)
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "sent " + protocol() + " connection ping frame\n" + ToString());
-                        }
-                    }
-                    else if(_state == StatePongPending)
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "sent " + protocol() + " connection pong frame\n" + ToString());
-                        }
-                    }
-                    else if((_state == StateClosingRequestPending && !_closingInitiator) ||
-                            (_state == StateClosingResponsePending && _closingInitiator))
-                    {
-                        if(_instance.traceLevel() >= 2)
-                        {
-                            _instance.logger().trace(_instance.traceCategory(),
-                                "sent " + protocol() + " connection close frame\n" + ToString());
-                        }
-
-                        if(_state == StateClosingRequestPending && !_closingInitiator)
-                        {
-                            _writeState = WriteStateHeader;
-                            _state = StateClosingResponsePending;
-                            return false;
-                        }
-                        else
-                        {
-                            throw new Ice.ConnectionLostException();
-                        }
-                    }
-                    else if(_state == StateClosed)
-                    {
-                        return false;
-                    }
-
-                    _state = _nextState;
-                    _nextState = StateOpened;
-                    _writeState = WriteStateHeader;
-                }
-                else
-                {
-                    return status == SocketOperation.None;
-                }
-            }
-
-            if((!_incoming || buf.b.position() == 0) && _writePayloadLength > 0)
-            {
-                if(!_writeBuffer.b.hasRemaining())
-                {
-                    buf.b.position(_writePayloadLength);
-                }
-            }
-
-            if(status == SocketOperation.Write && !buf.b.hasRemaining() && !_writeBuffer.b.hasRemaining())
-            {
-                //
-                // Our buffers are empty but the delegate needs another call to write().
-                //
-                _writeState = WriteStateFlush;
-                return false;
-            }
-            else if(!buf.b.hasRemaining())
-            {
-                _writeState = WriteStateHeader;
-                if(_state == StatePingPending ||
-                   _state == StatePongPending ||
-                   (_state == StateClosingRequestPending && !_closingInitiator) ||
-                   (_state == StateClosingResponsePending && _closingInitiator))
-                {
-                    return true;
-                }
-            }
-            else if(_state == StateOpened)
-            {
-                return status == SocketOperation.None;
-            }
-
-            return false;
-        }
-
-        private bool readBuffered(int sz)
-        {
-            if(_readBufferPos == _readBuffer.b.position())
-            {
-                _readBuffer.resize(_readBufferSize, true);
-                _readBufferPos = 0;
-                _readBuffer.b.position(0);
-            }
-            else
-            {
-                int available = _readBuffer.b.position() - _readBufferPos;
-                if(available < sz)
-                {
-                    if(_readBufferPos > 0)
-                    {
-                        _readBuffer.b.limit(_readBuffer.b.position());
-                        _readBuffer.b.position(_readBufferPos);
-                        _readBuffer.b.compact();
-                        Debug.Assert(_readBuffer.b.position() == available);
-                    }
-                    _readBuffer.resize(Math.Max(_readBufferSize, sz), true);
-                    _readBufferPos = 0;
-                    _readBuffer.b.position(available);
-                }
-            }
-
-            _readStart = _readBuffer.b.position();
-            if(_readBufferPos + sz > _readBuffer.b.position())
-            {
-                return false; // Not enough read.
-            }
-            Debug.Assert(_readBuffer.b.position() > _readBufferPos);
-            return true;
-        }
-
-        private void prepareWriteHeader(byte opCode, int payloadLength)
-        {
-            //
-            // We need to prepare the frame header.
-            //
-            _writeBuffer.resize(_writeBufferSize, false);
-            _writeBuffer.b.limit(_writeBufferSize);
-            _writeBuffer.b.position(0);
-
-            //
-            // Set the opcode - this is the one and only data frame.
-            //
-            _writeBuffer.b.put((byte)(opCode | FLAG_FINAL));
-
-            //
-            // Set the payload length.
-            //
-            if(payloadLength <= 125)
-            {
-                _writeBuffer.b.put((byte)payloadLength);
-            }
-            else if(payloadLength > 125 && payloadLength <= 65535)
-            {
-                //
-                // Use an extra 16 bits to encode the payload length.
-                //
-                _writeBuffer.b.put(126);
-                _writeBuffer.b.putShort((short)payloadLength);
-            }
-            else if(payloadLength > 65535)
-            {
-                //
-                // Use an extra 64 bits to encode the payload length.
-                //
-                _writeBuffer.b.put(127);
-                _writeBuffer.b.putLong(payloadLength);
-            }
-
-            if(!_incoming)
-            {
-                //
-                // Add a random 32-bit mask to every outgoing frame, copy the payload data,
-                // and apply the mask.
-                //
-                _writeBuffer.b.put(1, (byte)(_writeBuffer.b.get(1) | FLAG_MASKED));
-                _rand.NextBytes(_writeMask);
-                _writeBuffer.b.put(_writeMask);
-            }
-        }
-
-        private ProtocolInstance _instance;
-        private Transceiver _delegate;
-        private string _host;
-        private string _resource;
-        private bool _incoming;
-
-        private const int StateInitializeDelegate = 0;
-        private const int StateConnected = 1;
-        private const int StateUpgradeRequestPending = 2;
-        private const int StateUpgradeResponsePending = 3;
-        private const int StateOpened = 4;
-        private const int StatePingPending = 5;
-        private const int StatePongPending = 6;
-        private const int StateClosingRequestPending = 7;
-        private const int StateClosingResponsePending = 8;
-        private const int StateClosed = 9;
-
-        private int _state;
-        private int _nextState;
-
-        private HttpParser _parser;
-        private string _key;
-
-        private const int ReadStateOpcode = 0;
-        private const int ReadStateHeader = 1;
-        private const int ReadStateControlFrame = 2;
-        private const int ReadStatePayload = 3;
-
-        private int _readState;
-        private Buffer _readBuffer;
-        private int _readBufferPos;
-        private int _readBufferSize;
-
-        private bool _readLastFrame;
-        private int _readOpCode;
-        private int _readHeaderLength;
-        private int _readPayloadLength;
-        private int _readStart;
-        private int _readFrameStart;
-        private byte[] _readMask;
-
-        private const int WriteStateHeader = 0;
-        private const int WriteStatePayload = 1;
-        private const int WriteStateControlFrame = 2;
-        private const int WriteStateFlush = 3;
-
-        private int _writeState;
-        private Buffer _writeBuffer;
-        private int _writeBufferSize;
-        private byte[] _writeMask;
-        private int _writePayloadLength;
-
-        private bool _closingInitiator;
-        private int _closingReason;
-
-        private bool _readPending;
-        private bool _finishRead;
-        private bool _writePending;
-
-        private byte[] _pingPayload;
-
-        private Random _rand;
-
-        //
-        // WebSocket opcodes
-        //
-        private const int OP_CONT     = 0x0;    // Continuation frame
-        private const int OP_TEXT     = 0x1;    // Text frame
-        private const int OP_DATA     = 0x2;    // Data frame
-        private const int OP_RES_0x3  = 0x3;    // Reserved
-        private const int OP_RES_0x4  = 0x4;    // Reserved
-        private const int OP_RES_0x5  = 0x5;    // Reserved
-        private const int OP_RES_0x6  = 0x6;    // Reserved
-        private const int OP_RES_0x7  = 0x7;    // Reserved
-        private const int OP_CLOSE    = 0x8;    // Connection close
-        private const int OP_PING     = 0x9;    // Ping
-        private const int OP_PONG     = 0xA;    // Pong
-        private const int OP_RES_0xB  = 0xB;    // Reserved
-        private const int OP_RES_0xC  = 0xC;    // Reserved
-        private const int OP_RES_0xD  = 0xD;    // Reserved
-        private const int OP_RES_0xE  = 0xE;    // Reserved
-        private const int OP_RES_0xF  = 0xF;    // Reserved
-        private const int FLAG_FINAL  = 0x80;   // Last frame
-        private const int FLAG_MASKED = 0x80;   // Payload is masked
-
-        private const int CLOSURE_NORMAL         = 1000;
-        private const int CLOSURE_SHUTDOWN       = 1001;
-        private const int CLOSURE_PROTOCOL_ERROR = 1002;
-        private const int CLOSURE_TOO_BIG        = 1009;
-
-        private const string _iceProtocol = "ice.zeroc.com";
-        private const string _wsUUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
-        private static UTF8Encoding _utf8 = new UTF8Encoding(false, true);
     }
 }

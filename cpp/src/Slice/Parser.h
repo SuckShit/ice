@@ -8,12 +8,15 @@
 #include <IceUtil/Shared.h>
 #include <IceUtil/Handle.h>
 #include <IceUtil/Exception.h>
+#include <array>
 #include <string>
 #include <vector>
 #include <list>
 #include <stack>
 #include <map>
+#include <optional>
 #include <set>
+#include <string_view>
 #include <stdio.h>
 
 namespace Slice
@@ -24,15 +27,10 @@ class CompilerException : public ::IceUtil::Exception
 public:
 
     CompilerException(const char*, int, const std::string&);
-#ifndef ICE_CPP11_COMPILER
-    ~CompilerException() throw();
-#endif
-    virtual std::string ice_id() const;
-    virtual void ice_print(std::ostream&) const;
-#ifndef ICE_CPP11_MAPPING
-    virtual CompilerException* ice_clone() const;
-#endif
-    virtual void ice_throw() const;
+    std::string ice_id() const override;
+    void ice_print(std::ostream&) const override;
+    CompilerException* ice_cloneImpl() const override;
+    void ice_throw() const override;
 
     std::string reason() const;
 
@@ -42,41 +40,13 @@ private:
     const std::string _reason;
 };
 
-#if defined(_WIN32) && !defined(__MINGW32__)
-
-const IceUtil::Int64 Int32Max =  0x7fffffffi64;
-const IceUtil::Int64 Int32Min = -Int32Max - 1i64;
-
-#else
-
-#   if defined(INT32_MIN) && defined(INT32_MAX)
-
-const IceUtil::Int64 Int32Max =  INT32_MAX;
-const IceUtil::Int64 Int32Min =  INT32_MIN;
-
-#   else
-
-const IceUtil::Int64 Int32Max =  0x7fffffffLL;
-const IceUtil::Int64 Int32Min = -Int32Max - 1LL;
-
-#   endif
-
-#endif
-
-const IceUtil::Int64 Int16Max =  0x7fff;
-const IceUtil::Int64 Int16Min = -Int16Max - 1;
-const IceUtil::Int64 ByteMax = 0xff;
-const IceUtil::Int64 ByteMin = 0x00;
-
 enum NodeType
 {
     Dummy,
     Real
 };
 
-//
 // Format preference for classes and exceptions.
-//
 enum FormatType
 {
     DefaultFormat,    // No preference was specified.
@@ -88,7 +58,8 @@ enum WarningCategory
 {
     All,
     Deprecated,
-    InvalidMetaData
+    InvalidMetadata,
+    ReservedIdentifier
 };
 
 class GrammarBase;
@@ -97,16 +68,18 @@ class Type;
 class Builtin;
 class Contained;
 class Container;
+class DataMemberContainer;
 class Module;
 class Constructed;
 class ClassDecl;
 class ClassDef;
-class Proxy;
+class InterfaceDecl;
+class InterfaceDef;
 class Exception;
+class Optional;
 class Struct;
 class Operation;
-class ParamDecl;
-class DataMember;
+class Member;
 class Sequence;
 class Dictionary;
 class Enum;
@@ -123,16 +96,18 @@ typedef ::IceUtil::Handle<Type> TypePtr;
 typedef ::IceUtil::Handle<Builtin> BuiltinPtr;
 typedef ::IceUtil::Handle<Contained> ContainedPtr;
 typedef ::IceUtil::Handle<Container> ContainerPtr;
+typedef ::IceUtil::Handle<DataMemberContainer> DataMemberContainerPtr;
 typedef ::IceUtil::Handle<Module> ModulePtr;
 typedef ::IceUtil::Handle<Constructed> ConstructedPtr;
 typedef ::IceUtil::Handle<ClassDecl> ClassDeclPtr;
 typedef ::IceUtil::Handle<ClassDef> ClassDefPtr;
-typedef ::IceUtil::Handle<Proxy> ProxyPtr;
+typedef ::IceUtil::Handle<InterfaceDecl> InterfaceDeclPtr;
+typedef ::IceUtil::Handle<InterfaceDef> InterfaceDefPtr;
+typedef ::IceUtil::Handle<Optional> OptionalPtr;
 typedef ::IceUtil::Handle<Exception> ExceptionPtr;
 typedef ::IceUtil::Handle<Struct> StructPtr;
 typedef ::IceUtil::Handle<Operation> OperationPtr;
-typedef ::IceUtil::Handle<ParamDecl> ParamDeclPtr;
-typedef ::IceUtil::Handle<DataMember> DataMemberPtr;
+typedef ::IceUtil::Handle<Member> MemberPtr;
 typedef ::IceUtil::Handle<Sequence> SequencePtr;
 typedef ::IceUtil::Handle<Dictionary> DictionaryPtr;
 typedef ::IceUtil::Handle<Enum> EnumPtr;
@@ -141,15 +116,13 @@ typedef ::IceUtil::Handle<Const> ConstPtr;
 typedef ::IceUtil::Handle<Unit> UnitPtr;
 
 typedef std::list<TypePtr> TypeList;
-typedef std::list<ExceptionPtr> ExceptionList;
 typedef std::set<std::string> StringSet;
 typedef std::list<std::string> StringList;
-typedef std::pair<TypePtr, std::string> TypeString;
-typedef std::list<TypeString> TypeStringList;
 typedef std::list<ContainedPtr> ContainedList;
 typedef std::list<ModulePtr> ModuleList;
 typedef std::list<ConstructedPtr> ConstructedList;
 typedef std::list<ClassDefPtr> ClassList;
+typedef std::list<InterfaceDefPtr> InterfaceList;
 typedef std::list<ExceptionPtr> ExceptionList;
 typedef std::list<StructPtr> StructList;
 typedef std::list<SequencePtr> SequenceList;
@@ -157,56 +130,31 @@ typedef std::list<DictionaryPtr> DictionaryList;
 typedef std::list<EnumPtr> EnumList;
 typedef std::list<ConstPtr> ConstList;
 typedef std::list<OperationPtr> OperationList;
-typedef std::list<DataMemberPtr> DataMemberList;
-typedef std::list<ParamDeclPtr> ParamDeclList;
+typedef std::list<MemberPtr> MemberList;
 typedef std::list<EnumeratorPtr> EnumeratorList;
-
-struct ConstDef
-{
-    TypePtr type;
-    SyntaxTreeBasePtr value;
-    std::string valueAsString;
-    std::string valueAsLiteral;
-};
-
-struct OptionalDef
-{
-    TypePtr type;
-    std::string name;
-    bool optional;
-    int tag;
-};
 
 // ----------------------------------------------------------------------
 // CICompare -- function object to do case-insensitive string comparison.
 // ----------------------------------------------------------------------
 
-class CICompare : public std::binary_function<std::string, std::string, bool>
+class CICompare
 {
 public:
 
     bool operator()(const std::string&, const std::string&) const;
 };
 
-#if defined(__SUNPRO_CC)
-bool cICompare(const std::string&, const std::string&);
-#endif
-
 // ----------------------------------------------------------------------
 // DerivedToBaseCompare -- function object to do sort exceptions into
 // most-derived to least-derived order.
 // ----------------------------------------------------------------------
 
-class DerivedToBaseCompare : public std::binary_function<std::string, std::string, bool>
+class DerivedToBaseCompare
 {
 public:
 
     bool operator()(const ExceptionPtr&, const ExceptionPtr&) const;
 };
-
-#if defined(__SUNPRO_CC)
-bool derivedToBaseCompare(const ExceptionPtr&, const ExceptionPtr&);
-#endif
 
 // ----------------------------------------------------------------------
 // ParserVisitor
@@ -224,13 +172,16 @@ public:
     virtual void visitClassDecl(const ClassDeclPtr&) { }
     virtual bool visitClassDefStart(const ClassDefPtr&) { return true; }
     virtual void visitClassDefEnd(const ClassDefPtr&) { }
+    virtual void visitInterfaceDecl(const InterfaceDeclPtr&) { }
+    virtual bool visitInterfaceDefStart(const InterfaceDefPtr&) { return true; }
+    virtual void visitInterfaceDefEnd(const InterfaceDefPtr&) { }
     virtual bool visitExceptionStart(const ExceptionPtr&) { return true; }
     virtual void visitExceptionEnd(const ExceptionPtr&) { }
     virtual bool visitStructStart(const StructPtr&) { return true; }
     virtual void visitStructEnd(const StructPtr&) { }
     virtual void visitOperation(const OperationPtr&) { }
-    virtual void visitParamDecl(const ParamDeclPtr&) { }
-    virtual void visitDataMember(const DataMemberPtr&) { }
+    virtual void visitParameter(const MemberPtr&) { }
+    virtual void visitDataMember(const MemberPtr&) { }
     virtual void visitSequence(const SequencePtr&) { }
     virtual void visitDictionary(const DictionaryPtr&) { }
     virtual void visitEnum(const EnumPtr&) { }
@@ -249,24 +200,20 @@ public:
 
     std::string filename() const;
     int includeLevel() const;
-    bool seenDefinition() const;
 
     void setFilename(const std::string&);
-    void setSeenDefinition();
 
-    bool hasMetaData() const;
-    void setMetaData(const StringList&);
-    std::string findMetaData(const std::string&) const;
-    StringList getMetaData() const;
+    void setMetadata(const StringList&);
+    std::string findMetadata(const std::string&) const;
+    StringList getAllMetadata() const;
 
-    //
+    // When parsing Slice definitions, apply 3.7 or 4.0 semantics for class parameters, Object etc.
+    bool compatMode() const;
+
     // Emit warning unless filtered out by [["suppress-warning"]]
-    //
     void warning(WarningCategory, const std::string&, int, const std::string&) const;
-    void warning(WarningCategory, const std::string&, const std::string&, const std::string&) const;
 
     void error(const std::string&, int, const std::string&) const;
-    void error(const std::string&, const std::string&, const std::string&) const;
 
 private:
 
@@ -274,9 +221,8 @@ private:
     void initSuppressedWarnings();
 
     int _includeLevel;
-    StringList _metaData;
+    StringList _metadata;
     std::string _filename;
-    bool _seenDefinition;
     std::set<WarningCategory> _suppressedWarnings;
 };
 typedef ::IceUtil::Handle<DefinitionContext> DefinitionContextPtr;
@@ -297,7 +243,7 @@ public:
     StringList seeAlso() const;   // Targets of @see tags.
 
     StringList returns() const;                           // Description of an operation's return value.
-    std::map<std::string, StringList> parameters() const; // Parameter descriptions for an op. Key is parameter name.
+    std::map<std::string, StringList> params() const; // Parameter descriptions for an op. Key is parameter name.
     std::map<std::string, StringList> exceptions() const; // Exception descriptions for an op. Key is exception name.
 
 private:
@@ -311,7 +257,7 @@ private:
     StringList _seeAlso;
 
     StringList _returns;
-    std::map<std::string, StringList> _parameters;
+    std::map<std::string, StringList> _params;
     std::map<std::string, StringList> _exceptions;
 
     friend class Contained;
@@ -341,7 +287,7 @@ public:
 
 protected:
 
-    SyntaxTreeBase(const UnitPtr&, const DefinitionContextPtr& = 0);
+    SyntaxTreeBase(const UnitPtr&, const DefinitionContextPtr& = nullptr);
 
     UnitPtr _unit;
     DefinitionContextPtr _definitionContext;
@@ -355,10 +301,12 @@ class Type : public virtual SyntaxTreeBase
 {
 public:
 
-    virtual bool isLocal() const = 0;
     virtual std::string typeId() const = 0;
     virtual bool usesClasses() const = 0;
+    virtual bool isClassType() const { return false; }
+    virtual bool isInterfaceType() const { return false; }
     virtual size_t minWireSize() const = 0;
+    virtual std::string getTagFormat() const = 0;
     virtual bool isVariableLength() const = 0;
 
 protected:
@@ -376,37 +324,71 @@ public:
 
     enum Kind
     {
-        KindByte,
         KindBool,
+        KindByte,
         KindShort,
+        KindUShort,
         KindInt,
+        KindUInt,
+        KindVarInt,
+        KindVarUInt,
         KindLong,
+        KindULong,
+        KindVarLong,
+        KindVarULong,
         KindFloat,
         KindDouble,
         KindString,
-        KindObject,
-        KindObjectProxy,
-        KindLocalObject,
-        KindValue
+        KindObject, // the implicit base for all proxies
+        KindAnyClass
     };
 
-    virtual bool isLocal() const;
-    virtual std::string typeId() const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
+    std::string typeId() const override;
+    bool usesClasses() const override;
+    bool isClassType() const override { return _kind == KindAnyClass; }
+    bool isInterfaceType() const override { return _kind == KindObject; }
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+
+    bool isNumericType() const;
+    bool isNumericTypeOrBool() const;
+    bool isIntegralType() const;
+    bool isUnsignedType() const;
+    std::pair<std::int64_t, std::uint64_t> integralRange() const;
 
     Kind kind() const;
     std::string kindAsString() const;
+    static std::optional<Kind> kindFromString(std::string_view);
 
-    static const char* builtinTable[];
+    inline static const std::array<std::string, 17> builtinTable =
+    {
+        "bool",
+        "byte",
+        "short",
+        "ushort",
+        "int",
+        "uint",
+        "varint",
+        "varuint",
+        "long",
+        "ulong",
+        "varlong",
+        "varulong",
+        "float",
+        "double",
+        "string",
+        "Object",
+        "AnyClass"
+    };
 
 protected:
 
     Builtin(const UnitPtr&, Kind);
+
     friend class Unit;
 
-    Kind _kind;
+    const Kind _kind;
 };
 
 // ----------------------------------------------------------------------
@@ -423,37 +405,21 @@ public:
     std::string scope() const;
     std::string flattenedScope() const;
     std::string file() const;
-    std::string line() const;
+    int line() const;
     std::string comment() const;
     CommentPtr parseComment(bool) const;
 
     int includeLevel() const;
-    void updateIncludeLevel();
 
-    bool hasMetaData(const std::string&) const;
-    bool findMetaData(const std::string&, std::string&) const;
-    std::list<std::string> getMetaData() const;
-    void setMetaData(const std::list<std::string>&);
-    void addMetaData(const std::string&); // TODO: remove this method once "cs:" and "vb:" are hard errors.
+    bool hasMetadata(const std::string&) const;
+    bool hasMetadataWithPrefix(const std::string&) const;
+    std::optional<std::string> findMetadata(const std::string&) const;
+    bool findMetadata(const std::string&, std::string&) const;
+    std::string findMetadataWithPrefix(const std::string&) const;
+    std::list<std::string> getAllMetadata() const;
+    void setMetadata(const std::list<std::string>&);
 
-    static FormatType parseFormatMetaData(const std::list<std::string>&);
-
-    enum ContainedType
-    {
-        ContainedTypeSequence,
-        ContainedTypeDictionary,
-        ContainedTypeEnum,
-        ContainedTypeEnumerator,
-        ContainedTypeModule,
-        ContainedTypeClass,
-        ContainedTypeException,
-        ContainedTypeStruct,
-        ContainedTypeOperation,
-        ContainedTypeParamDecl,
-        ContainedTypeDataMember,
-        ContainedTypeConstant
-    };
-    virtual ContainedType containedType() const = 0;
+    FormatType parseFormatMetadata() const;
 
     virtual bool uses(const ContainedPtr&) const = 0;
     virtual std::string kindOf() const = 0;
@@ -464,16 +430,15 @@ public:
 protected:
 
     Contained(const ContainerPtr&, const std::string&);
-    friend class Container;
 
     ContainerPtr _container;
     std::string _name;
     std::string _scoped;
     std::string _file;
-    std::string _line;
+    int _line;
     std::string _comment;
     int _includeLevel;
-    std::list<std::string> _metaData;
+    std::list<std::string> _metadata;
 };
 
 // ----------------------------------------------------------------------
@@ -484,80 +449,52 @@ class Container : public virtual SyntaxTreeBase
 {
 public:
 
-    virtual void destroy();
-    ModulePtr createModule(const std::string&);
-    ClassDefPtr createClassDef(const std::string&, int, bool, const ClassList&, bool);
-    ClassDeclPtr createClassDecl(const std::string&, bool, bool);
-    ExceptionPtr createException(const std::string&, const ExceptionPtr&, bool, NodeType = Real);
-    StructPtr createStruct(const std::string&, bool, NodeType = Real);
-    SequencePtr createSequence(const std::string&, const TypePtr&, const StringList&, bool, NodeType = Real);
-    DictionaryPtr createDictionary(const std::string&, const TypePtr&, const StringList&, const TypePtr&,
-                                   const StringList&, bool, NodeType = Real);
-    EnumPtr createEnum(const std::string&, bool, NodeType = Real);
-    EnumeratorPtr createEnumerator(const std::string&);
-    EnumeratorPtr createEnumerator(const std::string&, int);
-    ConstPtr createConst(const std::string, const TypePtr&, const StringList&, const SyntaxTreeBasePtr&,
-                         const std::string&, const std::string&, NodeType = Real);
+    void destroy() override;
     TypeList lookupType(const std::string&, bool = true);
     TypeList lookupTypeNoBuiltin(const std::string&, bool = true, bool = false);
     ContainedList lookupContained(const std::string&, bool = true);
     ExceptionPtr lookupException(const std::string&, bool = true);
-    UnitPtr unit() const;
-    ModuleList modules() const;
-    ClassList classes() const;
-    ExceptionList exceptions() const;
-    StructList structs() const;
-    SequenceList sequences() const;
-    DictionaryList dictionaries() const;
-    EnumList enums() const;
-    EnumeratorList enumerators() const;
+    // Finds enumerators using the deprecated unscoped enumerators lookup
     EnumeratorList enumerators(const std::string&) const;
-    ConstList consts() const;
-    ContainedList contents() const;
-    bool hasNonLocalClassDecls() const;
-    bool hasNonLocalClassDefs() const;
-    bool hasLocalClassDefsWithAsync() const;
-    bool hasNonLocalSequences() const;
-    bool hasNonLocalExceptions() const;
-    bool hasStructs() const;
-    bool hasExceptions() const;
-    bool hasDictionaries() const;
-    bool hasOnlyDictionaries(DictionaryList&) const;
-    bool hasClassDecls() const;
-    bool hasClassDefs() const;
-    bool hasLocalClassDefs() const;
-    bool hasNonLocalInterfaceDefs() const;
-    bool hasValueDefs() const;
-    bool hasOnlyClassDecls() const;
-    bool hasOperations() const; // interfaces or classes with operations
-    bool hasNonLocalAbstractClassDefs() const; // interfaces or abstract classes
-    bool hasNonLocalDataOnlyClasses() const;
-    bool hasOtherConstructedOrExceptions() const; // Exceptions or constructed types other than classes.
-    bool hasContentsWithMetaData(const std::string&) const;
-    bool hasAsyncOps() const;
-    bool hasNonLocalContained(Contained::ContainedType) const;
+    virtual ContainedList contents() const = 0;
+    bool hasContentsWithMetadata(const std::string&) const;
     std::string thisScope() const;
-    void mergeModules();
-    void sort();
-    void sortContents(bool);
-    virtual void visit(ParserVisitor*, bool);
     void containerRecDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
 
-    bool checkIntroduced(const std::string&, ContainedPtr = 0);
-    bool nameIsLegal(const std::string&, const char *);
-    bool checkForGlobalDef(const std::string&, const char *);
+    bool checkIntroduced(const std::string&, ContainedPtr = nullptr);
 
 protected:
 
     Container(const UnitPtr&);
 
-    bool checkInterfaceAndLocal(const std::string&, bool, bool, bool, bool, bool);
-    bool checkGlobalMetaData(const StringList&, const StringList&);
     bool validateConstant(const std::string&, const TypePtr&, SyntaxTreeBasePtr&, const std::string&, bool);
-    EnumeratorPtr validateEnumerator(const std::string&);
 
-    ContainedList _contents;
-    std::map<std::string, ContainedPtr, CICompare> _introducedMap;
+    std::map<std::string, ContainedPtr> _introducedMap;
+};
+
+// ----------------------------------------------------------------------
+// DataMemberContainer
+// ----------------------------------------------------------------------
+
+class DataMemberContainer : public virtual Container, public virtual Contained
+{
+public:
+
+    void destroy() override;
+    virtual MemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr& = nullptr,
+                                       const std::string& = "", const std::string& = "");
+    MemberList dataMembers() const;
+    std::pair<MemberList, MemberList> sortedDataMembers() const;
+    bool hasDataMembers() const;
+    virtual bool hasBaseDataMembers() const;
+    ContainedList contents() const override;
+    bool uses(const ContainedPtr&) const override;
+
+protected:
+
+    DataMemberContainer(const ContainerPtr&, const std::string&);
+
+    MemberList _dataMembers;
 };
 
 // ----------------------------------------------------------------------
@@ -568,15 +505,46 @@ class Module : public virtual Container, public virtual Contained
 {
 public:
 
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
+    void destroy() override;
+    ContainedList contents() const override;
+    bool uses(const ContainedPtr&) const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    ModulePtr createModule(const std::string&);
+    ClassDefPtr createClassDef(const std::string&, int, const ClassDefPtr&);
+    ClassDeclPtr createClassDecl(const std::string&);
+    InterfaceDefPtr createInterfaceDef(const std::string&, const InterfaceList&);
+    InterfaceDeclPtr createInterfaceDecl(const std::string&);
+    ExceptionPtr createException(const std::string&, const ExceptionPtr&, NodeType = Real);
+    StructPtr createStruct(const std::string&, NodeType = Real);
+    SequencePtr createSequence(const std::string&, const TypePtr&, const StringList&, NodeType = Real);
+    DictionaryPtr createDictionary(const std::string&, const TypePtr&, const StringList&, const TypePtr&,
+                                   const StringList&, NodeType = Real);
+    EnumPtr createEnum(const std::string&, bool, NodeType = Real);
+    ConstPtr createConst(const std::string, const TypePtr&, const StringList&, const SyntaxTreeBasePtr&,
+                         const std::string&, const std::string&, NodeType = Real);
+    EnumList enums() const;
+    ConstList consts() const;
+    bool hasConsts() const;
+    bool hasStructs() const;
+    bool hasExceptions() const;
+    bool hasEnums() const;
+    bool hasClassDecls() const;
+    bool hasClassDefs() const;
+    bool hasInterfaceDecls() const;
+    bool hasInterfaceDefs() const;
+    bool hasOnlyClassDecls() const;
+    bool hasOnlyInterfaces() const;
+    bool hasOtherConstructedOrExceptions() const; // Exceptions or constructed types other than classes.
+    bool hasOnlySubModules() const;
 
 protected:
 
     Module(const ContainerPtr&, const std::string&);
-    friend class Container;
+
+    friend class Unit;
+
+    ContainedList _contents;
 };
 
 // ----------------------------------------------------------------------
@@ -587,17 +555,14 @@ class Constructed : public virtual Type, public virtual Contained
 {
 public:
 
-    virtual bool isLocal() const;
-    virtual std::string typeId() const;
-    virtual bool isVariableLength() const = 0;
+    std::string typeId() const override;
+    bool isVariableLength() const override = 0;
     ConstructedList dependencies();
     virtual void recDependencies(std::set<ConstructedPtr>&) = 0; // Internal operation, don't use directly.
 
 protected:
 
-    Constructed(const ContainerPtr&, const std::string&, bool);
-
-    bool _local;
+    Constructed(const ContainerPtr&, const std::string&);
 };
 
 // ----------------------------------------------------------------------
@@ -608,36 +573,103 @@ class ClassDecl : public virtual Constructed
 {
 public:
 
-    virtual void destroy();
+    void destroy() override;
     ClassDefPtr definition() const;
-    bool isInterface() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
-    virtual void visit(ParserVisitor*, bool);
-    virtual std::string kindOf() const;
-    virtual void recDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
-
-    static void checkBasesAreLegal(const std::string&, bool, bool, const ClassList&, const UnitPtr&);
+    bool uses(const ContainedPtr&) const override;
+    bool usesClasses() const override;
+    bool isClassType() const override { return true; }
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    void visit(ParserVisitor*, bool) override;
+    std::string kindOf() const override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
 
 protected:
 
-    ClassDecl(const ContainerPtr&, const std::string&, bool, bool);
-    friend class Container;
-    friend class ClassDef;
+    ClassDecl(const ContainerPtr&, const std::string&);
+
+    friend class Module;
 
     ClassDefPtr _definition;
-    bool _interface;
+};
+
+// ----------------------------------------------------------------------
+// ClassDef
+// ----------------------------------------------------------------------
+
+// Note: For the purpose of this parser, a class definition is not
+// considered to be a type, but a class declaration is. And each class
+// definition has at least one class declaration (but not vice versa),
+// so if you need the class as a "constructed type", use the
+// declaration() operation to navigate to the class declaration.
+class ClassDef : public virtual DataMemberContainer, public virtual Contained
+{
+public:
+
+    void destroy() override;
+    MemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr& = nullptr,
+                               const std::string& = "", const std::string& = "") override;
+    ClassDeclPtr declaration() const;
+    ClassDefPtr base() const;
+    ClassList allBases() const;
+    MemberList allDataMembers() const;
+    bool isA(const std::string&) const;
+    bool inheritsMetadata(const std::string&) const;
+    bool hasBaseDataMembers() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    int compactId() const;
+    StringList ids() const;
+
+protected:
+
+    ClassDef(const ContainerPtr&, const std::string&, int, const ClassDefPtr&);
+
+    friend class Module;
+
+    ClassDeclPtr _declaration;
+    ClassDefPtr _base;
+    int _compactId;
+};
+
+// ----------------------------------------------------------------------
+// InterfaceDecl
+// ----------------------------------------------------------------------
+
+class InterfaceDecl : public virtual Constructed
+{
+public:
+
+    void destroy() override;
+    InterfaceDefPtr definition() const;
+    bool uses(const ContainedPtr&) const override;
+    bool usesClasses() const override;
+    bool isInterfaceType() const override { return true; }
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    void visit(ParserVisitor*, bool) override;
+    std::string kindOf() const override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
+
+    static void checkBasesAreLegal(const std::string&, const InterfaceList&, const UnitPtr&);
+
+protected:
+
+    InterfaceDecl(const ContainerPtr&, const std::string&);
+
+    friend class Module;
+
+    InterfaceDefPtr _definition;
 
 private:
 
-    typedef std::list<ClassList> GraphPartitionList;
+    typedef std::list<InterfaceList> GraphPartitionList;
     typedef std::list<StringList> StringPartitionList;
 
-    static bool isInList(const GraphPartitionList&, const ClassDefPtr);
-    static void addPartition(GraphPartitionList&, GraphPartitionList::reverse_iterator, const ClassDefPtr);
+    static bool isInList(const GraphPartitionList&, const InterfaceDefPtr&);
+    static void addPartition(GraphPartitionList&, GraphPartitionList::reverse_iterator, const InterfaceDefPtr&);
     static StringPartitionList toStringPartitionList(const GraphPartitionList&);
     static void checkPairIntersections(const StringPartitionList&, const std::string&, const UnitPtr&);
 };
@@ -650,10 +682,9 @@ class Operation : public virtual Contained, public virtual Container
 {
 public:
 
-    //
     // Note: The order of definitions here *must* match the order of
-    // definitions of ::Ice::OperationMode in slice/Ice/Current.ice!
-    //
+    // definitions of ::Ice::OperationMode in Ice/Current.h
+    // TODO: remove from parser
     enum Mode
     {
         Normal,
@@ -661,125 +692,121 @@ public:
         Idempotent
     };
 
-    TypePtr returnType() const;
-    bool returnIsOptional() const;
-    int returnTag() const;
-    Mode mode() const;
-    Mode sendMode() const;
+    InterfaceDefPtr interface() const;
+
+    // The "in" bit sequence length. It corresponds to the number of in-parameters with optional types that are not
+    // class/proxy and that are not tagged.
+    size_t paramsBitSequenceSize() const;
+
+    // The "return" bit sequence length. It corresponds to the number of return members with optional types that are
+    // not class/proxy and that are not tagged.
+    size_t returnBitSequenceSize() const;
+
+    void destroy() override;
+    TypePtr deprecatedReturnType() const; //TODO remove this once the compilers have been updated to use return-tuples.
+    bool returnIsTagged() const; //TODO remove this once the compilers have been updated to use return-tuples.
+    int returnTag() const; //TODO remove this once the compilers have been updated to use return-tuples.
+    Mode mode() const; // TODO: remove
+    Mode sendMode() const; // TODO: remove
+    bool isIdempotent() const { return _mode == Idempotent; }
     bool hasMarshaledResult() const;
-    ParamDeclPtr createParamDecl(const std::string&, const TypePtr&, bool, bool, int);
-    ParamDeclList parameters() const;
-    ParamDeclList inParameters() const;
-    void inParameters(ParamDeclList&, ParamDeclList&) const;
-    ParamDeclList outParameters() const;
-    void outParameters(ParamDeclList&, ParamDeclList&) const;
+    MemberPtr createParameter(const std::string&, const TypePtr&, bool, bool, int);
+    MemberPtr createReturnMember(const std::string&, const TypePtr&, bool, int);
+    MemberList params() const;
+    MemberList outParameters() const; //TODO remove this once the compilers have been updated to use return-tuples.
+    MemberList returnType() const;
+    MemberList allMembers() const;
     ExceptionList throws() const;
     void setExceptionList(const ExceptionList&);
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
+    ContainedList contents() const override;
+    bool uses(const ContainedPtr&) const override;
     bool sendsClasses(bool) const;
     bool returnsClasses(bool) const;
     bool returnsData() const;
     bool returnsMultipleValues() const;
-    bool sendsOptionals() const;
-    int attributes() const;
+    bool hasReturnAndOut() const;
+    bool hasSingleReturnType() const;
     FormatType format() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
 
 protected:
 
-    Operation(const ContainerPtr&, const std::string&, const TypePtr&, bool, int, Mode);
-    friend class ClassDef;
+    Operation(const ContainerPtr& container, const std::string& name, Mode mode);
 
-    TypePtr _returnType;
-    bool _returnIsOptional;
-    int _returnTag;
-    ExceptionList _throws;
+    friend class InterfaceDef;
+
+    MemberList _params;
+    MemberList _returnType;
+    bool _usesOutParams;
+    bool _hasReturnType;
+    std::list<ExceptionPtr> _throws;
     Mode _mode;
 };
 
 // ----------------------------------------------------------------------
-// ClassDef
+// InterfaceDef
 // ----------------------------------------------------------------------
 
-//
-// Note: For the purpose of this parser, a class definition is not
-// considered to be a type, but a class declaration is. And each class
-// definition has at least one class declaration (but not vice versa),
-// so if you need the class as a "constructed type", use the
-// declaration() operation to navigate to the class declaration.
-//
-class ClassDef : public virtual Container, public virtual Contained
+// Note: For the purpose of this parser, an interface definition is not
+// considered to be a type, but an interface declaration is. And each interface
+// definition has at least one interface declaration (but not vice versa),
+// so if you need the interface as a "constructed type", use the
+// declaration() function to navigate to the interface declaration.
+class InterfaceDef : public virtual Container, public virtual Contained
 {
 public:
 
-    virtual void destroy();
-    OperationPtr createOperation(const std::string&, const TypePtr&, bool, int, Operation::Mode = Operation::Normal);
-    DataMemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr&,
-                                   const std::string&, const std::string&);
-    ClassDeclPtr declaration() const;
-    ClassList bases() const;
-    ClassList allBases() const;
+    void destroy() override;
+    OperationPtr createOperation(const std::string&, Operation::Mode = Operation::Normal);
+
+    InterfaceDeclPtr declaration() const;
+    InterfaceList bases() const;
+    InterfaceList allBases() const;
     OperationList operations() const;
     OperationList allOperations() const;
-    DataMemberList dataMembers() const;
-    DataMemberList orderedOptionalDataMembers() const;
-    DataMemberList allDataMembers() const;
-    DataMemberList classDataMembers() const;
-    DataMemberList allClassDataMembers() const;
-    bool canBeCyclic() const;
-    bool isAbstract() const;
-    bool isInterface() const;
     bool isA(const std::string&) const;
-    virtual bool isLocal() const;
-    bool hasDataMembers() const;
-    bool hasOperations() const;
-    bool hasDefaultValues() const;
-    bool inheritsMetaData(const std::string&) const;
-    bool hasBaseDataMembers() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-    int compactId() const;
-    bool isDelegate() const;
+    bool inheritsMetadata(const std::string&) const;
+    ContainedList contents() const override;
+    bool uses(const ContainedPtr&) const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    StringList ids() const;
 
 protected:
 
-    ClassDef(const ContainerPtr&, const std::string&, int, bool, const ClassList&, bool);
-    friend class Container;
+    InterfaceDef(const ContainerPtr&, const std::string&, const InterfaceList&);
 
-    ClassDeclPtr _declaration;
-    bool _interface;
-    bool _hasDataMembers;
-    bool _hasOperations;
-    ClassList _bases;
-    bool _local;
-    int _compactId;
+    friend class Module;
+
+    InterfaceDeclPtr _declaration;
+    InterfaceList _bases;
+    std::list<OperationPtr> _operations;
 };
 
 // ----------------------------------------------------------------------
-// Proxy
+// Optional (for T? types)
 // ----------------------------------------------------------------------
 
-class Proxy : public virtual Type
+class Optional : public Type
 {
 public:
 
-    virtual bool isLocal() const;
-    virtual std::string typeId() const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
+    Optional(const TypePtr& underlying);
 
-    ClassDeclPtr _class() const;
+    std::string typeId() const override;
+    bool usesClasses() const override;
+    bool isClassType() const override;
+    bool isInterfaceType() const override;
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    TypePtr underlying() const { return _underlying; }
+    bool encodedUsingBitSequence() const { return minWireSize() == 0; }
 
-    Proxy(const ClassDeclPtr&);
+private:
 
-protected:
-
-    ClassDeclPtr _classDecl;
+    const TypePtr _underlying;
 };
 
 // ----------------------------------------------------------------------
@@ -787,66 +814,56 @@ protected:
 // ----------------------------------------------------------------------
 
 // No inheritance from Constructed, as this is not a Type
-class Exception : public virtual Container, public virtual Contained
+class Exception : public virtual DataMemberContainer, public virtual Contained
 {
 public:
 
-    virtual void destroy();
-    DataMemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr&,
-                                   const std::string&, const std::string&);
-    DataMemberList dataMembers() const;
-    DataMemberList orderedOptionalDataMembers() const;
-    DataMemberList allDataMembers() const;
-    DataMemberList classDataMembers() const;
-    DataMemberList allClassDataMembers() const;
+    void destroy() override;
+    MemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr& = nullptr,
+                               const std::string& = "", const std::string& = "") override;
+    MemberList allDataMembers() const;
     ExceptionPtr base() const;
     ExceptionList allBases() const;
-    virtual bool isBaseOf(const ExceptionPtr&) const;
-    virtual bool isLocal() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
+    bool isBaseOf(const ExceptionPtr&) const;
     bool usesClasses(bool) const;
-    bool hasDefaultValues() const;
-    bool inheritsMetaData(const std::string&) const;
-    bool hasBaseDataMembers() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
+    bool inheritsMetadata(const std::string&) const;
+    bool hasBaseDataMembers() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
 
 protected:
 
-    Exception(const ContainerPtr&, const std::string&, const ExceptionPtr&, bool);
+    Exception(const ContainerPtr&, const std::string&, const ExceptionPtr&);
+
     friend class Container;
+    friend class Module;
 
     ExceptionPtr _base;
-    bool _local;
 };
 
 // ----------------------------------------------------------------------
 // Struct
 // ----------------------------------------------------------------------
 
-class Struct : public virtual Container, public virtual Constructed
+class Struct : public virtual DataMemberContainer, public virtual Constructed
 {
 public:
-
-    DataMemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr&,
-                                   const std::string&, const std::string&);
-    DataMemberList dataMembers() const;
-    DataMemberList classDataMembers() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
-    bool hasDefaultValues() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-    virtual void recDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
+    MemberPtr createDataMember(const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr& = nullptr,
+                               const std::string& = "", const std::string& = "") override;
+    bool usesClasses() const override;
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
 
 protected:
 
-    Struct(const ContainerPtr&, const std::string&, bool);
+    Struct(const ContainerPtr&, const std::string&);
+
     friend class Container;
+    friend class Module;
 };
 
 // ----------------------------------------------------------------------
@@ -858,23 +875,25 @@ class Sequence : public virtual Constructed
 public:
 
     TypePtr type() const;
-    StringList typeMetaData() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-    virtual void recDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
+    StringList typeMetadata() const;
+    bool uses(const ContainedPtr&) const override;
+    bool usesClasses() const override;
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
 
 protected:
 
-    Sequence(const ContainerPtr&, const std::string&, const TypePtr&, const StringList&, bool);
+    Sequence(const ContainerPtr&, const std::string&, const TypePtr&, const StringList&);
+
     friend class Container;
+    friend class Module;
 
     TypePtr _type;
-    StringList _typeMetaData;
+    StringList _typeMetadata;
 };
 
 // ----------------------------------------------------------------------
@@ -887,29 +906,31 @@ public:
 
     TypePtr keyType() const;
     TypePtr valueType() const;
-    StringList keyMetaData() const;
-    StringList valueMetaData() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-    virtual void recDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
+    StringList keyMetadata() const;
+    StringList valueMetadata() const;
+    bool uses(const ContainedPtr&) const override;
+    bool usesClasses() const override;
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
 
     static bool legalKeyType(const TypePtr&, bool&);
 
 protected:
 
     Dictionary(const ContainerPtr&, const std::string&, const TypePtr&, const StringList&, const TypePtr&,
-               const StringList&, bool);
+               const StringList&);
+
     friend class Container;
+    friend class Module;
 
     TypePtr _keyType;
     TypePtr _valueType;
-    StringList _keyMetaData;
-    StringList _valueMetaData;
+    StringList _keyMetadata;
+    StringList _valueMetadata;
 };
 
 // ----------------------------------------------------------------------
@@ -920,31 +941,52 @@ class Enum : public virtual Container, public virtual Constructed
 {
 public:
 
-    virtual void destroy();
+    void destroy() override;
+    EnumeratorPtr createEnumerator(const std::string&);
+    EnumeratorPtr createEnumerator(const std::string&, std::int64_t);
+    EnumeratorList enumerators() const;
+
+    // The underlying type. The default is nullptr, which means a range of 0..INT32_MAX encoded as a variable-length
+    // size. The only permissible underlying types are byte, short, ushort, int, and uint.
+    BuiltinPtr underlying() const;
+
+    // A Slice enum is checked by default: the generated unmarshaling code verifies the value matches one of the enum's
+    // enumerators.
+    bool isUnchecked() const { return _unchecked; }
+
     bool explicitValue() const;
-    int minValue() const;
-    int maxValue() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual bool usesClasses() const;
-    virtual size_t minWireSize() const;
-    virtual bool isVariableLength() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-    virtual void recDependencies(std::set<ConstructedPtr>&); // Internal operation, don't use directly.
+
+    std::int64_t minValue() const;
+    std::int64_t maxValue() const;
+    ContainedList contents() const override;
+    bool uses(const ContainedPtr&) const override;
+    bool usesClasses() const override;
+    size_t minWireSize() const override;
+    std::string getTagFormat() const override;
+    bool isVariableLength() const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+    void recDependencies(std::set<ConstructedPtr>&) override; // Internal operation, don't use directly.
+
+    // Sets the underlying type shortly after construction and before any enumerator is added.
+    void initUnderlying(const TypePtr&);
 
 protected:
 
     Enum(const ContainerPtr&, const std::string&, bool);
-    int newEnumerator(const EnumeratorPtr&);
+    std::int64_t newEnumerator(const EnumeratorPtr&);
 
     friend class Container;
+    friend class Module;
     friend class Enumerator;
 
+    std::list<EnumeratorPtr> _enumerators;
+    const bool _unchecked;
+    BuiltinPtr _underlying;
     bool _explicitValue;
-    IceUtil::Int64 _minValue;
-    IceUtil::Int64 _maxValue;
-    int _lastValue;
+    std::int64_t _minValue;
+    std::int64_t _maxValue;
+    std::int64_t _lastValue;
 };
 
 // ----------------------------------------------------------------------
@@ -956,21 +998,21 @@ class Enumerator : public virtual Contained
 public:
 
     EnumPtr type() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual ContainedType containedType() const;
-    virtual std::string kindOf() const;
+    bool uses(const ContainedPtr&) const override;
+    std::string kindOf() const override;
 
     bool explicitValue() const;
-    int value() const;
+    std::int64_t value() const;
 
 protected:
 
-    Enumerator(const ContainerPtr&, const std::string&);
-    Enumerator(const ContainerPtr&, const std::string&, int);
-    friend class Container;
+    Enumerator(const EnumPtr&, const std::string&);
+    Enumerator(const EnumPtr&, const std::string&, std::int64_t);
+
+    friend class Enum;
 
     bool _explicitValue;
-    int _value;
+    std::int64_t _value;
 };
 
 // ----------------------------------------------------------------------
@@ -982,85 +1024,60 @@ class Const : public virtual Contained
 public:
 
     TypePtr type() const;
-    StringList typeMetaData() const;
+    StringList typeMetadata() const;
     SyntaxTreeBasePtr valueType() const;
     std::string value() const;
     std::string literal() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual ContainedType containedType() const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
+    bool uses(const ContainedPtr&) const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
 
 protected:
 
     Const(const ContainerPtr&, const std::string&, const TypePtr&, const StringList&, const SyntaxTreeBasePtr&,
           const std::string&, const std::string&);
+
     friend class Container;
+    friend class Module;
 
     TypePtr _type;
-    StringList _typeMetaData;
+    StringList _typeMetadata;
     SyntaxTreeBasePtr _valueType;
     std::string _value;
     std::string _literal;
 };
 
 // ----------------------------------------------------------------------
-// ParamDecl
+// Member
 // ----------------------------------------------------------------------
 
-class ParamDecl : public virtual Contained
+class Member : public virtual Contained
 {
 public:
 
     TypePtr type() const;
-    bool isOutParam() const;
-    bool optional() const;
-    int tag() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
-
-protected:
-
-    ParamDecl(const ContainerPtr&, const std::string&, const TypePtr&, bool, bool, int);
-    friend class Operation;
-
-    TypePtr _type;
-    bool _isOutParam;
-    bool _optional;
-    int _tag;
-};
-
-// ----------------------------------------------------------------------
-// DataMember
-// ----------------------------------------------------------------------
-
-class DataMember : public virtual Contained
-{
-public:
-
-    TypePtr type() const;
-    bool optional() const;
+    bool tagged() const;
     int tag() const;
     std::string defaultValue() const;
     std::string defaultLiteral() const;
     SyntaxTreeBasePtr defaultValueType() const;
-    virtual ContainedType containedType() const;
-    virtual bool uses(const ContainedPtr&) const;
-    virtual std::string kindOf() const;
-    virtual void visit(ParserVisitor*, bool);
+    bool uses(const ContainedPtr&) const override;
+    std::string kindOf() const override;
+    void visit(ParserVisitor*, bool) override;
+
+    // Returns the enclosing operation when this member is a parameter or return value member. Otherwise, returns null.
+    OperationPtr operation() const;
 
 protected:
 
-    DataMember(const ContainerPtr&, const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr&,
-               const std::string&, const std::string&);
-    friend class ClassDef;
-    friend class Struct;
-    friend class Exception;
+    Member(const ContainerPtr&, const std::string&, const TypePtr&, bool, int, const SyntaxTreeBasePtr& = nullptr,
+               const std::string& = "", const std::string& = "");
+
+    friend class DataMemberContainer;
+    friend class Operation;
 
     TypePtr _type;
-    bool _optional;
+    bool _tagged;
     int _tag;
     SyntaxTreeBasePtr _defaultValueType;
     std::string _defaultValue;
@@ -1075,30 +1092,30 @@ class Unit : public virtual Container
 {
 public:
 
-    static UnitPtr createUnit(bool, bool, bool, bool, const StringList& = StringList());
+    static UnitPtr createUnit(bool, const StringList& = StringList());
+    ModulePtr createModule(const std::string& name);
 
-    bool ignRedefs() const;
-    bool allowIcePrefix() const;
-    bool allowUnderscore() const;
+    bool compatMode() const;
+    void checkType(const TypePtr&);
 
     void setComment(const std::string&);
+    void addToComment(const std::string&);
     std::string currentComment(); // Not const, as this function removes the current comment.
     std::string currentFile() const;
     std::string topLevelFile() const;
     int currentLine() const;
 
-    void nextLine();
-    bool scanPosition(const char*);
+    int setCurrentFile(const std::string&, int);
     int currentIncludeLevel() const;
 
-    void addGlobalMetaData(const StringList&);
-
-    void setSeenDefinition();
+    void addFileMetadata(const StringList&);
 
     void error(const std::string&); // Not const because error count is increased
     void warning(WarningCategory, const std::string&) const;
+    void note(ContainedPtr, const std::string&) const;
 
     ContainerPtr currentContainer() const;
+    ModulePtr currentModule() const;
     void pushContainer(const ContainerPtr&);
     void popContainer();
 
@@ -1110,57 +1127,52 @@ public:
     void addContent(const ContainedPtr&);
     void removeContent(const ContainedPtr&);
     ContainedList findContents(const std::string&) const;
-    ClassList findDerivedClasses(const ClassDefPtr&) const;
-    ExceptionList findDerivedExceptions(const ExceptionPtr&) const;
-    ContainedList findUsedBy(const ContainedPtr&) const;
 
     void addTypeId(int, const std::string&);
     std::string getTypeId(int) const;
     bool hasCompactTypeId() const;
 
-    bool usesNonLocals() const;
-    bool usesConsts() const;
-
-    //
     // Returns the path names of the files included directly by the top-level file.
-    //
     StringList includeFiles() const;
 
-    //
     // Returns the path names of all files parsed by this unit.
-    //
     StringList allFiles() const;
 
     int parse(const std::string&, FILE*, bool);
 
-    virtual void destroy();
-    virtual void visit(ParserVisitor*, bool);
+    void destroy() override;
+    ContainedList contents() const override;
+    void visit(ParserVisitor*, bool) override;
+    bool hasExceptions() const;
+    bool hasClassDecls() const;
+    bool hasClassDefs() const;
+    bool hasInterfaceDecls() const;
+    bool hasInterfaceDefs() const;
 
-    BuiltinPtr builtin(Builtin::Kind); // Not const, as builtins are created on the fly. (Lazy initialization.)
+    // Not const, as builtins are created on the fly. (Lazy initialization.)
+    BuiltinPtr builtin(Builtin::Kind);
+    OptionalPtr optionalBuiltin(Builtin::Kind);
 
     void addTopLevelModule(const std::string&, const std::string&);
     std::set<std::string> getTopLevelModules(const std::string&) const;
 
 private:
 
-    Unit(bool, bool, bool, bool, const StringList&);
-    static void eraseWhiteSpace(::std::string&);
+    Unit(bool, const StringList&);
 
-    bool _ignRedefs;
     bool _all;
-    bool _allowIcePrefix;
-    bool _allowUnderscore;
-    StringList _defaultGlobalMetaData;
+    StringList _defaultFileMetadata;
     int _errors;
     std::string _currentComment;
-    int _currentLine;
     int _currentIncludeLevel;
-    std::string _currentFile;
     std::string _topLevelFile;
     std::stack<DefinitionContextPtr> _definitionContextStack;
     StringList _includeFiles;
+    ModulePtr _globalModule;
+    std::list<ModulePtr> _modules;
     std::stack<ContainerPtr> _containerStack;
     std::map<Builtin::Kind, BuiltinPtr> _builtins;
+    std::map<Builtin::Kind, OptionalPtr> _optionalBuiltins;
     std::map<std::string, ContainedList> _contentMap;
     std::map<std::string, DefinitionContextPtr> _definitionContextMap;
     std::map<int, std::string> _typeIds;

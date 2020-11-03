@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/Context.ice>
 
 module Test
 {
@@ -16,7 +16,7 @@ interface MyClass
     Ice::Context getContext();
 }
 
-interface MyDerivedClass extends MyClass
+interface MyDerivedClass : MyClass
 {
     Object* echo(Object* obj);
 }

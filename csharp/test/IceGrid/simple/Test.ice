@@ -4,12 +4,12 @@
 
 #pragma once
 
-module Test
-{
+[[suppress-warning(reserved-identifier)]]
 
-interface TestIntf
+module ZeroC::IceGrid::Test::Simple
 {
-    void shutdown();
-}
-
+    interface TestIntf
+    {
+        void shutdown();
+    }
 }

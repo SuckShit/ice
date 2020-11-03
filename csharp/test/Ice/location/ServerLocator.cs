@@ -1,64 +1,72 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Threading;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public class ServerLocator : ITestLocator
     {
-        public class ServerLocator : Test.TestLocatorDisp_
+        private readonly ServerLocatorRegistry _registry;
+        private readonly ILocatorRegistryPrx _registryPrx;
+        private int _requestCount;
+
+        public ServerLocator(ServerLocatorRegistry registry, ILocatorRegistryPrx registryPrx)
         {
-            public ServerLocator(ServerLocatorRegistry registry, Ice.LocatorRegistryPrx registryPrx)
-            {
-                _registry = registry;
-                _registryPrx = registryPrx;
-                _requestCount = 0;
-            }
+            _registry = registry;
+            _registryPrx = registryPrx;
+            _requestCount = 0;
+        }
 
-            public override Task<Ice.ObjectPrx>
-            findAdapterByIdAsync(string adapter, Ice.Current current)
-            {
-                ++_requestCount;
-                if(adapter.Equals("TestAdapter10") || adapter.Equals("TestAdapter10-2"))
-                {
-                    Debug.Assert(current.encoding.Equals(Ice.Util.Encoding_1_0));
-                    return Task.FromResult(_registry.getAdapter("TestAdapter"));
-                }
-                else
-                {
-                    // We add a small delay to make sure locator request queuing gets tested when
-                    // running the test on a fast machine
-                    System.Threading.Thread.Sleep(1);
-                    return Task.FromResult(_registry.getAdapter(adapter));
-                }
-            }
+        public IObjectPrx? FindAdapterById(string adapter, Current current, CancellationToken cancel)
+        {
+            ++_requestCount;
+            // We add a small delay to make sure locator request queuing gets tested when
+            // running the test on a fast machine
+            Thread.Sleep(1);
 
-            public override Task<Ice.ObjectPrx>
-            findObjectByIdAsync(Ice.Identity id, Ice.Current current)
-            {
-                ++_requestCount;
-                // We add a small delay to make sure locator request queuing gets tested when
-                // running the test on a fast machine
-                System.Threading.Thread.Sleep(1);
-                return Task.FromResult(_registry.getObject(id));
-            }
+            return _registry.GetIce1Adapter(adapter);
+        }
 
-            public override Ice.LocatorRegistryPrx getRegistry(Ice.Current current)
-            {
-                return _registryPrx;
-            }
+        public IObjectPrx? FindObjectById(Identity id, string? facet, Current current, CancellationToken cancel)
+        {
+            ++_requestCount;
+            // We add a small delay to make sure locator request queuing gets tested when
+            // running the test on a fast machine
+            Thread.Sleep(1);
 
-            public override int getRequestCount(Ice.Current current)
-            {
-                return _requestCount;
-            }
+            return _registry.GetIce1Object(id, facet ?? "");
+        }
 
-            private ServerLocatorRegistry _registry;
-            private Ice.LocatorRegistryPrx _registryPrx;
-            private int _requestCount;
+        public ILocatorRegistryPrx GetRegistry(Current current, CancellationToken cancel) => _registryPrx;
+
+        public int GetRequestCount(Current current, CancellationToken cancel) => _requestCount;
+
+        public (IEnumerable<EndpointData>, IEnumerable<string>) ResolveLocation(
+            string[] location,
+            Current current,
+            CancellationToken cancel)
+        {
+            ++_requestCount;
+            // We add a small delay to make sure locator request queuing gets tested when
+            // running the test on a fast machine
+            System.Threading.Thread.Sleep(1);
+
+            return (_registry.GetIce2Adapter(location[0]), location[1..]);
+        }
+
+        public (IEnumerable<EndpointData>, IEnumerable<string>) ResolveWellKnownProxy(
+            Identity identity,
+            string facet,
+            Current current,
+            CancellationToken cancel)
+        {
+            ++_requestCount;
+            // We add a small delay to make sure locator request queuing gets tested when
+            // running the test on a fast machine
+            Thread.Sleep(1);
+
+            return _registry.GetIce2Object(identity, facet);
         }
     }
 }

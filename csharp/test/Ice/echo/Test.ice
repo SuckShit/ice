@@ -4,7 +4,9 @@
 
 #pragma once
 
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Echo
 {
 
 //
@@ -12,8 +14,6 @@ module Test
 //
 interface Echo
 {
-    void startBatch();
-    void flushBatch();
     void shutdown();
 }
 

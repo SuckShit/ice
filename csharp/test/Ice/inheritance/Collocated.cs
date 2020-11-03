@@ -1,30 +1,21 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Inheritance
 {
-    namespace inheritance
+    public class Collocated : TestHelper
     {
-        public class Collocated : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                using(var communicator = initialize(ref args))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new InitialI(adapter), Ice.Util.stringToIdentity("initial"));
-                    AllTests.allTests(this);
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Collocated>(args);
-            }
+            await using Communicator communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("initial", new InitialI(adapter));
+            AllTests.Run(this);
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Collocated>(args);
     }
 }

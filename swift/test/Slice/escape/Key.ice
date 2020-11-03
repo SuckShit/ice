@@ -2,8 +2,7 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-[["underscore"]]
-[["suppress-warning:deprecated"]]
+[[suppress-warning(reserved-identifier)]]
 
 module and
 {
@@ -19,14 +18,14 @@ struct guard
     int default;
 }
 
-["cpp:class"] struct defer
+struct defer
 {
     string else;
 }
 
 interface break
 {
-    ["amd"] void case(int catch, out int try);
+    [amd] void case(int catch, out int try);
 }
 
 interface func
@@ -41,7 +40,7 @@ class switch
     int volatile;
 }
 
-interface do extends func, break
+interface do : func, break
 {
 }
 
@@ -54,16 +53,9 @@ exception return
     int Int32;
 }
 
-exception as extends return
+exception as : return
 {
     int static; int switch;
-}
-
-local interface friend
-{
-    guard goto(continue if, guard d, defer inline, switch private, do mutable, break* namespace,
-              func* new, switch* not, do* operator, int or, int protected, int public, int register)
-        throws return, as;
 }
 
 const int is = 0;

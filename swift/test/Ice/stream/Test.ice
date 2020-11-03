@@ -4,14 +4,16 @@
 
 #pragma once
 
+[[3.7]]
+
 #include <Ice/BuiltinSequences.ice>
 
 //
 // Suppress invalid metadata warnings
 //
-[["suppress-warning:invalid-metadata, deprecated"]]
+[[suppress-warning(invalid-metadata)]]
 
-[["swift:class-resolver-prefix:IceStrem"]]
+[[swift:class-resolver-prefix(IceStream)]]
 module Test
 {
 
@@ -25,7 +27,7 @@ enum MyEnum
 interface MyInterface;
 class MyClass;
 
-["cpp:comparable"] struct SmallStruct
+struct SmallStruct
 {
     bool bo;
     byte by;
@@ -39,23 +41,17 @@ class MyClass;
     MyInterface* p;
 }
 
-["cpp:class"] struct ClassStruct
-{
-    int i;
-}
-
 class OptionalClass
 {
     bool bo;
     byte by;
-    optional(1) short sh;
-    optional(2) int i;
+    tag(1) short? sh;
+    tag(2) int? i;
 }
 
 sequence<MyEnum> MyEnumS;
 sequence<SmallStruct> SmallStructS;
 sequence<MyClass> MyClassS;
-sequence<MyInterface> MyInterfaceS;
 
 sequence<Ice::BoolSeq> BoolSS;
 sequence<Ice::ByteSeq> ByteSS;
@@ -68,7 +64,6 @@ sequence<Ice::StringSeq> StringSS;
 sequence<MyEnumS> MyEnumSS;
 sequence<SmallStructS> SmallStructSS;
 sequence<MyClassS> MyClassSS;
-sequence<MyInterfaceS> MyInterfaceSS;
 
 dictionary<byte, bool> ByteBoolD;
 dictionary<short, int> ShortIntD;
@@ -112,7 +107,7 @@ module Sub
         nestedEnum3
     }
 
-    ["cpp:comparable"] struct NestedStruct
+    struct NestedStruct
     {
         bool bo;
         byte by;
@@ -125,11 +120,6 @@ module Sub
         NestedEnum e;
     }
 
-    ["cpp:class"] struct NestedClassStruct
-    {
-        int i;
-    }
-
     exception NestedException
     {
         string str;
@@ -137,10 +127,8 @@ module Sub
 }
 }
 
-["swift:module:Test:Test2"]
-module Test2
-{
-module Sub2
+[swift:module(Test:Test2)]
+module Test2::Sub2
 {
     enum NestedEnum2
     {
@@ -149,7 +137,7 @@ module Sub2
         nestedEnum6
     }
 
-    ["cpp:comparable"] struct NestedStruct2
+    struct NestedStruct2
     {
         bool bo;
         byte by;
@@ -162,14 +150,8 @@ module Sub2
         NestedEnum2 e;
     }
 
-    ["cpp:class"] struct NestedClassStruct2
-    {
-        int i;
-    }
-
     exception NestedException2
     {
         string str;
     }
-}
 }

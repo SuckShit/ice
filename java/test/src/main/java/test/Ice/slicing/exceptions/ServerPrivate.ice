@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["java:package:test.Ice.slicing.exceptions.server"]]
+[[java:package(test.Ice.slicing.exceptions.server)]]
 module Test
 {
 
@@ -18,39 +18,39 @@ exception Base
     string b;
 }
 
-exception KnownDerived extends Base
+exception KnownDerived : Base
 {
     string kd;
 }
 
-exception KnownIntermediate extends Base
+exception KnownIntermediate : Base
 {
     string ki;
 }
 
-exception KnownMostDerived extends KnownIntermediate
+exception KnownMostDerived : KnownIntermediate
 {
     string kmd;
 }
 
-["preserve-slice"]
-exception KnownPreserved extends Base
+[preserve-slice]
+exception KnownPreserved : Base
 {
     string kp;
 }
 
-exception KnownPreservedDerived extends KnownPreserved
+exception KnownPreservedDerived : KnownPreserved
 {
     string kpd;
 }
 
-["preserve-slice"]
+[preserve-slice]
 class BaseClass
 {
     string bc;
 }
 
-["format:sliced"]
+[format(sliced)]
 interface Relay
 {
     void knownPreservedAsBase() throws Base;
@@ -60,7 +60,7 @@ interface Relay
     void unknownPreservedAsKnownPreserved() throws KnownPreserved;
 }
 
-["format:sliced"]
+[format(sliced)]
 interface TestIntf
 {
     void baseAsBase() throws Base;
@@ -79,7 +79,7 @@ interface TestIntf
     void unknownMostDerived1AsKnownIntermediate() throws KnownIntermediate;
     void unknownMostDerived2AsBase() throws Base;
 
-    ["format:compact"] void unknownMostDerived2AsBaseCompact() throws Base;
+    [format(compact)] void unknownMostDerived2AsBaseCompact() throws Base;
 
     void knownPreservedAsBase() throws Base;
     void knownPreservedAsKnownPreserved() throws KnownPreserved;
@@ -100,37 +100,37 @@ interface TestIntf
 // Types private to the server.
 //
 
-exception UnknownDerived extends Base
+exception UnknownDerived : Base
 {
     string ud;
 }
 
-exception UnknownIntermediate extends Base
+exception UnknownIntermediate : Base
 {
    string ui;
 }
 
-exception UnknownMostDerived1 extends KnownIntermediate
+exception UnknownMostDerived1 : KnownIntermediate
 {
    string umd1;
 }
 
-exception UnknownMostDerived2 extends UnknownIntermediate
+exception UnknownMostDerived2 : UnknownIntermediate
 {
    string umd2;
 }
 
-class SPreservedClass extends BaseClass
+class SPreservedClass : BaseClass
 {
     string spc;
 }
 
-exception SPreserved1 extends KnownPreservedDerived
+exception SPreserved1 : KnownPreservedDerived
 {
     BaseClass p1;
 }
 
-exception SPreserved2 extends SPreserved1
+exception SPreserved2 : SPreserved1
 {
     BaseClass p2;
 }

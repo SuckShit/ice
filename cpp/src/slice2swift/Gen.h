@@ -39,12 +39,13 @@ private:
 
         ImportVisitor(IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
 
         void writeImports();
 
@@ -55,23 +56,23 @@ private:
         void addImport(const std::string&);
 
         IceUtilInternal::Output& out;
-        std::vector< std::string> _imports;
+        std::vector<std::string> _imports;
     };
 
     class TypesVisitor : public SwiftGenerator, public ParserVisitor
     {
-
     public:
 
         TypesVisitor(IceUtilInternal::Output&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
 
     private:
 
@@ -84,43 +85,45 @@ private:
 
         ProxyVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
 
     private:
 
         IceUtilInternal::Output& out;
     };
 
+    // Value here means class instance.
+    // TODO: merge into TypesVisitor
     class ValueVisitor : public SwiftGenerator, public ParserVisitor
     {
     public:
 
         ValueVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        void visitClassDefEnd(const ClassDefPtr&) override;
 
     private:
 
         IceUtilInternal::Output& out;
     };
 
+    // Object here means servant
     class ObjectVisitor : public SwiftGenerator, public ParserVisitor
     {
     public:
 
         ObjectVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
 
     private:
 
@@ -133,28 +136,11 @@ private:
 
         ObjectExtVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-
-    private:
-
-        IceUtilInternal::Output& out;
-    };
-
-    class LocalObjectVisitor : public SwiftGenerator, public ParserVisitor
-    {
-    public:
-
-        LocalObjectVisitor(::IceUtilInternal::Output&);
-
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
 
     private:
 

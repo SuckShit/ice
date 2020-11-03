@@ -10,6 +10,14 @@
 namespace Slice
 {
 
+struct CommentInfo
+{
+    std::vector<std::string> summaryLines;
+    std::map<std::string, std::vector<std::string>> params;
+    std::map<std::string, std::vector<std::string>> exceptions;
+    std::vector<std::string> returnLines;
+};
+
 class CsVisitor : public CsGenerator, public ParserVisitor
 {
 public:
@@ -19,60 +27,50 @@ public:
 
 protected:
 
-    void writeMarshalUnmarshalParams(const ParamDeclList&, const OperationPtr&, bool, const std::string&, bool = false,
-                                     bool = false, const std::string& = "");
-    void writeMarshalDataMember(const DataMemberPtr&, const std::string&, const std::string&, bool = false);
-    void writeUnmarshalDataMember(const DataMemberPtr&, const std::string&, const std::string&, bool = false);
+    // Write the marshaling code for the operation's params or return type.
+    void writeMarshal(const OperationPtr& operation, bool returnType);
 
-    virtual void writeInheritedOperations(const ClassDefPtr&);
-    virtual void writeDispatch(const ClassDefPtr&);
-    virtual void writeMarshaling(const ClassDefPtr&);
+    // Write the unmarshaling code for the operation's params or return type - operation's params in the skeleton and
+    // return type in the proxy.
+    void writeUnmarshal(const OperationPtr& operation, bool returnType);
 
-    static std::vector<std::string> getParams(const OperationPtr&, const std::string&);
-    static std::vector<std::string> getInParams(const OperationPtr&, const std::string&, bool = false);
-    static std::vector<std::string> getOutParams(const OperationPtr&, const std::string&, bool, bool);
-    static std::vector<std::string> getArgs(const OperationPtr&);
-    static std::vector<std::string> getInArgs(const OperationPtr&, bool = false);
-    static std::string getDispatchParams(const OperationPtr&, std::string&, std::vector<std::string>&,
-                                         std::vector<std::string>&, const std::string&);
+    void writeMarshalDataMembers(const MemberList&, const std::string&, unsigned int);
+    void writeUnmarshalDataMembers(const MemberList&, const std::string&, unsigned int);
 
-    void emitAttributes(const ContainedPtr&);
-    void emitComVisibleAttribute();
-    void emitGeneratedCodeAttribute();
-    void emitPartialTypeAttributes();
-
-    static std::string getParamAttributes(const ParamDeclPtr&);
+    void emitCommonAttributes(); // GeneratedCode and more if needed
+    void emitEditorBrowsableNeverAttribute();
+    void emitEqualityOperators(const std::string&);
+    void emitCustomAttributes(const ContainedPtr&); // attributes specified through metadata
+    void emitTypeIdAttribute(const std::string&); // the Ice type ID attribute
 
     std::string writeValue(const TypePtr&, const std::string&);
 
-    void writeConstantValue(const TypePtr&, const SyntaxTreeBasePtr&, const std::string&);
-
-    //
     // Generate assignment statements for those data members that have default values.
-    //
-    bool requiresDataMemberInitializers(const DataMemberList&);
-    void writeDataMemberInitializers(const DataMemberList&, const std::string&, unsigned int = 0, bool = false);
+    void writeDataMemberDefaultValues(const MemberList&, const std::string&, unsigned int);
 
-    std::string toCsIdent(const std::string&);
-    std::string editMarkup(const std::string&);
-    StringList splitIntoLines(const std::string&);
-    void splitComment(const ContainedPtr&, StringList&, StringList&);
-    StringList getSummary(const ContainedPtr&);
-    void writeDocComment(const ContainedPtr&, const std::string&, const std::string& = "");
-    void writeDocCommentOp(const OperationPtr&);
+    // Generate this.X = null! for non-nullable fields.
+    void writeSuppressNonNullableWarnings(const MemberList&, unsigned int);
+
+    void writeProxyDocComment(const InterfaceDefPtr&, const std::string&);
+    void writeServantDocComment(const InterfaceDefPtr&, const std::string&);
+
+    void writeTypeDocComment(const ContainedPtr&, const std::string&);
+    void writeOperationDocComment(const OperationPtr&, const std::string&, bool, bool);
 
     enum ParamDir { InParam, OutParam };
-    void writeDocCommentAMI(const OperationPtr&, ParamDir, const std::string&, const std::string& = "",
-                            const std::string& = "", const std::string& = "");
-    void writeDocCommentTaskAsyncAMI(const OperationPtr&, const std::string&, const std::string& = "",
-                                     const std::string& = "", const std::string& = "");
-    void writeDocCommentAMD(const OperationPtr&, const std::string&);
-    void writeDocCommentParam(const OperationPtr&, ParamDir, bool);
+    void writeParamDocComment(const OperationPtr&, const CommentInfo&, ParamDir);
 
-    void moduleStart(const ModulePtr&);
-    void moduleEnd(const ModulePtr&);
+    // Generates the corresponding namespace. When prefix is empty and the internal namespace stack is empty, lookup
+    // the prefix using cs:namespace metadata.
+    void openNamespace(const ModulePtr& module, std::string prefix = "");
+    void closeNamespace();
 
     ::IceUtilInternal::Output& _out;
+
+private:
+
+    // Empty means we opened the namespace (and need to close it), non-empty means a saved enclosing namespace.
+    std::stack<std::string> _namespaceStack;
 };
 
 class Gen : private ::IceUtil::noncopyable
@@ -82,15 +80,11 @@ public:
     Gen(const std::string&,
         const std::vector<std::string>&,
         const std::string&,
-        bool,
-        bool,
         bool);
     ~Gen();
 
     void generate(const UnitPtr&);
     void generateImpl(const UnitPtr&);
-    void generateImplTie(const UnitPtr&);
-    void generateChecksums(const UnitPtr&);
     void closeOutput();
 
 private:
@@ -98,7 +92,6 @@ private:
     IceUtilInternal::Output _out;
     IceUtilInternal::Output _impl;
     std::vector<std::string> _includePaths;
-    bool _tie;
 
     void printHeader();
 
@@ -108,31 +101,7 @@ private:
 
         UnitVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitUnitStart(const UnitPtr&);
-    };
-
-    class CompactIdVisitor : public CsVisitor
-    {
-    public:
-
-        CompactIdVisitor(IceUtilInternal::Output&);
-        virtual bool visitUnitStart(const UnitPtr&);
-        virtual void visitUnitEnd(const UnitPtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-    };
-
-    class TypeIdVisitor : public CsVisitor
-    {
-    public:
-
-        TypeIdVisitor(IceUtilInternal::Output&);
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-
-    private:
-        void generateHelperClass(const ContainedPtr&);
+        bool visitUnitStart(const UnitPtr&) override;
     };
 
     class TypesVisitor : public CsVisitor
@@ -141,51 +110,20 @@ private:
 
         TypesVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitExceptionEnd(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitStructEnd(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
-        virtual void visitDataMember(const DataMemberPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        void visitClassDefEnd(const ClassDefPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitExceptionEnd(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitStructEnd(const StructPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitDataMember(const MemberPtr&) override;
 
     private:
 
-        void writeMemberHashCode(const DataMemberList&, unsigned int);
-        void writeMemberEquals(const DataMemberList&, unsigned int);
-    };
-
-    class AsyncDelegateVisitor : public CsVisitor
-    {
-    public:
-
-        AsyncDelegateVisitor(::IceUtilInternal::Output&);
-
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-    };
-
-    class ResultVisitor : public CsVisitor
-    {
-    public:
-
-        ResultVisitor(::IceUtilInternal::Output&);
-
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
+        void writeMarshaling(const ClassDefPtr&);
     };
 
     class ProxyVisitor : public CsVisitor
@@ -194,36 +132,16 @@ private:
 
         ProxyVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-    };
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
 
-    class OpsVisitor : public CsVisitor
-    {
-    public:
+    protected:
 
-        OpsVisitor(::IceUtilInternal::Output&);
-
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-    };
-
-    class HelperVisitor : public CsVisitor
-    {
-    public:
-
-        HelperVisitor(::IceUtilInternal::Output&);
-
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
+        void writeIncomingResponseReader(const OperationPtr&);
+        void writeOutgoingRequestWriter(const OperationPtr&);
     };
 
     class DispatcherVisitor : public CsVisitor
@@ -232,51 +150,66 @@ private:
 
         DispatcherVisitor(::IceUtilInternal::Output&, bool);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-
-    private:
-
-        typedef std::set<std::string> NameSet;
-        void writeTieOperations(const ClassDefPtr&, NameSet* = 0);
-
-        bool _tie;
-    };
-
-    class BaseImplVisitor : public CsVisitor
-    {
-    public:
-
-        BaseImplVisitor(::IceUtilInternal::Output&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
 
     protected:
 
-        void writeOperation(const OperationPtr&, bool, bool);
+        void writeReturnValueStruct(const OperationPtr&);
+        void writeMethodDeclaration(const OperationPtr&);
+
+        void writeIncomingRequestReader(const OperationPtr&);
+        void writeOutgoingResponseWriter(const OperationPtr&);
+
+    private:
+
+        const bool _generateAllAsync;
     };
 
-    class ImplVisitor : public BaseImplVisitor
+    class ImplVisitor : public CsVisitor
     {
     public:
 
         ImplVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
     };
 
-    class ImplTieVisitor : public BaseImplVisitor
+    class ClassFactoryVisitor : public CsVisitor
     {
     public:
 
-        ImplTieVisitor(::IceUtilInternal::Output&);
+        ClassFactoryVisitor(IceUtilInternal::Output&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+    };
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
+    class CompactIdVisitor : public CsVisitor
+    {
+    public:
+
+        CompactIdVisitor(IceUtilInternal::Output&);
+        bool visitUnitStart(const UnitPtr&) override;
+        void visitUnitEnd(const UnitPtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+    };
+
+    class RemoteExceptionFactoryVisitor : public CsVisitor
+    {
+    public:
+
+        RemoteExceptionFactoryVisitor(IceUtilInternal::Output&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
     };
 };
 

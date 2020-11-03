@@ -1,40 +1,31 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Diagnostics;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Metrics
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        CommunicatorObserverI observer = new CommunicatorObserverI();
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.observer = observer;
-        initData.properties = createTestProperties(ref args);
-        initData.properties.setProperty("Ice.Admin.Endpoints", "tcp");
-        initData.properties.setProperty("Ice.Admin.InstanceName", "client");
-        initData.properties.setProperty("Ice.Admin.DelayCreation", "1");
-        initData.properties.setProperty("Ice.Warn.Connections", "0");
-        initData.properties.setProperty("Ice.Default.Host", "127.0.0.1");
-
-        using(var communicator = initialize(initData))
+        public override async Task RunAsync(string[] args)
         {
-            Test.MetricsPrx metrics = AllTests.allTests(this, observer);
-            metrics.shutdown();
-        }
-    }
+            var observer = new CommunicatorObserver();
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            bool ice1 = GetTestProtocol(properties) == Protocol.Ice1;
+
+            properties["Ice.Admin.Endpoints"] = ice1 ? "tcp -h 127.0.0.1" : "ice+tcp://127.0.0.1:0";
+            properties["Ice.Admin.InstanceName"] = "client";
+            properties["Ice.Admin.DelayCreation"] = "1";
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.ConnectTimeout"] = "500ms";
+
+            await using Communicator? communicator = Initialize(properties, observer: observer);
+            IMetricsPrx metrics = AllTests.Run(this, observer, colocated: false);
+            await metrics.ShutdownAsync();
+        }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

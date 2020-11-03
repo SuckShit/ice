@@ -1,20 +1,13 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Objects
 {
-    namespace objects
+    public sealed class F2 : IF2
     {
-        public sealed class F2I : Test.F2Disp_
+        public void Op(Current current, CancellationToken cancel)
         {
-            public F2I()
-            {
-            }
-
-            override public void op(Ice.Current current)
-            {
-            }
         }
     }
 }

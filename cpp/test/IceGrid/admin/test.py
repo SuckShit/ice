@@ -37,7 +37,7 @@ class IceGridAdminTestCase(IceGridTestCase):
 
         current.writeln("ok")
 
-        if current.config.protocol == "ssl":
+        if current.config.transport == "ssl":
 
             current.write("testing login with ssl... ")
 
@@ -71,25 +71,23 @@ class IceGridAdminTestCase(IceGridTestCase):
             expect(admin, 'Test')
             admin.sendline(current, 'application describe Test')
             expect(admin, 'application `Test\'')
-            expect(admin, '\{.*\}')
+            expect(admin, '\\{.*\\}')
             expect(admin, '>>> ')
             admin.sendline(current, 'application diff application.xml server.dir=%s' % serverDir)
-            expect(admin, 'application `Test\'\n\{.*\}')
+            expect(admin, 'application `Test\'\n\\{.*\\}')
             expect(admin, '>>> ')
             admin.sendline(current, 'application update application.xml server.dir=%s' % serverDir)
-            expect(admin, '>>> ')
-            admin.sendline(current, 'application patch Test')
             expect(admin, '>>> ')
             admin.sendline(current, 'server list')
             expect(admin, 'server')
             expect(admin, '>>> ')
             admin.sendline(current, 'server describe server')
-            expect(admin, 'server `server\'\n\{.*\}')
+            expect(admin, 'server `server\'\n\\{.*\\}')
             expect(admin, '>>> ')
             admin.sendline(current, 'server start server')
             expect(admin, '>>> ')
             admin.sendline(current, 'server state server')
-            expect(admin, '^active \(.*\)')
+            expect(admin, '^active \\(.*\\)')
             expect(admin, '>>> ')
             admin.sendline(current, 'server pid server')
             expect(admin, '[0-9]+')
@@ -98,8 +96,6 @@ class IceGridAdminTestCase(IceGridTestCase):
             expect(admin, '>>> ')
             admin.sendline(current, 'server property server Ice.Admin.ServerId')
             expect(admin, "^server")
-            expect(admin, '>>> ')
-            admin.sendline(current, 'server patch server')
             expect(admin, '>>> ')
             admin.sendline(current, 'server disable server')
             expect(admin, '>>> ')

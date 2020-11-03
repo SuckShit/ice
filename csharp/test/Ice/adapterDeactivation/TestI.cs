@@ -1,27 +1,29 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+using System.Threading.Tasks;
+using Test;
+
+namespace ZeroC.Ice.Test.AdapterDeactivation
 {
-    namespace adapterDeactivation
+    public sealed class TestIntf : ITestIntf
     {
-        public sealed class TestI : Test.TestIntfDisp_
+        public void Transient(Current current, CancellationToken cancel)
         {
-            public override void transient(Ice.Current current)
-            {
-                Ice.Communicator communicator = current.adapter.getCommunicator();
+            bool ice1 = TestHelper.GetTestProtocol(current.Communicator.GetProperties()) == Protocol.Ice1;
+            var transport = TestHelper.GetTestTransport(current.Communicator.GetProperties());
+            var endpoint = ice1 ? $"{transport} -h localhost" : $"ice+{transport}://localhost:0";
 
-                Ice.ObjectAdapter adapter = communicator.createObjectAdapterWithEndpoints("TransientTestAdapter", "default");
-                adapter.activate();
-                adapter.destroy();
-            }
+            using ObjectAdapter adapter = current.Communicator.CreateObjectAdapterWithEndpoints(
+                "TransientTestAdapter", endpoint);
+            adapter.Activate();
+        }
 
-            public override void deactivate(Ice.Current current)
-            {
-                current.adapter.deactivate();
-                System.Threading.Thread.Sleep(100);
-            }
+        public void Deactivate(Current current, CancellationToken cancel)
+        {
+            _ = current.Adapter.DisposeAsync().AsTask();
+            Thread.Sleep(100);
+            Task.Delay(100, cancel).ContinueWith(t => current.Communicator.ShutdownAsync(), TaskScheduler.Current);
         }
     }
 }

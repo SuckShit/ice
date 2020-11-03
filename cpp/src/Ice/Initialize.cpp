@@ -161,13 +161,13 @@ Ice::stringSeqToArgs(const StringSeq& args, int& argc, const wchar_t* argv[])
 PropertiesPtr
 Ice::createProperties()
 {
-    return ICE_MAKE_SHARED(PropertiesI);
+    return std::make_shared<PropertiesI>();
 }
 
 PropertiesPtr
 Ice::createProperties(StringSeq& args, const PropertiesPtr& defaults)
 {
-    return ICE_MAKE_SHARED(PropertiesI, args, defaults);
+    return std::make_shared<PropertiesI>(args, defaults);
 }
 
 PropertiesPtr
@@ -190,7 +190,6 @@ Ice::createProperties(int& argc, const wchar_t* argv[], const PropertiesPtr& def
 }
 #endif
 
-#ifdef ICE_CPP11_MAPPING
 Ice::ThreadHookPlugin::ThreadHookPlugin(const CommunicatorPtr& communicator,
                                         function<void()> threadStart,
                                         function<void()> threadStop)
@@ -203,18 +202,6 @@ Ice::ThreadHookPlugin::ThreadHookPlugin(const CommunicatorPtr& communicator,
     IceInternal::InstancePtr instance = IceInternal::getInstance(communicator);
     instance->setThreadHook(move(threadStart), move(threadStop));
 }
-#else
-Ice::ThreadHookPlugin::ThreadHookPlugin(const CommunicatorPtr& communicator, const ThreadNotificationPtr& threadHook)
-{
-    if(communicator == 0)
-    {
-        throw PluginInitializationException(__FILE__, __LINE__, "Communicator cannot be null");
-    }
-
-    IceInternal::InstancePtr instance = IceInternal::getInstance(communicator);
-    instance->setThreadHook(threadHook);
-}
-#endif
 void
 Ice::ThreadHookPlugin::initialize()
 {
@@ -231,43 +218,30 @@ namespace
 inline void checkIceVersion(int version)
 {
 #ifndef ICE_IGNORE_VERSION
+    #if defined(ICE_ALPHA_VERSION) || defined(ICE_BETA_VERSION)
 
-#   if ICE_INT_VERSION % 100 > 50
-    //
-    // Beta version: exact match required
-    //
+    // Exact matches are required for pre-release versions
     if(ICE_INT_VERSION != version)
     {
         throw VersionMismatchException(__FILE__, __LINE__);
     }
-#   else
 
-    //
+    #else
+
     // Major and minor version numbers must match.
-    //
     if(ICE_INT_VERSION / 100 != version / 100)
     {
         throw VersionMismatchException(__FILE__, __LINE__);
     }
 
-    //
-    // Reject beta caller
-    //
-    if(version % 100 > 50)
-    {
-        throw VersionMismatchException(__FILE__, __LINE__);
-    }
-
-    //
     // The caller's patch level cannot be greater than library's patch level. (Patch level changes are
     // backward-compatible, but not forward-compatible.)
-    //
     if(version % 100 > ICE_INT_VERSION % 100)
     {
         throw VersionMismatchException(__FILE__, __LINE__);
     }
 
-#   endif
+    #endif
 #endif
 }
 
@@ -363,12 +337,12 @@ Ice::getProcessLogger()
 {
     IceUtilInternal::MutexPtrLock<IceUtil::Mutex> lock(globalMutex);
 
-    if(processLogger == ICE_NULLPTR)
+    if(processLogger == nullptr)
     {
        //
        // TODO: Would be nice to be able to use process name as prefix by default.
        //
-       processLogger = ICE_MAKE_SHARED(LoggerI, "", "", true);
+       processLogger = std::make_shared<LoggerI>("", "", true);
     }
     return processLogger;
 }
@@ -395,7 +369,6 @@ Ice::CommunicatorHolder::CommunicatorHolder()
 {
 }
 
-#ifdef ICE_CPP11_MAPPING
 Ice::CommunicatorHolder::CommunicatorHolder(shared_ptr<Communicator> communicator) :
     _communicator(std::move(communicator))
 {
@@ -423,91 +396,6 @@ Ice::CommunicatorHolder::operator=(CommunicatorHolder&& other)
     return *this;
 }
 
-#else // C++98 mapping
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, const char* argv[], const InitializationData& initData,
-                                            int version) :
-    _communicator(initialize(argc, argv, initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, char* argv[], const InitializationData& initData, int version) :
-    _communicator(initialize(argc, argv, initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, const char* argv[], const char* configFile, int version) :
-    _communicator(initialize(argc, argv, configFile, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, char* argv[], const char* configFile, int version) :
-    _communicator(initialize(argc, argv, configFile, version))
-{
-}
-
-#   ifdef _WIN32
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, const wchar_t* argv[], const InitializationData& initData,
-                                            int version) :
-    _communicator(initialize(argc, argv, initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, wchar_t* argv[], const InitializationData& initData,
-                                            int version) :
-    _communicator(initialize(argc, argv, initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, const wchar_t* argv[], const char* configFile, int version) :
-    _communicator(initialize(argc, argv, configFile, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(int& argc, wchar_t* argv[], const char* configFile, int version) :
-    _communicator(initialize(argc, argv, configFile, version))
-{
-}
-#   endif
-
-Ice::CommunicatorHolder::CommunicatorHolder(StringSeq& args, const InitializationData& initData, int version) :
-    _communicator(initialize(args, initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(StringSeq& args, const char* configFile, int version) :
-    _communicator(initialize(args, configFile, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(const InitializationData& initData, int version) :
-    _communicator(initialize(initData, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(const char* configFile, int version) :
-    _communicator(initialize(configFile, version))
-{
-}
-
-Ice::CommunicatorHolder::CommunicatorHolder(const CommunicatorPtr& communicator) :
-    _communicator(communicator)
-{
-}
-
-Ice::CommunicatorHolder&
-Ice::CommunicatorHolder::operator=(const CommunicatorPtr& communicator)
-{
-    if(_communicator)
-    {
-        _communicator->destroy();
-    }
-    _communicator = communicator;
-    return *this;
-}
-
-#endif
-
 Ice::CommunicatorHolder::~CommunicatorHolder()
 {
     if(_communicator)
@@ -518,7 +406,7 @@ Ice::CommunicatorHolder::~CommunicatorHolder()
 
 Ice::CommunicatorHolder::operator bool() const
 {
-    return _communicator != ICE_NULLPTR;
+    return _communicator != nullptr;
 }
 
 const Ice::CommunicatorPtr&
@@ -536,13 +424,7 @@ Ice::CommunicatorHolder::operator->() const
 Ice::CommunicatorPtr
 Ice::CommunicatorHolder::release()
 {
-#ifdef ICE_CPP11_MAPPING
     return std::move(_communicator);
-#else
-    CommunicatorPtr result;
-    result.swap(_communicator);
-    return result;
-#endif
 }
 
 InstancePtr

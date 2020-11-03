@@ -3,7 +3,6 @@
 //
 
 #include <Ice/Ice.h>
-#include <Ice/SliceChecksums.h>
 #include <Ice/ConsoleUtil.h>
 #include <IceUtil/Options.h>
 #include <IceBox/IceBox.h>
@@ -32,7 +31,7 @@ main(int argc, char* argv[])
 
     try
     {
-        Ice::CtrlCHandler ctrlCHandler;
+        IceUtil::CtrlCHandler ctrlCHandler;
         Ice::CommunicatorHolder ich(argc, argv);
         communicator = ich.communicator();
 

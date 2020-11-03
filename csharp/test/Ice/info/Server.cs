@@ -1,33 +1,30 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Info
 {
-    namespace info
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
+            await using Communicator communicator = Initialize(ref args);
+            if (Protocol == Protocol.Ice1)
             {
-                using(var communicator = initialize(ref args))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints",
-                                                             getTestEndpoint(0) + ":" + getTestEndpoint(0, "udp"));
-                    Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
+                communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0) + ":" + GetTestEndpoint(0, "udp"));
             }
-
-            public static int Main(string[] args)
+            else
             {
-                return TestDriver.runTest<Server>(args);
+                communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
             }
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new TestIntf());
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

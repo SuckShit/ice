@@ -4,6 +4,8 @@
 
 #pragma once
 
+[[3.7]]
+
 module Test
 {
     struct S
@@ -156,14 +158,8 @@ module Test
     }
 }
 
-["swift:module:Test:Inner"]
-module Inner
-{
-
-module Test
-{
-
-module Inner2
+[swift:module(Test:Inner)]
+module Inner::Test::Inner2
 {
     interface I
     {
@@ -177,8 +173,4 @@ module Inner2
 
         void shutdown();
     }
-}
-
-}
-
 }

@@ -5,9 +5,9 @@
 #ifndef ICE_GRID_PARSER_H
 #define ICE_GRID_PARSER_H
 
-#include <IceUtil/Handle.h>
 #include <IceGrid/Admin.h>
 #include <IceGrid/Registry.h>
+
 #include <list>
 #include <stdio.h>
 
@@ -38,19 +38,11 @@ YY_DECL;
 namespace IceGrid
 {
 
-class Parser;
-typedef ::IceUtil::Handle<Parser> ParserPtr;
-
-}
-
-namespace IceGrid
-{
-
-class Parser : public ::IceUtil::SimpleShared, IceUtil::Monitor<IceUtil::Mutex>
+class Parser
 {
 public:
 
-    static ParserPtr createParser(const Ice::CommunicatorPtr&, const AdminSessionPrx&, const AdminPrx&, bool);
+    Parser(std::shared_ptr<Ice::Communicator>, std::shared_ptr<AdminSessionPrx>, std::shared_ptr<AdminPrx>, bool);
 
     void usage();
     void usage(const std::string&, const std::string& = std::string());
@@ -66,7 +58,6 @@ public:
     void describeApplication(const std::list<std::string>&);
     void diffApplication(const std::list<std::string>&);
     void updateApplication(const std::list<std::string>&);
-    void patchApplication(const std::list<std::string>&);
     void listAllApplications(const std::list<std::string>&);
 
     void describeServerTemplate(const std::list<std::string>&);
@@ -88,7 +79,6 @@ public:
     void removeServer(const std::list<std::string>&);
     void startServer(const std::list<std::string>&);
     void stopServer(const std::list<std::string>&);
-    void patchServer(const std::list<std::string>&);
     void signalServer(const std::list<std::string>&);
     void writeMessage(const std::list<std::string>&, int fd);
     void describeServer(const std::list<std::string>&);
@@ -136,7 +126,6 @@ public:
 
     void invalidCommand(const std::list<std::string>&);
 
-    std::string patchFailed(const Ice::StringSeq&);
     void error(const char*);
     void error(const std::string&);
 
@@ -148,16 +137,18 @@ public:
 
 private:
 
-    Parser(const Ice::CommunicatorPtr&, const AdminSessionPrx&, const AdminPrx&, bool);
     void exception(const Ice::Exception&);
 
     void showFile(const std::string&, const std::string&, const std::string&, bool, bool, bool, int);
     void showLog(const std::string&, const std::string&, bool, bool, int);
 
+    mutable std::mutex _mutex;
+    std::condition_variable _condVar;
+
     std::string _commands;
-    Ice::CommunicatorPtr _communicator;
-    AdminSessionPrx _session;
-    AdminPrx _admin;
+    std::shared_ptr<Ice::Communicator> _communicator;
+    std::shared_ptr<AdminSessionPrx> _session;
+    std::shared_ptr<AdminPrx> _admin;
     bool _continue;
     bool _interrupted;
     int _errors;

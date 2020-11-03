@@ -38,9 +38,6 @@ namespace Test
 {
 
 class TEST_API ControllerHelper
-#ifndef ICE_CPP11_MAPPING
-    : public virtual IceUtil::Shared
-#endif
 {
 public:
 
@@ -52,7 +49,7 @@ public:
 };
 ICE_DEFINE_PTR(ControllerHelperPtr, ControllerHelper);
 
-#if defined(ICE_OS_UWP) || (TARGET_OS_IPHONE != 0)
+#if (TARGET_OS_IPHONE != 0)
 
 //
 // streambuf redirection implementation
@@ -110,7 +107,7 @@ public:
     createTestProperties(int&, char*[]);
 
     Ice::CommunicatorPtr
-    initialize(int& argc, char* argv[], const Ice::PropertiesPtr& properties = ICE_NULLPTR);
+    initialize(int& argc, char* argv[], const Ice::PropertiesPtr& properties = nullptr);
 
     Ice::CommunicatorPtr initialize(int&, char*[], const Ice::InitializationData&);
 
@@ -127,12 +124,12 @@ private:
 
     ControllerHelper* _controllerHelper;
     Ice::CommunicatorPtr _communicator;
-#if !defined(ICE_OS_UWP) && (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
+#if (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
     IceUtil::CtrlCHandler* _ctrlCHandler;
 #endif
 };
 
-#if defined(ICE_OS_UWP) || (TARGET_OS_IPHONE != 0)
+#if (TARGET_OS_IPHONE != 0)
 
 class TestFailedException
 {
@@ -177,7 +174,7 @@ runTest(int argc, char* argv[])
 
 }
 
-#if defined(ICE_OS_UWP) || (TARGET_OS_IPHONE != 0)
+#if (TARGET_OS_IPHONE != 0)
 #   define DEFINE_TEST(HELPER)                                \
     extern "C"                                                \
     {                                                         \

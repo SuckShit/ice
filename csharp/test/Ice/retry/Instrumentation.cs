@@ -1,189 +1,122 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
 using System.Collections.Generic;
+using Test;
+using ZeroC.Ice.Instrumentation;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Retry
 {
-    namespace retry
+    public static class Instrumentation
     {
-        public class Instrumentation
+        private static readonly object _mutex = new object();
+        private static int _nFailure;
+        private static int _nInvocation;
+        private static int _nRetry;
+
+        private class InvocationObserver : IInvocationObserver
         {
-            static object mutex = new object();
-
-            class InvocationObserverI : Ice.Instrumentation.InvocationObserver
+            public void Attach()
             {
-                public void
-                attach()
-                {
-                }
-
-                public void
-                detach()
-                {
-                    lock(mutex)
-                    {
-                        ++nInvocation;
-                    }
-                }
-
-                public void
-                failed(string msg)
-                {
-                    lock(mutex)
-                    {
-                        ++nFailure;
-                    }
-                }
-
-                public void
-                retried()
-                {
-                    lock(mutex)
-                    {
-                        ++nRetry;
-                    }
-                }
-
-                public void
-                userException()
-                {
-                }
-
-                public Ice.Instrumentation.RemoteObserver
-                getRemoteObserver(Ice.ConnectionInfo ci, Ice.Endpoint ei, int i, int j)
-                {
-                    return null;
-                }
-
-                public Ice.Instrumentation.CollocatedObserver
-                getCollocatedObserver(Ice.ObjectAdapter adapter, int i, int j)
-                {
-                    return null;
-                }
-
-            };
-            static private Ice.Instrumentation.InvocationObserver invocationObserver = new InvocationObserverI();
-
-            class CommunicatorObserverI : Ice.Instrumentation.CommunicatorObserver
-            {
-                public Ice.Instrumentation.Observer
-                getConnectionEstablishmentObserver(Ice.Endpoint e, string s)
-                {
-                    return null;
-                }
-
-                public Ice.Instrumentation.Observer
-                getEndpointLookupObserver(Ice.Endpoint e)
-                {
-                    return null;
-                }
-
-                public Ice.Instrumentation.ConnectionObserver
-                getConnectionObserver(Ice.ConnectionInfo ci,
-                                      Ice.Endpoint ei,
-                                      Ice.Instrumentation.ConnectionState s,
-                                      Ice.Instrumentation.ConnectionObserver o)
-                {
-                    return null;
-                }
-
-                public Ice.Instrumentation.ThreadObserver
-                getThreadObserver(string p,
-                                  string n,
-                                  Ice.Instrumentation.ThreadState s,
-                                  Ice.Instrumentation.ThreadObserver o)
-                {
-                    return null;
-                }
-
-                public Ice.Instrumentation.InvocationObserver
-                getInvocationObserver(Ice.ObjectPrx p, string o, Dictionary<string, string> c)
-                {
-                    return invocationObserver;
-                }
-
-                public Ice.Instrumentation.DispatchObserver
-                getDispatchObserver(Ice.Current c, int i)
-                {
-                    return null;
-                }
-
-                public void
-                setObserverUpdater(Ice.Instrumentation.ObserverUpdater u)
-                {
-                }
-            };
-
-            static private Ice.Instrumentation.CommunicatorObserver communicatorObserver = new CommunicatorObserverI();
-
-            static public Ice.Instrumentation.CommunicatorObserver
-            getObserver()
-            {
-                return communicatorObserver;
             }
 
-            static private void
-            testEqual(ref int value, int expected)
+            public void Detach()
             {
-                if(expected < 0)
+                lock (_mutex)
                 {
-                    value = 0;
-                    return;
+                    ++_nInvocation;
                 }
+            }
 
-                int retry = 0;
-                while(++retry < 100)
+            public void Failed(string msg)
+            {
+                lock (_mutex)
                 {
-                    lock(mutex)
-                    {
-                        if(value == expected)
-                        {
-                            break;
-                        }
-                    }
-                    System.Threading.Thread.Sleep(10);
+                    ++_nFailure;
                 }
-                if(value != expected)
+            }
+
+            public void Retried()
+            {
+                lock (_mutex)
                 {
-                    System.Console.Error.WriteLine("value = " + value + ", expected = " + expected);
-                    System.Diagnostics.Debug.Assert(false);
-                    throw new System.Exception();
+                    ++_nRetry;
                 }
+            }
+
+            public void RemoteException()
+            {
+            }
+
+            public IChildInvocationObserver? GetChildInvocationObserver(Connection connection, int size) => null;
+        }
+
+        private static readonly IInvocationObserver _invocationObserver = new InvocationObserver();
+
+        private class CommunicatorObserverI : ICommunicatorObserver
+        {
+            public IObserver? GetConnectionEstablishmentObserver(Endpoint e, string s) => null;
+
+            public IObserver? GetEndpointLookupObserver(Endpoint e) => null;
+
+            public IConnectionObserver? GetConnectionObserver(
+                Connection connection,
+                ConnectionState connectionState,
+                IConnectionObserver? observer) => null;
+
+            public IInvocationObserver? GetInvocationObserver(IObjectPrx? p, string o,
+                IReadOnlyDictionary<string, string> c) => _invocationObserver;
+
+            public IDispatchObserver? GetDispatchObserver(Current c, long requestId, int i) => null;
+
+            public void SetObserverUpdater(IObserverUpdater? u)
+            {
+            }
+        }
+
+        private static readonly ICommunicatorObserver _communicatorObserver = new CommunicatorObserverI();
+
+        public static ICommunicatorObserver GetObserver() => _communicatorObserver;
+
+        private static void TestEqual(ref int value, int expected)
+        {
+            if (expected < 0)
+            {
                 value = 0;
+                return;
             }
 
-            static public void
-            testRetryCount(int expected)
+            int retry = 0;
+            while (++retry < 100)
             {
-                testEqual(ref nRetry, expected);
+                lock (_mutex)
+                {
+                    if (value == expected)
+                    {
+                        break;
+                    }
+                }
+                System.Threading.Thread.Sleep(10);
             }
-
-            static public void
-            testFailureCount(int expected)
+            if (value != expected)
             {
-                testEqual(ref nFailure, expected);
+                System.Console.Error.WriteLine("value = " + value + ", expected = " + expected);
+                TestHelper.Assert(false);
+                throw new System.Exception();
             }
+            value = 0;
+        }
 
-            static public void
-            testInvocationCount(int expected)
-            {
-                testEqual(ref nInvocation, expected);
-            }
+        public static void TestRetryCount(int expected) => TestEqual(ref _nRetry, expected);
 
-            static public void
-            testInvocationReset()
-            {
-                nRetry = 0;
-                nFailure = 0;
-                nInvocation = 0;
-            }
+        public static void TestFailureCount(int expected) => TestEqual(ref _nFailure, expected);
 
-            static private int nRetry = 0;
-            static private int nFailure = 0;
-            static private int nInvocation = 0;
+        public static void TestInvocationCount(int expected) => TestEqual(ref _nInvocation, expected);
+
+        public static void TestInvocationReset()
+        {
+            _nRetry = 0;
+            _nFailure = 0;
+            _nInvocation = 0;
         }
     }
 }

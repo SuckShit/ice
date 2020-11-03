@@ -19,12 +19,11 @@ public:
 
     virtual ~JsGenerator() {};
 
-    static bool isClassType(const TypePtr&);
     static std::string getModuleMetadata(const TypePtr&);
     static std::string getModuleMetadata(const ContainedPtr&);
     static std::string fixId(const std::string&);
     static std::string fixId(const ContainedPtr&);
-    static bool findMetaData(const std::string&, const StringList&, std::string&);
+    static bool findMetadata(const std::string&, const StringList&, std::string&);
     static std::string importPrefix(const TypePtr&,
                                     const ContainedPtr&,
                                     const std::vector<std::pair<std::string, std::string> >&);
@@ -57,7 +56,7 @@ public:
     // Generate code to marshal or unmarshal a type
     //
     void writeMarshalUnmarshalCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&, bool);
-    void writeOptionalMarshalUnmarshalCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&, int, bool);
+    void writeTaggedMarshalUnmarshalCode(::IceUtilInternal::Output&, const TypePtr&, const std::string&, int, bool);
 
 private:
 

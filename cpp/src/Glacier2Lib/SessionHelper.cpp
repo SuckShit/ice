@@ -16,11 +16,7 @@ namespace Glacier2
 {
 
 class SessionThreadCallback :
-#ifdef ICE_CPP11_MAPPING
         public std::enable_shared_from_this<SessionThreadCallback>
-#else
-        public virtual IceUtil::Shared
-#endif
 {
 public:
 
@@ -46,9 +42,6 @@ namespace
 {
 
 class ConnectStrategy
-#ifndef ICE_CPP11_MAPPING
-    : public Ice::LocalObject
-#endif
 {
 
 public:
@@ -82,9 +75,7 @@ private:
 };
 
 class SessionHelperI : public Glacier2::SessionHelper
-#ifdef ICE_CPP11_MAPPING
     , public std::enable_shared_from_this<SessionHelperI>
-#endif
 {
 
 public:
@@ -152,7 +143,7 @@ public:
     virtual void run()
     {
         _session->destroyInternal(_disconnected);
-        _session = ICE_NULLPTR;
+        _session = nullptr;
 
         //
         // Join the connect thread to free resources.
@@ -184,7 +175,7 @@ public:
     virtual void run()
     {
         _session->destroyCommunicator();
-        _session = ICE_NULLPTR;
+        _session = nullptr;
 
         //
         // Join the connect thread to free resources.
@@ -236,15 +227,15 @@ SessionHelperI::destroy()
         // We destroy the communicator to trigger the immediate
         // failure of the connection establishment.
         //
-        destroyThread = new DestroyCommunicator(ICE_SHARED_FROM_THIS, _threadCB);
+        destroyThread = new DestroyCommunicator(shared_from_this(), _threadCB);
     }
     else
     {
-        destroyThread = new DestroyInternal(ICE_SHARED_FROM_THIS, _callback, _threadCB);
+        destroyThread = new DestroyInternal(shared_from_this(), _callback, _threadCB);
         _connected = false;
-        _session = ICE_NULLPTR;
+        _session = nullptr;
     }
-    _threadCB = ICE_NULLPTR;
+    _threadCB = nullptr;
 
     //
     // Run destroy in a thread because it can block.
@@ -310,20 +301,6 @@ Glacier2::SessionHelper::~SessionHelper()
     // Out of line to avoid weak vtable
 }
 
-#ifndef ICE_CPP11_MAPPING
-bool
-Glacier2::SessionHelper::operator==(const Glacier2::SessionHelper& other) const
-{
-    return this == &other;
-}
-
-bool
-Glacier2::SessionHelper::operator!=(const Glacier2::SessionHelper& other) const
-{
-    return this != &other;
-}
-#endif
-
 Ice::ObjectAdapterPtr
 SessionHelperI::internalObjectAdapter()
 {
@@ -347,7 +324,7 @@ Glacier2::SessionCallback::~SessionCallback()
 namespace
 {
 
-class ConnectStrategySecureConnection ICE_FINAL : public ConnectStrategy
+class ConnectStrategySecureConnection final : public ConnectStrategy
 {
 
 public:
@@ -368,7 +345,7 @@ private:
     const map<string, string> _context;
 };
 
-class ConnectStrategyUserPassword ICE_FINAL : public ConnectStrategy
+class ConnectStrategyUserPassword final : public ConnectStrategy
 {
 
 public:
@@ -399,14 +376,14 @@ void
 SessionHelperI::connect(const map<string, string>& context)
 {
     IceUtil::Mutex::Lock sync(_mutex);
-    connectImpl(ICE_MAKE_SHARED(ConnectStrategySecureConnection, context));
+    connectImpl(std::make_shared<ConnectStrategySecureConnection>(context));
 }
 
 void
 SessionHelperI::connect(const string& user, const string& password, const map<string, string>& context)
 {
     IceUtil::Mutex::Lock sync(_mutex);
-    connectImpl(ICE_MAKE_SHARED(ConnectStrategyUserPassword, user, password, context));
+    connectImpl(std::make_shared<ConnectStrategyUserPassword>(user, password, context));
 }
 
 void
@@ -418,7 +395,7 @@ SessionHelperI::destroyInternal(const Ice::DispatcherCallPtr& disconnected)
     {
         IceUtil::Mutex::Lock sync(_mutex);
         router = _router;
-        _router = ICE_NULLPTR;
+        _router = nullptr;
         _connected = false;
 
         communicator = _communicator;
@@ -459,7 +436,7 @@ SessionHelperI::destroyInternal(const Ice::DispatcherCallPtr& disconnected)
     {
         communicator->destroy();
     }
-    dispatchCallback(disconnected, ICE_NULLPTR);
+    dispatchCallback(disconnected, nullptr);
 }
 
 void
@@ -505,7 +482,7 @@ public:
         _callback(callback),
         _session(session)
     {
-        ICE_SET_EXCEPTION_FROM_CLONE(_ex, ex.ice_clone());
+        _ex = ex.ice_clone();
     }
 
     virtual void
@@ -575,7 +552,7 @@ public:
                 IceUtil::Mutex::Lock sync(_session->_mutex);
                 _session->_destroy = true;
             }
-            _session->dispatchCallback(new ConnectFailed(_callback, _session, ex), ICE_NULLPTR);
+            _session->dispatchCallback(new ConnectFailed(_callback, _session, ex), nullptr);
             return;
         }
 
@@ -583,10 +560,10 @@ public:
         {
             if(!communicator->getDefaultRouter())
             {
-                Ice::RouterFinderPrxPtr finder =
-                    ICE_UNCHECKED_CAST(Ice::RouterFinderPrx, communicator->stringToProxy(_finder));
+                Ice::RouterFinderPrxPtr finder;
                 try
                 {
+                    finder = ICE_UNCHECKED_CAST(Ice::RouterFinderPrx, communicator->stringToProxy(_finder));
                     communicator->setDefaultRouter(finder->getRouter());
                 }
                 catch(const Ice::CommunicatorDestroyedException& ex)
@@ -650,7 +627,7 @@ public:
     virtual void run()
     {
         _session->dispatchCallback(_call, _conn);
-        _session = ICE_NULLPTR;
+        _session = nullptr;
     }
 
 private:
@@ -666,7 +643,7 @@ void
 SessionHelperI::connectImpl(const ConnectStrategyPtr& factory)
 {
     assert(!_destroy);
-    IceUtil::ThreadPtr thread = new ConnectThread(_callback, ICE_SHARED_FROM_THIS, factory, _finder);
+    IceUtil::ThreadPtr thread = new ConnectThread(_callback, shared_from_this(), factory, _finder);
     _threadCB->add(this, thread);
     thread->start();
 }
@@ -703,27 +680,6 @@ private:
     const Glacier2::SessionCallbackPtr _callback;
     const Glacier2::SessionHelperPtr _session;
 };
-
-#ifndef ICE_CPP11_MAPPING // C++98
-class CloseCallbackI : public Ice::CloseCallback
-{
-public:
-
-    CloseCallbackI(const SessionHelperIPtr& sessionHelper) : _sessionHelper(sessionHelper)
-    {
-    }
-
-    virtual void
-    closed(const Ice::ConnectionPtr&)
-    {
-        _sessionHelper->destroy();
-    }
-
-private:
-
-    SessionHelperIPtr _sessionHelper;
-};
-#endif
 
 }
 
@@ -785,16 +741,12 @@ SessionHelperI::connected(const Glacier2::RouterPrxPtr& router, const Glacier2::
             {
                 Ice::ConnectionPtr connection = _router->ice_getCachedConnection();
                 assert(connection);
-                connection->setACM(acmTimeout, IceUtil::None, Ice::ICE_ENUM(ACMHeartbeat, HeartbeatAlways));
-#ifdef ICE_CPP11_MAPPING
+                connection->setACM(acmTimeout, IceUtil::None, Ice::ACMHeartbeat::HeartbeatAlways);
                 auto self = shared_from_this();
                 connection->setCloseCallback([self](Ice::ConnectionPtr)
                 {
                     self->destroy();
                 });
-#else
-                connection->setCloseCallback(ICE_MAKE_SHARED(CloseCallbackI, this));
-#endif
             }
         }
     }
@@ -805,11 +757,11 @@ SessionHelperI::connected(const Glacier2::RouterPrxPtr& router, const Glacier2::
         // connected() is only called from the ConnectThread so it is ok to
         // call destroyInternal here.
         //
-        destroyInternal(new Disconnected(ICE_SHARED_FROM_THIS, _callback));
+        destroyInternal(new Disconnected(shared_from_this(), _callback));
     }
     else
     {
-        dispatchCallback(new Connected(_callback, ICE_SHARED_FROM_THIS), conn);
+        dispatchCallback(new Connected(_callback, shared_from_this()), conn);
     }
 }
 
@@ -818,15 +770,11 @@ SessionHelperI::dispatchCallback(const Ice::DispatcherCallPtr& call, const Ice::
 {
     if(_initData.dispatcher)
     {
-#ifdef ICE_CPP11_MAPPING
         _initData.dispatcher([call]()
             {
                 call->run();
             },
             conn);
-#else
-        _initData.dispatcher->dispatch(call, conn);
-#endif
     }
     else
     {
@@ -870,15 +818,11 @@ SessionHelperI::dispatchCallbackAndWait(const Ice::DispatcherCallPtr& call, cons
     {
         IceUtilInternal::CountDownLatch cdl(1);
         Ice::DispatcherCallPtr callWait = new DispatcherCallWait(cdl, call);
-#ifdef ICE_CPP11_MAPPING
         _initData.dispatcher([callWait]()
             {
                 callWait->run();
             },
             conn);
-#else
-        _initData.dispatcher->dispatch(callWait, conn);
-#endif
         cdl.await();
     }
     else
@@ -1027,11 +971,7 @@ Glacier2::SessionFactoryHelper::setProtocol(const string& protocol)
        protocol != "ws" &&
        protocol != "wss")
     {
-#ifdef ICE_CPP11_MAPPING
         throw invalid_argument("Unknown protocol `" + protocol + "'");
-#else
-        throw IceUtil::IllegalArgumentException(__FILE__, __LINE__, "Unknown protocol `" + protocol + "'");
-#endif
     }
     _protocol = protocol;
 }
@@ -1113,8 +1053,8 @@ Glacier2::SessionFactoryHelper::connect()
     map<string, string> context;
     {
         IceUtil::Mutex::Lock sync(_mutex);
-        session = ICE_MAKE_SHARED(SessionHelperI,
-                                  ICE_MAKE_SHARED(SessionThreadCallback, ICE_SHARED_FROM_THIS),
+        session = std::make_shared<SessionHelperI>(
+                                  std::make_shared<SessionThreadCallback>(shared_from_this()),
                                   _callback,
                                   createInitData(),
                                   getRouterFinderStr(),
@@ -1132,8 +1072,8 @@ Glacier2::SessionFactoryHelper::connect(const string& user,  const string& passw
     map<string, string> context;
     {
         IceUtil::Mutex::Lock sync(_mutex);
-        session = ICE_MAKE_SHARED(SessionHelperI,
-                                  ICE_MAKE_SHARED(SessionThreadCallback, ICE_SHARED_FROM_THIS),
+        session = std::make_shared<SessionHelperI>(
+                                  std::make_shared<SessionThreadCallback>(shared_from_this()),
                                   _callback,
                                   createInitData(),
                                   getRouterFinderStr(),
@@ -1158,7 +1098,6 @@ Glacier2::SessionFactoryHelper::createInitData()
         initData.properties->setProperty("Ice.Default.Router", createProxyStr(_identity));
     }
 
-#ifndef ICE_OS_UWP
     //
     // If using a secure connection setup the IceSSL plug-in, if IceSSL
     // plug-in has already been setup we don't want to override the
@@ -1169,8 +1108,6 @@ Glacier2::SessionFactoryHelper::createInitData()
     {
         initData.properties->setProperty("Ice.Plugin.IceSSL","IceSSL:createIceSSL");
     }
-#endif
-
     return initData;
 }
 
@@ -1188,7 +1125,7 @@ string
 Glacier2::SessionFactoryHelper::createProxyStr(const Ice::Identity& ident)
 {
     ostringstream os;
-    os << "\"" << identityToString(ident, Ice::ICE_ENUM(ToStringMode, Unicode)) << "\":" << _protocol
+    os << "\"" << identityToString(ident, Ice::ToStringMode::Unicode) << "\":" << _protocol
        << " -p " << getPortInternal() << " -h \"" << _routerHost << "\"";
 
     if(_timeout > 0)

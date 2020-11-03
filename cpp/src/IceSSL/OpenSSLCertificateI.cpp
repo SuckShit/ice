@@ -24,21 +24,6 @@ using namespace std;
 #  pragma GCC diagnostic ignored "-Wold-style-cast"
 #endif
 
-#ifdef __SUNPRO_CC
-
-//
-// The call to sk_GENERAL_NAME_pop_free fails to compile if we don't
-// remove the extern "C" vs non extern "C" check with the macro below:
-//
-
-extern "C" typedef void (*FreeFunc)(void*);
-
-#undef CHECKED_SK_FREE_FUNC
-#define CHECKED_SK_FREE_FUNC(type, p) \
-    (FreeFunc) (p)
-
-#endif
-
 namespace
 {
 
@@ -172,11 +157,7 @@ public:
 
 Init init;
 
-#ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#else
-static IceUtil::Time
-#endif
 ASMUtcTimeToTime(const ASN1_UTCTIME* s)
 {
     struct tm tm;
@@ -230,11 +211,7 @@ ASMUtcTimeToTime(const ASN1_UTCTIME* s)
 
     IceUtil::Time time = IceUtil::Time::seconds(mktime(&tm) - offset * 60 + tzone);
 
-#ifdef ICE_CPP11_MAPPING
     return chrono::system_clock::time_point(chrono::microseconds(time.toMicroSeconds()));
-#else
-    return time;
-#endif
 }
 
 class OpenSSLX509ExtensionI : public IceSSL::X509Extension
@@ -271,13 +248,8 @@ public:
     virtual bool verify(const IceSSL::CertificatePtr&) const;
     virtual string encode() const;
 
-#  ifdef ICE_CPP11_MAPPING
     virtual chrono::system_clock::time_point getNotAfter() const;
     virtual chrono::system_clock::time_point getNotBefore() const;
-#  else
-    virtual IceUtil::Time getNotAfter() const;
-    virtual IceUtil::Time getNotBefore() const;
-#  endif
     virtual string getSerialNumber() const;
     virtual IceSSL::DistinguishedName getIssuerDN() const;
     virtual vector<pair<int, string> > getIssuerAlternativeNames() const;
@@ -344,11 +316,7 @@ OpenSSLCertificateI::OpenSSLCertificateI(x509_st* cert) : _cert(cert)
 {
     if(!_cert)
     {
-#ifdef ICE_CPP11_MAPPING
         throw invalid_argument("Invalid certificate reference");
-#else
-        throw IceUtil::IllegalArgumentException(__FILE__, __LINE__, "Invalid certificate reference");
-#endif
     }
 }
 
@@ -449,21 +417,13 @@ OpenSSLCertificateI::encode() const
     return result;
 }
 
-#  ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#  else
-IceUtil::Time
-#  endif
 OpenSSLCertificateI::getNotAfter() const
 {
     return ASMUtcTimeToTime(X509_get_notAfter(_cert));
 }
 
-#  ifdef ICE_CPP11_MAPPING
 chrono::system_clock::time_point
-#  else
-IceUtil::Time
-#  endif
 OpenSSLCertificateI::getNotBefore() const
 {
     return ASMUtcTimeToTime(X509_get_notBefore(_cert));
@@ -537,7 +497,7 @@ OpenSSLCertificateI::loadX509Extensions() const
             len = OBJ_obj2txt(&oid[0], len, obj, 1);
             oid.resize(len);
             _extensions.push_back(ICE_DYNAMIC_CAST(IceSSL::X509Extension,
-                ICE_MAKE_SHARED(OpenSSLX509ExtensionI, ext, oid, _cert)));
+                std::make_shared<OpenSSLX509ExtensionI>(ext, oid, _cert)));
         }
     }
 }
@@ -545,7 +505,7 @@ OpenSSLCertificateI::loadX509Extensions() const
 IceSSL::OpenSSL::CertificatePtr
 IceSSL::OpenSSL::Certificate::create(x509_st* cert)
 {
-    return ICE_MAKE_SHARED(OpenSSLCertificateI, cert);
+    return std::make_shared<OpenSSLCertificateI>(cert);
 }
 
 IceSSL::OpenSSL::CertificatePtr
@@ -558,26 +518,26 @@ IceSSL::OpenSSL::Certificate::load(const std::string& file)
         throw CertificateReadException(__FILE__, __LINE__, "error opening file");
     }
 
-    x509_st* x = PEM_read_bio_X509(cert, ICE_NULLPTR, ICE_NULLPTR, ICE_NULLPTR);
-    if(x == ICE_NULLPTR)
+    x509_st* x = PEM_read_bio_X509(cert, nullptr, nullptr, nullptr);
+    if(x == nullptr)
     {
         BIO_free(cert);
         throw CertificateReadException(__FILE__, __LINE__, "error reading file:\n" + getSslErrors(false));
     }
     BIO_free(cert);
-    return ICE_MAKE_SHARED(OpenSSLCertificateI, x);
+    return std::make_shared<OpenSSLCertificateI>(x);
 }
 
 IceSSL::OpenSSL::CertificatePtr
 IceSSL::OpenSSL::Certificate::decode(const std::string& encoding)
 {
     BIO *cert = BIO_new_mem_buf(static_cast<void*>(const_cast<char*>(&encoding[0])), static_cast<int>(encoding.size()));
-    x509_st* x = PEM_read_bio_X509(cert, ICE_NULLPTR, ICE_NULLPTR, ICE_NULLPTR);
-    if(x == ICE_NULLPTR)
+    x509_st* x = PEM_read_bio_X509(cert, nullptr, nullptr, nullptr);
+    if(x == nullptr)
     {
         BIO_free(cert);
         throw CertificateEncodingException(__FILE__, __LINE__, getSslErrors(false));
     }
     BIO_free(cert);
-    return ICE_MAKE_SHARED(OpenSSLCertificateI, x);
+    return std::make_shared<OpenSSLCertificateI>(x);
 }

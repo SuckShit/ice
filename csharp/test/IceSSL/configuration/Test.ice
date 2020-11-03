@@ -4,7 +4,9 @@
 
 #pragma once
 
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::IceSSL::Test::Configuration
 {
 
 interface Server
@@ -18,7 +20,7 @@ dictionary<string, string> Properties;
 
 interface ServerFactory
 {
-    Server* createServer(Properties props);
+    Server* createServer(Properties properties, bool requireClientCertificate);
     void destroyServer(Server* srv);
     void shutdown();
 }

@@ -1,21 +1,11 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Inheritance
 {
-    namespace inheritance
+    public sealed class A : MA.IA
     {
-        public sealed class IAI : Test.MA.IADisp_
-        {
-            public IAI()
-            {
-            }
-
-            public override Test.MA.IAPrx iaop(Test.MA.IAPrx p, Ice.Current current)
-            {
-                return p;
-            }
-        }
+        public MA.IAPrx? Iaop(MA.IAPrx? p, Current current, CancellationToken cancel) => p;
     }
 }

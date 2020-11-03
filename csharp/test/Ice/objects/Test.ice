@@ -4,10 +4,26 @@
 
 #pragma once
 
-[["cs:typeid-namespace:Ice.objects.TypeId", "suppress-warning:deprecated"]] // For classes with operations
-["cs:namespace:Ice.objects"]
-module Test
+[[3.7]]
+[[suppress-warning(reserved-identifier)]]
+
+#include <Ice/Identity.ice>
+
+module ZeroC::Ice::Test::Objects
 {
+
+class IdentityWrapper
+{
+    Ice::Identity myId;
+    string s = "";
+    int n;
+}
+
+class DerivedIdentityWrapper : IdentityWrapper
+{
+    string s2;
+    int n2;
+}
 
 struct S
 {
@@ -20,11 +36,6 @@ class Base
     string str;
 }
 
-class AbstractBase extends Base
-{
-    void op();
-}
-
 class B;
 class C;
 
@@ -32,12 +43,9 @@ class A
 {
     B theB;
     C theC;
-
-    bool preMarshalInvoked;
-    bool postUnmarshalInvoked;
 }
 
-class B extends A
+class B : A
 {
     A theA;
 }
@@ -45,9 +53,6 @@ class B extends A
 class C
 {
     B theB;
-
-    bool preMarshalInvoked;
-    bool postUnmarshalInvoked;
 }
 
 class D
@@ -55,37 +60,10 @@ class D
     A theA;
     B theB;
     C theC;
-
-    bool preMarshalInvoked;
-    bool postUnmarshalInvoked;
-}
-
-["protected"] class E
-{
-    int i;
-    string s;
-}
-
-class F
-{
-    ["protected"] E e1;
-    E e2;
 }
 
 // Exercise empty class with non-empty base
-class G extends Base
-{
-}
-
-interface I
-{
-}
-
-interface J extends I
-{
-}
-
-class H implements I
+class G : Base
 {
 }
 
@@ -99,7 +77,7 @@ class Compact(1)
 
 const int CompactExtId = 789;
 
-class CompactExt(CompactExtId) extends Compact
+class CompactExt(CompactExtId) : Compact
 {
 }
 
@@ -108,7 +86,7 @@ module Inner
 
 class A
 {
-    ::Test::A theA;
+    ZeroC::Ice::Test::Objects::A theA;
 }
 
 exception Ex
@@ -121,7 +99,7 @@ module Sub
 
 class A
 {
-    ::Test::Inner::A theA;
+    ZeroC::Ice::Test::Objects::Inner::A theA;
 }
 
 exception Ex
@@ -144,7 +122,7 @@ class B1
     A1 a2;
 }
 
-class D1 extends B1
+class D1 : B1
 {
     A1 a3;
     A1 a4;
@@ -156,7 +134,7 @@ exception EBase
     A1 a2;
 }
 
-exception EDerived extends EBase
+exception EDerived : EBase
 {
     A1 a3;
     A1 a4;
@@ -169,7 +147,7 @@ class Recursive
 
 class K
 {
-    Value value;
+    AnyClass? value;
 }
 
 class L
@@ -177,8 +155,8 @@ class L
     string data;
 }
 
-sequence<Value> ValueSeq;
-dictionary<string, Value> ValueMap;
+sequence<AnyClass?> ClassSeq;
+dictionary<string, AnyClass?> ClassMap;
 
 struct StructKey
 {
@@ -210,48 +188,41 @@ interface Initial
     B getB2();
     C getC();
     D getD();
-    E getE();
-    F getF();
 
     void setRecursive(Recursive p);
     bool supportsClassGraphDepthMax();
 
-    ["marshaled-result"] B getMB();
-    ["amd", "marshaled-result"] B getAMDMB();
+    [marshaled-result] B getMB();
+    [amd] [marshaled-result] B getAMDMB();
 
-    void getAll(out B b1, out B b2, out C theC, out D theD);
-
-    I getH();
-    I getI();
-    I getJ();
+    (B r1, B r2, C r3, D r4) getAll();
 
     K getK();
 
-    Value opValue(Value v1, out Value v2);
-    ValueSeq opValueSeq(ValueSeq v1, out ValueSeq v2);
-    ValueMap opValueMap(ValueMap v1, out ValueMap v2);
+    (AnyClass? r1, AnyClass? r2) opClass(AnyClass? v1);
+    (ClassSeq r1, ClassSeq r2) opClassSeq(ClassSeq v1);
+    (ClassMap r1, ClassMap r2) opClassMap(ClassMap v1);
 
     D1 getD1(D1 d1);
-    void throwEDerived() throws EDerived;
+    void throwEDerived();
 
     void setG(G theG);
-    void setI(I theI);
 
-    BaseSeq opBaseSeq(BaseSeq inSeq, out BaseSeq outSeq);
+    (BaseSeq r1, BaseSeq r2) opBaseSeq(BaseSeq inSeq);
 
     Compact getCompact();
 
     Inner::A getInnerA();
     Inner::Sub::A getInnerSubA();
 
-    void throwInnerEx() throws Inner::Ex;
-    void throwInnerSubEx() throws Inner::Sub::Ex;
+    void throwInnerEx();
+    void throwInnerSubEx();
 
-    M opM(M v1, out M v2);
+    (M r1, M r2) opM(M v1);
 
-    F1 opF1(F1 f11, out F1 f12);
-    F2* opF2(F2* f21, out F2* f22);
-    F3 opF3(F3 f31, out F3 f32);
+    (F1 r1, F1 r2) opF1(F1 f11);
+    (F2* r1, F2* r2) opF2(F2* f21);
+    (F3 r1, F3 r2) opF3(F3 f31);
     bool hasF3();
 }
 
@@ -270,15 +241,15 @@ interface UnexpectedObjectExceptionTest
 
 class IBase
 {
-    string id;
+    string id = "";
 }
 
-class IDerived extends IBase
+class IDerived : IBase
 {
-    string name;
+    string name = "";
 }
 
-class IDerived2 extends IBase
+class IDerived2 : IBase
 {
 }
 
@@ -289,12 +260,6 @@ class I2
 struct S1
 {
     int id;
-}
-
-["cs:class"]
-struct SC1
-{
-    string id;
 }
 
 //

@@ -6,11 +6,9 @@
 
 #include <DoubleModuleWithPackage.ice>
 
-[["java:package:dmwp"]]
+[[java:package(dmwp)]]
 
-module M1
-{
-module M2
+module M1::M2
 {
 
 const dmwpEnum dmwpTest10Constant = dmwpE1;
@@ -29,9 +27,9 @@ sequence<dmwpStruct> dmwpTest10StructSeq;
 
 dictionary<dmwpStruct, dmwpBaseClass> dmwpTest10StructClassSeq;
 
-interface dmwpTest10Interface extends dmwpInterface {}
+interface dmwpTest10Interface : dmwpInterface {}
 
-exception dmwpTest10Exception extends dmwpException
+exception dmwpTest10Exception : dmwpException
 {
     dmwpEnum e1;
     dmwpStruct s1;
@@ -41,7 +39,7 @@ exception dmwpTest10Exception extends dmwpException
     dmwpInterface i1;
 }
 
-class dmwpTest10Class extends dmwpBaseClass implements dmwpBaseInterface
+class dmwpTest10Class : dmwpBaseClass implements dmwpBaseInterface
 {
     dmwpStruct
     dmwpTest10Op1(dmwpEnum i1,
@@ -58,7 +56,7 @@ class dmwpTest10Class extends dmwpBaseClass implements dmwpBaseInterface
                   out dmwpClass o6)
         throws dmwpException;
 
-    ["amd"]
+    [amd]
     dmwpStruct
     dmwpTest10Op3(dmwpEnum i1,
                   dmwpStruct i2,
@@ -75,5 +73,4 @@ class dmwpTest10Class extends dmwpBaseClass implements dmwpBaseInterface
         throws dmwpException;
 }
 
-}
 }

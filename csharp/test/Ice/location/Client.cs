@@ -1,29 +1,21 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public class Client : TestHelper
     {
-        public class Client : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                Ice.Properties properties = createTestProperties(ref args);
-                properties.setProperty("Ice.Default.Locator", "locator:" + getTestEndpoint(properties, 0));
-                using(var communicator = initialize(properties))
-                {
-                    AllTests.allTests(this);
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Client>(args);
-            }
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.Default.Locator"] = GetTestProxy("locator", properties, 0);
+            await using Communicator communicator = Initialize(properties);
+            AllTests.Run(this);
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

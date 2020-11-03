@@ -1,82 +1,55 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System.Collections.Generic;
+using System.Threading;
 
-namespace Ice
+namespace ZeroC.Ice.Test.DictMapping
 {
-    namespace dictMapping
+    public sealed class MyClass : IMyClass
     {
-        public sealed class MyClassI : Test.MyClassDisp_
-        {
-            public override void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
 
-            public override Dictionary<int, int> opNV(Dictionary<int, int> i, out Dictionary<int, int> o,
-                                                      Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<int, int>, IReadOnlyDictionary<int, int>) OpNV(
+            Dictionary<int, int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, string> opNR(Dictionary<string, string> i, out Dictionary<string, string> o,
-                                                            Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, string>, IReadOnlyDictionary<string, string>) OpNR(
+            Dictionary<string, string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, Dictionary<int, int>> opNDV(Dictionary<string, Dictionary<int, int>> i,
-                                                                           out Dictionary<string, Dictionary<int, int>> o,
-                                                                           Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, Dictionary<int, int>>,
+                IReadOnlyDictionary<string, Dictionary<int, int>>) OpNDV(
+            Dictionary<string, Dictionary<int, int>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, Dictionary<string, string>> opNDR(Dictionary<
-                                                                       string, Dictionary<string, string>> i,
-                                                                       out Dictionary<string, Dictionary<string, string>> o,
-                                                                       Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, Dictionary<string, string>>,
+                IReadOnlyDictionary<string, Dictionary<string, string>>) OpNDR(
+            Dictionary<string, Dictionary<string, string>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, int[]> opNDAIS(Dictionary<string, int[]> i,
-                                                              out Dictionary<string, int[]> o,
-                                                              Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, int[]>, IReadOnlyDictionary<string, int[]>) OpNDAIS(
+            Dictionary<string, int[]> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, List<int>> opNDGIS(Dictionary<string, List<int>> i,
-                                                                  out Dictionary<string, List<int>> o,
-                                                                  Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, List<int>>, IReadOnlyDictionary<string, List<int>>) OpNDGIS(
+            Dictionary<string, List<int>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, string[]> opNDASS(Dictionary<string, string[]> i,
-                                                                 out Dictionary<string, string[]> o,
-                                                                 Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
+        public (IReadOnlyDictionary<string, string[]>, IReadOnlyDictionary<string, string[]>) OpNDASS(
+            Dictionary<string, string[]> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
 
-            public override Dictionary<string, List<string>> opNDGSS(Dictionary<string, List<string>> i,
-                                                                     out Dictionary<string, List<string>> o,
-                                                                     Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-        }
+        public (IReadOnlyDictionary<string, List<string>>, IReadOnlyDictionary<string, List<string>>) OpNDGSS(
+            Dictionary<string, List<string>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
     }
 }

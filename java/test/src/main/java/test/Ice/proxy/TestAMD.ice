@@ -4,20 +4,20 @@
 
 #pragma once
 
-#include<Ice/Current.ice>
+#include<Ice/Context.ice>
 
-[["java:package:test.Ice.proxy.AMD"]]
+[[java:package(test.Ice.proxy.AMD)]]
 module Test
 {
 
-["amd"] interface MyClass
+[amd] interface MyClass
 {
     void shutdown();
 
     Ice::Context getContext();
 }
 
-["amd"] interface MyDerivedClass extends MyClass
+[amd] interface MyDerivedClass : MyClass
 {
     Object* echo(Object* obj);
 }

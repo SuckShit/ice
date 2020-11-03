@@ -37,7 +37,6 @@
 #include <Ice/LoggerAdminI.h>
 #include <Ice/RegisterPluginsInit.h>
 #include <Ice/ObserverHelper.h>
-#include <Ice/Functional.h>
 #include <Ice/ConsoleUtil.h>
 
 #include <IceUtil/DisableWarnings.h>
@@ -46,7 +45,6 @@
 #include <Ice/UUID.h>
 #include <IceUtil/Mutex.h>
 #include <IceUtil/MutexPtrLock.h>
-#include <IceUtil/Atomic.h>
 
 #include <stdio.h>
 #include <list>
@@ -217,7 +215,7 @@ private:
     // TODO: Replace by std::atomic<bool> when it becomes widely
     // available.
     //
-    IceUtilInternal::Atomic _hasObserver;
+    std::atomic<int> _hasObserver;
     ObserverHelperT<Ice::Instrumentation::ThreadObserver> _observer;
 };
 
@@ -230,7 +228,7 @@ Timer::updateObserver(const Ice::Instrumentation::CommunicatorObserverPtr& obsv)
     assert(obsv);
     _observer.attach(obsv->getThreadObserver("Communicator",
                                             "Ice.Timer",
-                                            Instrumentation::ICE_ENUM(ThreadState, ThreadStateIdle),
+                                            Instrumentation::ThreadState::ThreadStateIdle,
                                             _observer.get()));
     _hasObserver.exchange(_observer.get() ? 1 : 0);
 }
@@ -247,8 +245,8 @@ Timer::runTimerTask(const IceUtil::TimerTaskPtr& task)
         }
         if(threadObserver)
         {
-            threadObserver->stateChanged(Instrumentation::ICE_ENUM(ThreadState, ThreadStateIdle),
-                                         Instrumentation::ICE_ENUM(ThreadState, ThreadStateInUseForOther));
+            threadObserver->stateChanged(Instrumentation::ThreadState::ThreadStateIdle,
+                                         Instrumentation::ThreadState::ThreadStateInUseForOther);
         }
         try
         {
@@ -258,14 +256,14 @@ Timer::runTimerTask(const IceUtil::TimerTaskPtr& task)
         {
             if(threadObserver)
             {
-                threadObserver->stateChanged(Instrumentation::ICE_ENUM(ThreadState, ThreadStateInUseForOther),
-                                             Instrumentation::ICE_ENUM(ThreadState, ThreadStateIdle));
+                threadObserver->stateChanged(Instrumentation::ThreadState::ThreadStateInUseForOther,
+                                             Instrumentation::ThreadState::ThreadStateIdle);
             }
         }
         if(threadObserver)
         {
-            threadObserver->stateChanged(Instrumentation::ICE_ENUM(ThreadState, ThreadStateInUseForOther),
-                                         Instrumentation::ICE_ENUM(ThreadState, ThreadStateIdle));
+            threadObserver->stateChanged(Instrumentation::ThreadState::ThreadStateInUseForOther,
+                                         Instrumentation::ThreadState::ThreadStateIdle);
         }
     }
     else
@@ -917,23 +915,12 @@ IceInternal::Instance::setLogger(const Ice::LoggerPtr& logger)
     _initData.logger = logger;
 }
 
-#ifdef ICE_CPP11_MAPPING
 void
 IceInternal::Instance::setThreadHook(function<void()> threadStart, function<void()> threadStop)
 {
     _initData.threadStart = move(threadStart);
     _initData.threadStop = move(threadStop);
 }
-#else
-void
-IceInternal::Instance::setThreadHook(const Ice::ThreadNotificationPtr& threadHook)
-{
-    //
-    // No locking, as it can only be called during plug-in loading
-    //
-    _initData.threadHook = threadHook;
-}
-#endif
 
 namespace
 {
@@ -949,7 +936,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
     _batchAutoFlushSize(0),
     _classGraphDepthMax(0),
     _collectObjects(false),
-    _toStringMode(ICE_ENUM(ToStringMode, Unicode)),
+    _toStringMode(ToStringMode::Unicode),
     _implicitContext(0),
     _stringConverter(Ice::getProcessStringConverter()),
     _wstringConverter(Ice::getProcessWstringConverter()),
@@ -1053,7 +1040,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
 
             if(instanceCount() == 1)
             {
-#if defined(_WIN32) && !defined(ICE_OS_UWP)
+#if defined(_WIN32)
                 WORD version = MAKEWORD(1, 1);
                 WSADATA data;
                 if(WSAStartup(version, &data) != 0)
@@ -1096,7 +1083,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
                     throw InitializationException(__FILE__, __LINE__, "Both syslog and file logger cannot be enabled.");
                 }
 
-                _initData.logger = ICE_MAKE_SHARED(SysLoggerI,
+                _initData.logger = std::make_shared<SysLoggerI>(
                                                    _initData.properties->getProperty("Ice.ProgramName"),
                                                    _initData.properties->getPropertyWithDefault("Ice.SyslogFacility", "LOG_USER"));
             }
@@ -1106,7 +1093,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
 #ifdef ICE_SWIFT
             if(!_initData.logger && _initData.properties->getPropertyAsInt("Ice.UseOSLog") > 0)
             {
-                _initData.logger = ICE_MAKE_SHARED(OSLogLoggerI,
+                _initData.logger = std::make_shared<OSLogLoggerI>(
                                                    _initData.properties->getProperty("Ice.ProgramName"));
             }
             else
@@ -1115,7 +1102,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
 #ifdef ICE_USE_SYSTEMD
             if(_initData.properties->getPropertyAsInt("Ice.UseSystemdJournal") > 0)
             {
-                _initData.logger = ICE_MAKE_SHARED(SystemdJournalI,
+                _initData.logger = std::make_shared<SystemdJournalI>(
                                                    _initData.properties->getProperty("Ice.ProgramName"));
             }
             else
@@ -1127,7 +1114,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
                 {
                     sz = 0;
                 }
-                _initData.logger = ICE_MAKE_SHARED(LoggerI, _initData.properties->getProperty("Ice.ProgramName"),
+                _initData.logger = std::make_shared<LoggerI>(_initData.properties->getProperty("Ice.ProgramName"),
                                                    logfile, true, static_cast<size_t>(sz));
             }
             else
@@ -1135,7 +1122,7 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
                 _initData.logger = getProcessLogger();
                 if(ICE_DYNAMIC_CAST(LoggerI, _initData.logger))
                 {
-                    _initData.logger = ICE_MAKE_SHARED(LoggerI, _initData.properties->getProperty("Ice.ProgramName"), "", logStdErrConvert);
+                    _initData.logger = std::make_shared<LoggerI>(_initData.properties->getProperty("Ice.ProgramName"), "", logStdErrConvert);
                 }
             }
         }
@@ -1216,11 +1203,11 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
         string toStringModeStr = _initData.properties->getPropertyWithDefault("Ice.ToStringMode", "Unicode");
         if(toStringModeStr == "ASCII")
         {
-            const_cast<ToStringMode&>(_toStringMode) = ICE_ENUM(ToStringMode, ASCII);
+            const_cast<ToStringMode&>(_toStringMode) = ToStringMode::ASCII;
         }
         else if(toStringModeStr == "Compat")
         {
-            const_cast<ToStringMode&>(_toStringMode) = ICE_ENUM(ToStringMode, Compat);
+            const_cast<ToStringMode&>(_toStringMode) = ToStringMode::Compat;
         }
         else if(toStringModeStr != "Unicode")
         {
@@ -1267,18 +1254,18 @@ IceInternal::Instance::Instance(const CommunicatorPtr& communicator, const Initi
 
         _dynamicLibraryList = new DynamicLibraryList;
 
-        _pluginManager = ICE_MAKE_SHARED(PluginManagerI, communicator, _dynamicLibraryList);
+        _pluginManager = std::make_shared<PluginManagerI>(communicator, _dynamicLibraryList);
 
         if(!_initData.valueFactoryManager)
         {
-            _initData.valueFactoryManager = ICE_MAKE_SHARED(ValueFactoryManagerI);
+            _initData.valueFactoryManager = std::make_shared<ValueFactoryManagerI>();
         }
 
         _objectFactoryMapHint = _objectFactoryMap.end();
 
         _outgoingConnectionFactory = new OutgoingConnectionFactory(communicator, this);
 
-        _objectAdapterFactory = ICE_MAKE_SHARED(ObjectAdapterFactory, this, communicator);
+        _objectAdapterFactory = std::make_shared<ObjectAdapterFactory>(this, communicator);
 
         _retryQueue = new RetryQueue(this);
 
@@ -1322,7 +1309,7 @@ IceInternal::Instance::~Instance()
     }
     if(instanceCount() == 0)
     {
-#if defined(_WIN32) && !defined(ICE_OS_UWP)
+#if defined(_WIN32)
         WSACleanup();
 #endif
 
@@ -1391,7 +1378,7 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
         const string processFacetName = "Process";
         if(_adminFacetFilter.empty() || _adminFacetFilter.find(processFacetName) != _adminFacetFilter.end())
         {
-            _adminFacets.insert(make_pair(processFacetName, ICE_MAKE_SHARED(ProcessI, communicator)));
+            _adminFacets.insert(make_pair(processFacetName, std::make_shared<ProcessI>(communicator)));
         }
 
         //
@@ -1412,7 +1399,7 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
         PropertiesAdminIPtr propsAdmin;
         if(_adminFacetFilter.empty() || _adminFacetFilter.find(propertiesFacetName) != _adminFacetFilter.end())
         {
-            propsAdmin = ICE_MAKE_SHARED(PropertiesAdminI, this);
+            propsAdmin = std::make_shared<PropertiesAdminI>(this);
             _adminFacets.insert(make_pair(propertiesFacetName, propsAdmin));
         }
 
@@ -1422,7 +1409,7 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
         const string metricsFacetName = "Metrics";
         if(_adminFacetFilter.empty() || _adminFacetFilter.find(metricsFacetName) != _adminFacetFilter.end())
         {
-            CommunicatorObserverIPtr observer = ICE_MAKE_SHARED(CommunicatorObserverI, _initData);
+            CommunicatorObserverIPtr observer = std::make_shared<CommunicatorObserverI>(_initData);
             _initData.observer = observer;
             _adminFacets.insert(make_pair(metricsFacetName, observer->getFacet()));
 
@@ -1431,13 +1418,9 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
             //
             if(propsAdmin)
             {
-#ifdef ICE_CPP11_MAPPING
                 auto metricsAdmin = observer->getFacet();
                 propsAdmin->addUpdateCallback(
                     [metricsAdmin](const PropertyDict& changes) { metricsAdmin->updated(changes); });
-#else
-                propsAdmin->addUpdateCallback(observer->getFacet());
-#endif
             }
         }
     }
@@ -1447,7 +1430,7 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
     //
     if(_initData.observer)
     {
-        _initData.observer->setObserverUpdater(ICE_MAKE_SHARED(ObserverUpdaterI, this));
+        _initData.observer->setObserverUpdater(std::make_shared<ObserverUpdaterI>(this));
     }
 
     //
@@ -1476,7 +1459,6 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
     try
     {
         _endpointHostResolver = new EndpointHostResolver(this);
-#ifndef ICE_OS_UWP
         bool hasPriority = _initData.properties->getProperty("Ice.ThreadPriority") != "";
         int priority = _initData.properties->getPropertyAsInt("Ice.ThreadPriority");
         if(hasPriority)
@@ -1487,7 +1469,6 @@ IceInternal::Instance::finishSetup(int& argc, const char* argv[], const Ice::Com
         {
             _endpointHostResolver->start();
         }
-#endif
     }
     catch(const IceUtil::Exception& ex)
     {
@@ -1680,22 +1661,15 @@ IceInternal::Instance::destroy()
     {
         _serverThreadPool->joinWithAllThreads();
     }
-#ifndef ICE_OS_UWP
     if(_endpointHostResolver)
     {
         _endpointHostResolver->getThreadControl().join();
     }
-#endif
 
-#ifdef ICE_CPP11_COMPILER
     for(const auto& p : _objectFactoryMap)
     {
         p.second->destroy();
     }
-#else
-    for_each(_objectFactoryMap.begin(), _objectFactoryMap.end(),
-        Ice::secondVoidMemFun<const string, ObjectFactory>(&ObjectFactory::destroy));
-#endif
     _objectFactoryMap.clear();
 
     if(_routerManager)
@@ -1867,33 +1841,11 @@ IceInternal::Instance::addObjectFactory(const Ice::ObjectFactoryPtr& factory, co
     // Create a ValueFactory wrapper around the given ObjectFactory and register the wrapper
     // with the value factory manager. This may raise AlreadyRegisteredException.
     //
-#ifdef ICE_CPP11_MAPPING
     _initData.valueFactoryManager->add([factory](const string& ident)
                                        {
                                            return factory->create(ident);
                                        },
                                        id);
-#else
-    class ValueFactoryWrapper: public Ice::ValueFactory
-    {
-    public:
-
-        ValueFactoryWrapper(const Ice::ObjectFactoryPtr& factory) :  _objectFactory(factory)
-        {
-        }
-
-        Ice::ValuePtr create(const std::string& id)
-        {
-            return _objectFactory->create(id);
-        }
-
-    private:
-
-        Ice::ObjectFactoryPtr _objectFactory;
-    };
-
-    _initData.valueFactoryManager->add(new ValueFactoryWrapper(factory), id);
-#endif
 
     //
     // Also record the object factory in our own map.
@@ -1930,7 +1882,7 @@ IceInternal::Instance::findObjectFactory(const string& id) const
     }
     else
     {
-        return ICE_NULLPTR;
+        return nullptr;
     }
 }
 
@@ -1946,11 +1898,7 @@ IceInternal::ProcessI::shutdown(const Current&)
 }
 
 void
-#ifdef ICE_CPP11_MAPPING
 IceInternal::ProcessI::writeMessage(string message, Int fd, const Current&)
-#else
-IceInternal::ProcessI::writeMessage(const string& message, Int fd, const Current&)
-#endif
 {
     switch(fd)
     {

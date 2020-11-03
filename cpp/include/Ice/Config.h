@@ -17,16 +17,14 @@
 #include <vector>
 #include <map>
 
-#ifndef ICE_OS_UWP
-#   if defined(_WIN32)
-#      include <process.h>
-#   else
-#      include <sys/types.h>
-#      include <cstddef>
-#   endif
+#if defined(_WIN32)
+#   include <process.h>
+#else
+#   include <sys/types.h>
+#   include <cstddef>
 #endif
 
-#ifdef ICE_SWIFT
+#ifdef __APPLE__
 #   include <dispatch/dispatch.h>
 #endif
 
@@ -54,13 +52,8 @@ typedef unsigned char Byte;
 typedef short Short;
 /** The mapping for the Slice int type. */
 typedef int Int;
-#ifdef ICE_CPP11_MAPPING
 /** The mapping for the Slice long type. */
 typedef long long int Long;
-#else
-/** The mapping for the Slice long type. */
-typedef IceUtil::Int64 Long;
-#endif
 /** The mapping for the Slice float type. */
 typedef float Float;
 /** The mapping for the Slice double type. */

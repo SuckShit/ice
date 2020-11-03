@@ -5,10 +5,11 @@
 #ifndef TEST_ICE
 #define TEST_ICE
 
-#include <Ice/Properties.ice>
+#include <Ice/PropertiesAdmin.ice>
 
-[["java:package:test.IceBox.admin"]]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::IceBox::Test::Admin
 {
 
 interface TestFacet

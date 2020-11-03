@@ -24,9 +24,6 @@ namespace IceInternal
 {
 
 class ICE_API EndpointI_connectors
-#ifndef ICE_CPP11_MAPPING
-    : public virtual IceUtil::Shared
-#endif
 {
 public:
 
@@ -147,10 +144,6 @@ public:
     //
     // Compare endpoints for sorting purposes.
     //
-#ifndef ICE_CPP11_MAPPING
-    virtual bool operator==(const Ice::LocalObject&) const = 0;
-    virtual bool operator<(const Ice::LocalObject&) const = 0;
-#endif
 
     virtual ::Ice::Int hash() const = 0;
 
@@ -159,7 +152,7 @@ public:
     //
     virtual std::string options() const = 0;
 
-    virtual std::string toString() const ICE_NOEXCEPT;
+    virtual std::string toString() const noexcept;
     void initWithOptions(std::vector<std::string>&);
 
 protected:
@@ -167,18 +160,6 @@ protected:
     virtual bool checkOption(const std::string&, const std::string&, const std::string&);
 
 };
-
-#ifndef ICE_CPP11_MAPPING
-inline bool operator==(const EndpointI& l, const EndpointI& r)
-{
-    return static_cast<const ::Ice::LocalObject&>(l) == static_cast<const ::Ice::LocalObject&>(r);
-}
-
-inline bool operator<(const EndpointI& l, const EndpointI& r)
-{
-    return static_cast<const ::Ice::LocalObject&>(l) < static_cast<const ::Ice::LocalObject&>(r);
-}
-#endif
 
 template<typename T> class InfoI : public T
 {
@@ -191,19 +172,19 @@ public:
     }
 
     virtual Ice::Short
-    type() const ICE_NOEXCEPT
+    type() const noexcept
     {
         return _endpoint->type();
     }
 
     virtual bool
-    datagram() const ICE_NOEXCEPT
+    datagram() const noexcept
     {
         return _endpoint->datagram();
     }
 
     virtual bool
-    secure() const ICE_NOEXCEPT
+    secure() const noexcept
     {
         return _endpoint->secure();
     }

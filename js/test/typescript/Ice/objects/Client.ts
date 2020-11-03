@@ -73,10 +73,6 @@ class FI extends Test.F
     }
 }
 
-class HI extends Test.H
-{
-}
-
 class II extends Ice.InterfaceByValue
 {
     constructor()
@@ -111,8 +107,6 @@ function MyValueFactory(type:string):Ice.Value
             return new II();
         case "::Test::J":
             return new JI();
-        case "::Test::H":
-            return new HI();
         case "::Test::Inner::A":
             return new Test.Inner.A();
         case "::Test::Inner::Sub::A":
@@ -121,19 +115,6 @@ function MyValueFactory(type:string):Ice.Value
             break;
     }
     return null;
-}
-
-class MyObjectFactory implements Ice.ObjectFactory
-{
-
-    create(type:string):Ice.Value
-    {
-        return null;
-    }
-
-    destroy()
-    {
-    }
 }
 
 export class Client extends TestHelper
@@ -150,11 +131,8 @@ export class Client extends TestHelper
         communicator.getValueFactoryManager().add(MyValueFactory, "::Test::F");
         communicator.getValueFactoryManager().add(MyValueFactory, "::Test::I");
         communicator.getValueFactoryManager().add(MyValueFactory, "::Test::J");
-        communicator.getValueFactoryManager().add(MyValueFactory, "::Test::H");
         communicator.getValueFactoryManager().add(MyValueFactory, "::Test::Inner::A");
         communicator.getValueFactoryManager().add(MyValueFactory, "::Test::Inner::Sub::A");
-
-        communicator.addObjectFactory(new MyObjectFactory(), "TestOF");
 
         out.write("testing stringToProxy... ");
         let ref = "initial:" + this.getTestEndpoint();
@@ -252,15 +230,6 @@ export class Client extends TestHelper
         test((f.e2 as EI).checkValues());
         out.writeLine("ok");
 
-        out.write("getting I, J and H... ");
-        const i = await initial.getI();
-        test(i !== null);
-        const j = await initial.getJ();
-        test(j !== null);
-        const h = await initial.getH();
-        test(h !== null);
-        out.writeLine("ok");
-
         out.write("getting K...");
         const k = await initial.getK();
         test(k !== null);
@@ -270,19 +239,19 @@ export class Client extends TestHelper
         out.write("test Value as parameter...");
         {
             {
-                let [v1, v2] = await initial.opValue(new Test.L("l"));
+                let [v1, v2] = await initial.opClass(new Test.L("l"));
                 test((v1 as Test.L).data == "l");
                 test((v2 as Test.L).data == "l");
             }
 
             {
-                let [v1, v2] = await initial.opValueSeq([new Test.L("l")]);
+                let [v1, v2] = await initial.opClassSeq([new Test.L("l")]);
                 test((v1[0] as Test.L).data == "l");
                 test((v2[0] as Test.L).data == "l");
             }
 
             {
-                let [v1, v2] = await initial.opValueMap(new Map([["l", new Test.L("l")]]));
+                let [v1, v2] = await initial.opClassMap(new Map([["l", new Test.L("l")]]));
                 test((v1.get("l") as Test.L).data == "l");
                 test((v2.get("l") as Test.L).data == "l");
             }
@@ -326,12 +295,6 @@ export class Client extends TestHelper
         {
             test(ex instanceof Ice.OperationNotExistException, ex);
         }
-        out.writeLine("ok");
-
-        out.write("setting I... ");
-        await initial.setI(i);
-        await initial.setI(j);
-        await initial.setI(h);
         out.writeLine("ok");
 
         out.write("testing sequences... ");
@@ -441,10 +404,6 @@ export class Client extends TestHelper
             test(ex instanceof Test.Inner.Sub.Ex, ex);
             test(ex.reason == "Inner::Sub::Ex");
         }
-        out.writeLine("ok");
-
-        out.write("testing getting ObjectFactory... ");
-        test(communicator.findObjectFactory("TestOF") !== null);
         out.writeLine("ok");
 
         out.write("testing getting ObjectFactory as ValueFactory... ");

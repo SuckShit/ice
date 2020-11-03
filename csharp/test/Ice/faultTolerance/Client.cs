@@ -1,37 +1,28 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.FaultTolerance
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.Warn.Connections", "0");
-        using(var communicator = initialize(properties))
+        public override async Task RunAsync(string[] args)
         {
-            List<int> ports = args.Select(v => Int32.Parse(v)).ToList();
-            if(ports.Count == 0)
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Connections"] = "0";
+            await using Communicator communicator = Initialize(properties);
+            var ports = args.Select(v => int.Parse(v)).ToList();
+            if (ports.Count == 0)
             {
                 throw new ArgumentException("Client: no ports specified");
             }
-            AllTests.allTests(this, ports);
+            AllTests.Run(this, ports);
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

@@ -4,6 +4,8 @@
 
 #pragma once
 
+[[3.7]]
+
 #include <Ice/BuiltinSequences.ice>
 
 module Test
@@ -16,10 +18,10 @@ enum MyEnum
     enum3
 }
 
-interface MyInterface;
 class MyClass;
+interface MyInterface;
 
-["cpp:comparable"] struct SmallStruct
+struct SmallStruct
 {
     bool bo;
     byte by;
@@ -33,17 +35,12 @@ class MyClass;
     MyInterface* p;
 }
 
-["cpp:class"] struct ClassStruct
-{
-    int i;
-}
-
 class OptionalClass
 {
     bool bo;
     byte by;
-    optional(1) short sh;
-    optional(2) int i;
+    tag(1) short? sh;
+    tag(2) int? i;
 }
 
 sequence<MyEnum> MyEnumS;
@@ -86,13 +83,13 @@ class MyClass
     StringMyClassD d;
 }
 
-interface MyInterface
-{
-}
-
 exception MyException
 {
     MyClass c;
+}
+
+interface MyInterface
+{
 }
 
 module Sub
@@ -104,7 +101,7 @@ module Sub
         nestedEnum3
     }
 
-    ["cpp:comparable"] struct NestedStruct
+    struct NestedStruct
     {
         bool bo;
         byte by;
@@ -117,11 +114,6 @@ module Sub
         NestedEnum e;
     }
 
-    ["cpp:class"] struct NestedClassStruct
-    {
-        int i;
-    }
-
     exception NestedException
     {
         string str;
@@ -129,9 +121,7 @@ module Sub
 }
 }
 
-module Test2
-{
-module Sub2
+module Test2::Sub2
 {
     enum NestedEnum2
     {
@@ -140,7 +130,7 @@ module Sub2
         nestedEnum6
     }
 
-    ["cpp:comparable"] struct NestedStruct2
+    struct NestedStruct2
     {
         bool bo;
         byte by;
@@ -153,14 +143,8 @@ module Sub2
         NestedEnum2 e;
     }
 
-    ["cpp:class"] struct NestedClassStruct2
-    {
-        int i;
-    }
-
     exception NestedException2
     {
         string str;
     }
-}
 }

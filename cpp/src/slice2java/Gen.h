@@ -6,8 +6,7 @@
 #define GEN_H
 
 #include <Slice/Parser.h>
-#include <Slice/JavaUtil.h>
-#include <Slice/Checksum.h>
+#include "JavaUtil.h"
 
 namespace Slice
 {
@@ -39,7 +38,7 @@ protected:
     // Compose the parameter lists for an operation.
     //
     std::vector<std::string> getParams(const OperationPtr&, const std::string&);
-    std::vector<std::string> getParamsProxy(const OperationPtr&, const std::string&, bool, bool = false);
+    std::vector<std::string> getParamsProxy(const OperationPtr&, const std::string&, bool = false);
 
     //
     // Compose the argument lists for an operation.
@@ -47,7 +46,7 @@ protected:
     std::vector<std::string> getArgs(const OperationPtr&);
     std::vector<std::string> getInArgs(const OperationPtr&, bool = false);
 
-    void writeMarshalProxyParams(::IceUtilInternal::Output&, const std::string&, const OperationPtr&, bool);
+    void writeMarshalProxyParams(::IceUtilInternal::Output&, const std::string&, const OperationPtr&);
     void writeUnmarshalProxyResults(::IceUtilInternal::Output&, const std::string&, const OperationPtr&);
     void writeMarshalServantResults(::IceUtilInternal::Output&, const std::string&, const OperationPtr&,
                                     const std::string&);
@@ -67,16 +66,16 @@ protected:
     //
     // Marshal/unmarshal a data member.
     //
-    void writeMarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&, bool = false);
-    void writeUnmarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&, bool = false);
+    void writeMarshalDataMember(::IceUtilInternal::Output&, const std::string&, const MemberPtr&, int&, bool = false);
+    void writeUnmarshalDataMember(::IceUtilInternal::Output&, const std::string&, const MemberPtr&, int&, bool = false);
 
     //
-    // Generate dispatch methods for a class or interface.
+    // Generate dispatch methods for an interface.
     //
-    void writeDispatch(::IceUtilInternal::Output&, const ClassDefPtr&);
+    void writeDispatch(::IceUtilInternal::Output&, const InterfaceDefPtr&);
 
     //
-    // Generate marshaling methods for a class or interface.
+    // Generate marshaling methods for a class.
     //
     void writeMarshaling(::IceUtilInternal::Output&, const ClassDefPtr&);
 
@@ -89,7 +88,7 @@ protected:
     //
     // Generate assignment statements for those data members that have default values.
     //
-    void writeDataMemberInitializers(::IceUtilInternal::Output&, const DataMemberList&, const std::string&);
+    void writeDataMemberInitializers(::IceUtilInternal::Output&, const MemberList&, const std::string&);
 
     //
     // Handle doc comments.
@@ -121,8 +120,6 @@ public:
     void generate(const UnitPtr&);
     void generateImpl(const UnitPtr&);
 
-    static void writeChecksumClass(const std::string&, const std::string&, const ChecksumMap&);
-
 private:
 
     std::string _base;
@@ -135,7 +132,7 @@ private:
 
         PackageVisitor(const std::string&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
+        bool visitModuleStart(const ModulePtr&) override;
     };
 
     class TypesVisitor : public JavaVisitor
@@ -144,23 +141,18 @@ private:
 
         TypesVisitor(const std::string&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitExceptionEnd(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitStructEnd(const StructPtr&);
-        virtual void visitDataMember(const DataMemberPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
-
-    private:
-
-        //
-        // Verifies that a data member method does not conflict with an operation.
-        //
-        bool validateMethod(const OperationList&, const std::string&, int, const std::string&, const std::string&);
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        void visitClassDefEnd(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitExceptionEnd(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitStructEnd(const StructPtr&) override;
+        void visitDataMember(const MemberPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
     };
 
     class CompactIdVisitor : public JavaVisitor
@@ -169,7 +161,7 @@ private:
 
         CompactIdVisitor(const std::string&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
+        bool visitClassDefStart(const ClassDefPtr&) override;
     };
 
     class HelperVisitor : public JavaVisitor
@@ -178,8 +170,8 @@ private:
 
         HelperVisitor(const std::string&);
 
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
     };
 
     class ProxyVisitor : public JavaVisitor
@@ -188,18 +180,9 @@ private:
 
         ProxyVisitor(const std::string&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitClassDefEnd(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-    };
-
-    class DispatcherVisitor : public JavaVisitor
-    {
-    public:
-
-        DispatcherVisitor(const std::string&);
-
-        virtual bool visitClassDefStart(const ClassDefPtr&);
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
     };
 
     class ImplVisitor : public JavaVisitor
@@ -208,14 +191,14 @@ private:
 
         ImplVisitor(const std::string&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
 
     protected:
 
         //
         // Returns a default value for the type.
         //
-        std::string getDefaultValue(const std::string&, const TypePtr&, bool);
+        std::string getDefaultValue(const std::string&, const TypePtr&);
 
         //
         // Generate code to initialize the operation result.
@@ -225,7 +208,7 @@ private:
         //
         // Generate an operation.
         //
-        void writeOperation(::IceUtilInternal::Output&, const std::string&, const OperationPtr&, bool);
+        void writeOperation(::IceUtilInternal::Output&, const std::string&, const OperationPtr&);
     };
 };
 

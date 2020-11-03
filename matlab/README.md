@@ -2,8 +2,8 @@
 
 This document describes how to build and install Ice for MATLAB from source.
 
-ZeroC provides Ice for MATLAB [toolboxes][1] for all recent versions of MATLAB on Windows,
-so building Ice for MATLAB from source is usually unnecessary.
+ZeroC provides Ice for MATLAB [toolboxes][1] for all recent versions of MATLAB
+on Windows, so building Ice for MATLAB from source is usually unnecessary.
 
 * [Prerequisites](#prerequisites)
 * [Build Instructions](#build-instructions)
@@ -23,7 +23,7 @@ and a Perl installation.
 
 ### Build Instructions
 
-Open a Visual Studio x64 command prompt, `VS2015 x64 Native Tools Command
+Open a Visual Studio x64 command prompt, `VS2017 x64 Native Tools Command
 Prompt`. In this Command Prompt, change to the `matlab` subdirectory:
 ```
 cd matlab
@@ -41,16 +41,17 @@ msbuild msbuild\ice.proj /p:Configuration=Debug
 
 Upon completion, a build in release mode generates the following components:
 
- - Ice for C++11 libraries, located in `cpp\bin\x64\Release`
+ - Ice for C++ libraries, located in `cpp\bin\x64\Release`
  - slice2matlab executable, located in `cpp\bin\x64\Release`
  - ice.mexw64 MEX file, located in `matlab\lib\x64\Release`
  - Prototype and thunk files, located in `matlab\lib\x64\Release`
  - MATLAB code for core Slice files, located in `matlab\lib\generated`
  - MATLAB code for test Slice files, located in `matlab\test\**\generated`
 
-The MATLAB extension depends on Ice for C++ components from the cpp subdirectory,
-and those are built if required. It is also possible to build the MATLAB extension
-using Ice C++ NuGet packages by setting the ICE_BIN_DIST msbuild property to cpp:
+The MATLAB extension depends on Ice for C++ components from the `cpp`
+subdirectory, and those are built if required. It is also possible to build the
+MATLAB extension using Ice C++ NuGet packages by setting the `ICE_BIN_DIST`
+msbuild property to `cpp`:
 
 ```
 msbuild msbuild\ice.proj /p:ICE_BIN_DIST=cpp
@@ -126,12 +127,12 @@ Replace `<addr>` with the host name or IP address of the server host.
 
 ##### Running the Automated Tests
 
-Assuming you've installed Ice for Python, run `allTests.py`:
+Assuming you've built Ice for Java, run `allTests.py`:
 ```
 python allTests.py
 ```
 
-This script automatically starts a Python server for each MATLAB client.
+This script automatically starts a Java server for each MATLAB client.
 MATLAB clients are executed using a minimized MATLAB interpreter
 and the test output is copied to the Command Prompt window.
 

@@ -74,15 +74,9 @@ usage(const string& n)
         "--source-ext EXT         Use EXT instead of the default `cpp' extension.\n"
         "--add-header HDR[,GUARD] Add #include for HDR (with guard GUARD) to generated source file.\n"
         "--include-dir DIR        Use DIR as the header include directory in source files.\n"
-        "--impl-c++11             Generate sample implementations for C++11 mapping.\n"
-        "--impl-c++98             Generate sample implementations for C++98 mapping.\n"
-        "--checksum               Generate checksums for Slice definitions.\n"
+        "--impl                   Generate sample implementations.\n"
         "--dll-export SYMBOL      Use SYMBOL for DLL exports\n"
         "                         deprecated: use instead [[\"cpp:dll-export:SYMBOL\"]] metadata.\n"
-        "--ice                    Allow reserved Ice prefix in Slice identifiers\n"
-        "                         deprecated: use instead [[\"ice-prefix\"]] metadata.\n"
-        "--underscore             Allow underscores in Slice identifiers\n"
-        "                         deprecated: use instead [[\"underscore\"]] metadata.\n"
         ;
 }
 
@@ -103,15 +97,11 @@ compile(const vector<string>& argv)
     opts.addOpt("", "include-dir", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "output-dir", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "dll-export", IceUtilInternal::Options::NeedArg);
-    opts.addOpt("", "impl-c++98");
-    opts.addOpt("", "impl-c++11");
+    opts.addOpt("", "impl");
     opts.addOpt("", "depend");
     opts.addOpt("", "depend-xml");
     opts.addOpt("", "depend-file", IceUtilInternal::Options::NeedArg, "");
     opts.addOpt("d", "debug");
-    opts.addOpt("", "ice");
-    opts.addOpt("", "underscore");
-    opts.addOpt("", "checksum");
 
     bool validate = find(argv.begin(), argv.end(), "--validate") != argv.end();
     vector<string> args;
@@ -174,9 +164,7 @@ compile(const vector<string>& argv)
 
     string dllExport = opts.optArg("dll-export");
 
-    bool implCpp98 = opts.isSet("impl-c++98");
-
-    bool implCpp11 = opts.isSet("impl-c++11");
+    bool impl = opts.isSet("impl");
 
     bool depend = opts.isSet("depend");
 
@@ -185,12 +173,6 @@ compile(const vector<string>& argv)
     string dependFile = opts.optArg("depend-file");
 
     bool debug = opts.isSet("debug");
-
-    bool ice = opts.isSet("ice");
-
-    bool underscore = opts.isSet("underscore");
-
-    bool checksum = opts.isSet("checksum");
 
     if(args.empty())
     {
@@ -205,16 +187,6 @@ compile(const vector<string>& argv)
     if(depend && dependxml)
     {
         consoleErr << argv[0] << ": error: cannot specify both --depend and --depend-xml" << endl;
-        if(!validate)
-        {
-            usage(argv[0]);
-        }
-        return EXIT_FAILURE;
-    }
-
-    if(implCpp98 && implCpp11)
-    {
-        consoleErr << argv[0] << ": error: cannot specify both --impl-c++98 and --impl-c++11" << endl;
         if(!validate)
         {
             usage(argv[0]);
@@ -259,14 +231,14 @@ compile(const vector<string>& argv)
                 return EXIT_FAILURE;
             }
 
-            UnitPtr u = Unit::createUnit(false, false, ice, underscore);
+            UnitPtr u = Unit::createUnit(false);
             int parseStatus = u->parse(*i, cppHandle, debug);
 
             string ext = headerExtension;
             static const string headerExtPrefix = "cpp:header-ext:";
             DefinitionContextPtr dc = u->findDefinitionContext(u->topLevelFile());
             assert(dc);
-            string meta = dc->findMetaData(headerExtPrefix);
+            string meta = dc->findMetadata(headerExtPrefix);
             if(meta.size() > headerExtPrefix.size())
             {
                 ext = meta.substr(headerExtPrefix.size());
@@ -303,7 +275,7 @@ compile(const vector<string>& argv)
             if(preprocess)
             {
                 char buf[4096];
-                while(fgets(buf, static_cast<int>(sizeof(buf)), cppHandle) != ICE_NULLPTR)
+                while(fgets(buf, static_cast<int>(sizeof(buf)), cppHandle) != nullptr)
                 {
                     if(fputs(buf, stdout) == EOF)
                     {
@@ -317,7 +289,7 @@ compile(const vector<string>& argv)
             }
             else
             {
-                UnitPtr u = Unit::createUnit(false, false, ice, underscore);
+                UnitPtr u = Unit::createUnit(false);
                 int parseStatus = u->parse(*i, cppHandle, debug);
 
                 if(!icecpp->close())
@@ -335,7 +307,7 @@ compile(const vector<string>& argv)
                     try
                     {
                         Gen gen(icecpp->getBaseName(), headerExtension, sourceExtension, extraHeaders, include,
-                                includePaths, dllExport, output, implCpp98, implCpp11, checksum, ice);
+                                includePaths, dllExport, output, impl);
                         gen.generate(u);
                     }
                     catch(const Slice::FileException& ex)

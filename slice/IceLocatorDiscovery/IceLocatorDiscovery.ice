@@ -1,82 +1,45 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 #pragma once
 
-[["cpp:doxygen:include:IceLocatorDiscovery/IceLocatorDiscovery.h"]]
-[["cpp:header-ext:h"]]
+// TODO: these definitions moved to Ice/LocatorDiscovery.ice. Remove this file when all languages mappings are updated.
 
-[["ice-prefix"]]
+[[cpp:doxygen:include(IceLocatorDiscovery/IceLocatorDiscovery.h)]]
+[[cpp:header-ext(h)]]
 
-[["js:module:ice"]]
+[[suppress-warning(reserved-identifier)]]
+[[js:module(ice)]]
 
-[["objc:header-dir:objc"]]
-
-[["python:pkgdir:IceLocatorDiscovery"]]
+[[python:pkgdir(IceLocatorDiscovery)]]
 
 #include <Ice/Locator.ice>
 
-#ifndef __SLICE2JAVA_COMPAT__
-[["java:package:com.zeroc"]]
-#endif
-
-/**
- * IceLocatorDiscovery is an Ice plug-in that enables the discovery of IceGrid and custom locators via
- * UDP multicast.
- **/
+/// LocatorDiscovery is an Ice plug-in that enables the discovery of IceGrid and custom locators via UDP multicast.
+/// This plug-in is usually named IceLocatorDiscovery in Ice configuration. The LocatorDiscovery plug-in implements the
+/// {@link Ice::Locator} interface to locate (or discover) locators such as the IceGrid registry or custom IceGrid-like
+/// locator implementations using UDP multicast.
+[cs:namespace(ZeroC)]
+[java:package(com.zeroc)]
 module IceLocatorDiscovery
 {
+    /// The {plug-in name}.Reply object adapter of a client application hosts a LookupReply object that processes
+    /// replies to locator discovery requests.
+    interface LookupReply
+    {
+        /// Provides a locator proxy in response to a findLocator call on a Lookup object.
+        /// @param proxy The proxy to the locator object.
+        void foundLocator(Ice::Locator proxy);
+    }
 
-/**
- *
- * The Ice lookup reply interface must be implemented by clients which
- * are searching for Ice locators. Ice locator implementations invoke
- * on this interface to provide their locator proxy.
- *
- * @see Lookup
- *
- **/
-interface LookupReply
-{
-    /**
-     *
-     * This method is called by the implementation of the Lookup
-     * interface to reply to a findLocator request.
-     *
-     * @param prx The proxy of the locator.
-     *
-     **/
-    void foundLocator(Ice::Locator* prx);
-}
-
-/**
- *
- * The Ice lookup interface is implemented by Ice locator
- * implementations and can be used by clients to find available Ice
- * locators on the network.
- *
- * Ice locator implementations provide a well-known `Ice/LocatorLookup'
- * object accessible through UDP multicast. Clients typically make a
- * multicast findLocator request to find the locator proxy.
- *
- * @see LookupReply
- *
- **/
-interface Lookup
-{
-    /**
-     *
-     * Find a locator proxy with the given instance name.
-     *
-     * @param instanceName Restrict the search to Ice registries
-     * configured with the given instance name. If empty, all the
-     * available registries will reply.
-     *
-     * @param reply The reply object to use to send the reply.
-     *
-     **/
-    idempotent void findLocator(string instanceName, LookupReply* reply);
-}
-
+    /// A locator implementation such as the IceGrid registry hosts a Lookup object that receives discovery requests
+    /// from clients. This Lookup object is a well-known object with identity `IceLocatorDiscovery/Lookup'.
+    interface Lookup
+    {
+        /// Finds a locator with the given instance name.
+        /// @param instanceName Restrict the search to locator implementations configured with the given instance name.
+        /// If empty, all available locator implementations will reply.
+        /// @param reply A proxy to the client's LookupReply object. The locator implementation calls foundLocator on
+        /// this object.
+        idempotent void findLocator(string instanceName, LookupReply reply);
+    }
 }

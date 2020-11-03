@@ -1,28 +1,19 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Enums
 {
-    namespace enums
+    public class Client : TestHelper
     {
-        public class Client : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                using(var communicator = initialize(ref args))
-                {
-                    var proxy = AllTests.allTests(this);
-                    proxy.shutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Client>(args);
-            }
+            await using Communicator communicator = Initialize(ref args);
+            ITestIntfPrx proxy = AllTests.Run(this);
+            await proxy.ShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

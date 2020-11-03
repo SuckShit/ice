@@ -56,7 +56,7 @@ class ConfigurationTestCase(ClientServerTestCase):
     def getOpenSSLCommand(self, current):
         if isinstance(platform, Windows):
             return os.path.join(current.testsuite.getPath(), "..", "..", "..", "msbuild", "packages",
-                                "zeroc.openssl.v140.1.0.2.6", "build", "native", "bin", "Win32", "Release",
+                                "zeroc.openssl.v141.1.0.2.6", "build", "native", "bin", "Win32", "Release",
                                 "openssl.exe")
         else:
             return "openssl"
@@ -81,7 +81,7 @@ outfilters = [ lambda x: re.sub("-! .* warning: deprecated property: IceSSL.KeyF
 #
 # With UWP, we can't run this test with the UWP C++ server (used with tcp/ws)
 #
-options=lambda current: { "protocol": ["ssl", "wss"] } if current.config.uwp else {}
+options=lambda current: { "transport": ["ssl", "wss"] } if current.config.uwp else {}
 
 TestSuite(__name__, [
    ConfigurationTestCase(client=IceSSLConfigurationClient(outfilters=outfilters, args=['"{testdir}"']),

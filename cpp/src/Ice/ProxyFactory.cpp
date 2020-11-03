@@ -80,17 +80,13 @@ IceInternal::ProxyFactory::referenceToProxy(const ReferencePtr& ref) const
 {
     if(ref)
     {
-#ifdef ICE_CPP11_MAPPING
         auto proxy = createProxy<ObjectPrx>();
-#else
-        ObjectPrx proxy = new ::IceProxy::Ice::Object();
-#endif
         proxy->setup(ref);
         return proxy;
     }
     else
     {
-        return ICE_NULLPTR;
+        return nullptr;
     }
 }
 
@@ -106,6 +102,15 @@ IceInternal::ProxyFactory::checkRetryAfterException(const LocalException& ex, co
     // aborted and we want the application to be notified.
     //
     if(ref->getMode() == Reference::ModeBatchOneway || ref->getMode() == Reference::ModeBatchDatagram)
+    {
+        ex.ice_throw();
+    }
+
+    //
+    // If it's a fixed proxy, retrying isn't useful as the proxy is tied to
+    // the connection and the request will fail with the exception.
+    //
+    if(dynamic_cast<const FixedReference*>(ref.get()))
     {
         ex.ice_throw();
     }

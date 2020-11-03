@@ -1,37 +1,44 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-public abstract class BasePlugin : Ice.Plugin
+using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
+
+namespace ZeroC.Ice.Test.Plugin
 {
-    public BasePlugin(Ice.Communicator communicator)
+    public static class TestHelper
     {
-        _communicator = communicator;
-    }
-
-    public bool isInitialized()
-    {
-        return _initialized;
-    }
-
-    public bool isDestroyed()
-    {
-        return _destroyed;
-    }
-
-    protected static void test(bool b)
-    {
-        if(!b)
+        public static void Assert([DoesNotReturnIf(false)] bool b)
         {
-            throw new System.Exception();
+            if (!b)
+            {
+                Debug.Assert(false);
+                throw new Exception();
+            }
         }
     }
+    public abstract class BasePlugin : IPlugin
+    {
+        protected Communicator Communicator;
+        protected bool Initialized;
+        protected bool Destroyed;
+        protected BasePlugin? Other;
 
-    public abstract void initialize();
-    public abstract void destroy();
+        public BasePlugin(Communicator communicator) => Communicator = communicator;
 
-    protected Ice.Communicator _communicator;
-    protected bool _initialized = false;
-    protected bool _destroyed = false;
-    protected BasePlugin _other = null;
+        public bool IsInitialized() => Initialized;
+
+        public bool IsDestroyed() => Destroyed;
+
+        public abstract void Initialize(PluginInitializationContext context);
+        public virtual async ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            if (Other != null)
+            {
+                await Other.DisposeAsync();
+            }
+        }
+    }
 }

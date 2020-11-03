@@ -25,14 +25,11 @@ IceInternal::DefaultsAndOverrides::DefaultsAndOverrides(const PropertiesPtr& pro
     overrideSecure(false),
     overrideSecureValue(false)
 {
-    const_cast<string&>(defaultProtocol) = properties->getPropertyWithDefault("Ice.Default.Protocol", "tcp");
+    const_cast<string&>(defaultProtocol) = properties->getPropertyWithDefault("Ice.Default.Transport", "tcp");
 
     const_cast<string&>(defaultHost) = properties->getProperty("Ice.Default.Host");
 
-    string value;
-
-#ifndef ICE_OS_UWP
-    value = properties->getProperty("Ice.Default.SourceAddress");
+    string value = properties->getProperty("Ice.Default.SourceAddress");
     if(!value.empty())
     {
         const_cast<Address&>(defaultSourceAddress) = getNumericAddress(value);
@@ -42,7 +39,6 @@ IceInternal::DefaultsAndOverrides::DefaultsAndOverrides(const PropertiesPtr& pro
                                           value + "'");
         }
     }
-#endif
 
     value = properties->getProperty("Ice.Override.Timeout");
     if(!value.empty())
@@ -106,11 +102,11 @@ IceInternal::DefaultsAndOverrides::DefaultsAndOverrides(const PropertiesPtr& pro
     value = properties->getPropertyWithDefault("Ice.Default.EndpointSelection", "Random");
     if(value == "Random")
     {
-        defaultEndpointSelection = ICE_ENUM(EndpointSelectionType, Random);
+        defaultEndpointSelection = EndpointSelectionType::Random;
     }
     else if(value == "Ordered")
     {
-        defaultEndpointSelection = ICE_ENUM(EndpointSelectionType, Ordered);
+        defaultEndpointSelection = EndpointSelectionType::Ordered;
     }
     else
     {
@@ -157,5 +153,5 @@ IceInternal::DefaultsAndOverrides::DefaultsAndOverrides(const PropertiesPtr& pro
 
     bool slicedFormat = properties->getPropertyAsIntWithDefault("Ice.Default.SlicedFormat", 0) > 0;
     const_cast<FormatType&>(defaultFormat) = slicedFormat ?
-        ICE_ENUM(FormatType, SlicedFormat) : ICE_ENUM(FormatType, CompactFormat);
+        FormatType::SlicedFormat : FormatType::CompactFormat;
 }

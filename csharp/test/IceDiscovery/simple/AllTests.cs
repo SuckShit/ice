@@ -1,254 +1,279 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using Test;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Test;
 
-public class AllTests : Test.AllTests
+namespace ZeroC.Ice.Test.Discovery
 {
-    public static void
-    allTests(Test.TestHelper helper, int num)
+    public static class AllTests
     {
-        var output = helper.getWriter();
-        Ice.Communicator communicator = helper.communicator();
-        List<ControllerPrx> proxies = new List<ControllerPrx>();
-        List<ControllerPrx> indirectProxies = new List<ControllerPrx>();
-        for(int i = 0; i < num; ++i)
+        public static void Run(TestHelper helper, int num)
         {
-            string id = "controller" + i;
-            proxies.Add(ControllerPrxHelper.uncheckedCast(communicator.stringToProxy(id)));
-            indirectProxies.Add(ControllerPrxHelper.uncheckedCast(communicator.stringToProxy(id + "@control" + i)));
-        }
+            TextWriter output = helper.Output;
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            var proxies = new List<IControllerPrx>();
+            var facetedProxies = new List<IControllerPrx>();
+            var indirectProxies = new List<IControllerPrx>();
+            bool ice1 = helper.Protocol == Protocol.Ice1;
 
-        output.Write("testing indirect proxies... ");
-        output.Flush();
-        {
-            foreach(ControllerPrx prx in indirectProxies)
+            for (int i = 0; i < num; ++i)
             {
-                prx.ice_ping();
-            }
-        }
-        output.WriteLine("ok");
+                proxies.Add(IControllerPrx.Parse(ice1 ? $"controller{i}" : $"ice:controller{i}", communicator));
 
-        output.Write("testing well-known proxies... ");
-        output.Flush();
-        {
-            foreach(ControllerPrx prx in proxies)
-            {
-                prx.ice_ping();
-            }
-        }
-        output.WriteLine("ok");
+                facetedProxies.Add(IControllerPrx.Parse(
+                    ice1 ? $"faceted-controller{i} -f abc" : $"ice:faceted-controller{i}#abc",
+                    communicator));
 
-        output.Write("testing object adapter registration... ");
-        output.Flush();
-        {
-            try
-            {
-                communicator.stringToProxy("object @ oa1").ice_ping();
-                test(false);
-            }
-            catch(Ice.NoEndpointException)
-            {
+                indirectProxies.Add(
+                    IControllerPrx.Parse(ice1 ? $"controller{i} @ control{i}" : $"ice:control{i}//controller{i}",
+                                         communicator));
             }
 
-            proxies[0].activateObjectAdapter("oa", "oa1", "");
-
-            try
+            output.Write("testing indirect proxies... ");
+            output.Flush();
             {
-                communicator.stringToProxy("object @ oa1").ice_ping();
-                test(false);
-            }
-            catch(Ice.ObjectNotExistException)
-            {
-            }
-
-            proxies[0].deactivateObjectAdapter("oa");
-
-            try
-            {
-                communicator.stringToProxy("object @ oa1").ice_ping();
-                test(false);
-            }
-            catch(Ice.NoEndpointException)
-            {
-            }
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing object adapter migration...");
-        output.Flush();
-        {
-            proxies[0].activateObjectAdapter("oa", "oa1", "");
-            proxies[0].addObject("oa", "object");
-            communicator.stringToProxy("object @ oa1").ice_ping();
-            proxies[0].removeObject("oa", "object");
-            proxies[0].deactivateObjectAdapter("oa");
-
-            proxies[1].activateObjectAdapter("oa", "oa1", "");
-            proxies[1].addObject("oa", "object");
-            communicator.stringToProxy("object @ oa1").ice_ping();
-            proxies[1].removeObject("oa", "object");
-            proxies[1].deactivateObjectAdapter("oa");
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing object migration...");
-        output.Flush();
-        {
-            proxies[0].activateObjectAdapter("oa", "oa1", "");
-            proxies[1].activateObjectAdapter("oa", "oa2", "");
-
-            proxies[0].addObject("oa", "object");
-            communicator.stringToProxy("object @ oa1").ice_ping();
-            communicator.stringToProxy("object").ice_ping();
-            proxies[0].removeObject("oa", "object");
-
-            proxies[1].addObject("oa", "object");
-            communicator.stringToProxy("object @ oa2").ice_ping();
-            communicator.stringToProxy("object").ice_ping();
-            proxies[1].removeObject("oa", "object");
-
-            try
-            {
-                communicator.stringToProxy("object @ oa1").ice_ping();
-            }
-            catch(Ice.ObjectNotExistException)
-            {
-            }
-            try
-            {
-                communicator.stringToProxy("object @ oa2").ice_ping();
-            }
-            catch(Ice.ObjectNotExistException)
-            {
-            }
-
-            proxies[0].deactivateObjectAdapter("oa");
-            proxies[1].deactivateObjectAdapter("oa");
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing replica groups...");
-        output.Flush();
-        {
-            proxies[0].activateObjectAdapter("oa", "oa1", "rg");
-            proxies[1].activateObjectAdapter("oa", "oa2", "rg");
-            proxies[2].activateObjectAdapter("oa", "oa3", "rg");
-
-            proxies[0].addObject("oa", "object");
-            proxies[1].addObject("oa", "object");
-            proxies[2].addObject("oa", "object");
-
-            communicator.stringToProxy("object @ oa1").ice_ping();
-            communicator.stringToProxy("object @ oa2").ice_ping();
-            communicator.stringToProxy("object @ oa3").ice_ping();
-
-            communicator.stringToProxy("object @ rg").ice_ping();
-
-            List<string> adapterIds = new List<string>();
-            adapterIds.Add("oa1");
-            adapterIds.Add("oa2");
-            adapterIds.Add("oa3");
-            TestIntfPrx intf = TestIntfPrxHelper.uncheckedCast(communicator.stringToProxy("object"));
-            intf = (TestIntfPrx)intf.ice_connectionCached(false).ice_locatorCacheTimeout(0);
-            while(adapterIds.Count > 0)
-            {
-                adapterIds.Remove(intf.getAdapterId());
-            }
-
-            while(true)
-            {
-                adapterIds.Add("oa1");
-                adapterIds.Add("oa2");
-                adapterIds.Add("oa3");
-                intf = TestIntfPrxHelper.uncheckedCast(
-                    communicator.stringToProxy("object @ rg").ice_connectionCached(false));
-                int nRetry = 100;
-                while(adapterIds.Count > 0 && --nRetry > 0)
+                foreach (IControllerPrx prx in indirectProxies)
                 {
-                    adapterIds.Remove(intf.getAdapterId());
+                    prx.IcePing();
                 }
-                if(nRetry > 0)
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing well-known proxies... ");
+            output.Flush();
+            {
+                foreach (IControllerPrx prx in proxies)
                 {
-                    break;
+                    prx.IcePing();
                 }
-
-                // The previous locator lookup probably didn't return all the replicas... try again.
-                communicator.stringToProxy("object @ rg").ice_locatorCacheTimeout(0).ice_ping();
             }
+            output.WriteLine("ok");
 
-            proxies[0].deactivateObjectAdapter("oa");
-            proxies[1].deactivateObjectAdapter("oa");
-            test(TestIntfPrxHelper.uncheckedCast(
-                     communicator.stringToProxy("object @ rg")).getAdapterId().Equals("oa3"));
-            proxies[2].deactivateObjectAdapter("oa");
-
-            proxies[0].activateObjectAdapter("oa", "oa1", "rg");
-            proxies[0].addObject("oa", "object");
-            test(TestIntfPrxHelper.uncheckedCast(
-                     communicator.stringToProxy("object @ rg")).getAdapterId().Equals("oa1"));
-            proxies[0].deactivateObjectAdapter("oa");
-        }
-        output.WriteLine("ok");
-
-        output.Write("testing invalid lookup endpoints... ");
-        output.Flush();
-        {
-            String multicast;
-            if(communicator.getProperties().getProperty("Ice.IPv6").Equals("1"))
+            output.Write("testing faceted well-known proxies... ");
+            output.Flush();
             {
-                multicast = "\"ff15::1\"";
+                foreach (IControllerPrx prx in facetedProxies)
+                {
+                    prx.IcePing();
+                }
             }
-            else
-            {
-                multicast = "239.255.0.1";
-            }
+            output.WriteLine("ok");
 
+            output.Write("testing object adapter registration... ");
+            output.Flush();
             {
-                Ice.InitializationData initData = new Ice.InitializationData();
-                initData.properties = communicator.getProperties().ice_clone_();
-                initData.properties.setProperty("IceDiscovery.Lookup", "udp -h " + multicast + " --interface unknown");
-                Ice.Communicator comm = Ice.Util.initialize(initData);
-                test(comm.getDefaultLocator() != null);
                 try
                 {
-                    comm.stringToProxy("controller0@control0").ice_ping();
-                    test(false);
+                    IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                    TestHelper.Assert(false);
                 }
-                catch(Ice.LocalException)
+                catch (NoEndpointException)
                 {
                 }
-                comm.destroy();
-            }
-            {
-                Ice.InitializationData initData = new Ice.InitializationData();
-                initData.properties = communicator.getProperties().ice_clone_();
-                string intf = initData.properties.getProperty("IceDiscovery.Interface");
-                if(!intf.Equals(""))
-                {
-                    intf = " --interface \"" + intf + "\"";
-                }
-                string port = initData.properties.getProperty("IceDiscovery.Port");
-                initData.properties.setProperty("IceDiscovery.Lookup",
-                                                 "udp -h " + multicast + " --interface unknown:" +
-                                                 "udp -h " + multicast + " -p " + port + intf);
-                Ice.Communicator comm = Ice.Util.initialize(initData);
-                test(comm.getDefaultLocator() != null);
-                comm.stringToProxy("controller0@control0").ice_ping();
-                comm.destroy();
-            }
-        }
-        output.WriteLine("ok");
 
-        output.Write("shutting down... ");
-        output.Flush();
-        foreach(ControllerPrx prx in proxies)
-        {
-            prx.shutdown();
+                proxies[0].ActivateObjectAdapter("oa", "oa1", "");
+
+                try
+                {
+                    IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch (ObjectNotExistException)
+                {
+                }
+
+                proxies[0].DeactivateObjectAdapter("oa");
+
+                try
+                {
+                    IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                    TestHelper.Assert(false);
+                }
+                catch (NoEndpointException)
+                {
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing object adapter migration... ");
+            output.Flush();
+            {
+                proxies[0].ActivateObjectAdapter("oa", "oa1", "");
+                proxies[0].AddObject("oa", "object");
+                IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                proxies[0].RemoveObject("oa", "object");
+                proxies[0].DeactivateObjectAdapter("oa");
+
+                proxies[1].ActivateObjectAdapter("oa", "oa1", "");
+                proxies[1].AddObject("oa", "object");
+                IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                proxies[1].RemoveObject("oa", "object");
+                proxies[1].DeactivateObjectAdapter("oa");
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing object migration... ");
+            output.Flush();
+            {
+                proxies[0].ActivateObjectAdapter("oa", "oa1", "");
+                proxies[1].ActivateObjectAdapter("oa", "oa2", "");
+
+                proxies[0].AddObject("oa", "object");
+                IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                IObjectPrx.Parse(ice1 ? "object" : "ice:object", communicator).IcePing();
+                proxies[0].RemoveObject("oa", "object");
+
+                proxies[1].AddObject("oa", "object");
+                IObjectPrx.Parse(ice1 ? "object @ oa2" : "ice:oa2//object", communicator).IcePing();
+
+                if (ice1)
+                {
+                    // TODO: this currently does not work with ice2 because the previous object (in oa1) is still in
+                    // the cache and we don't retry on ONE.
+                    IObjectPrx.Parse("object", communicator).IcePing();
+                }
+                proxies[1].RemoveObject("oa", "object");
+
+                try
+                {
+                    IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                }
+                catch (ObjectNotExistException)
+                {
+                }
+                try
+                {
+                    IObjectPrx.Parse(ice1 ? "object @ oa2" : "ice:oa2//object", communicator).IcePing();
+                }
+                catch (ObjectNotExistException)
+                {
+                }
+
+                proxies[0].DeactivateObjectAdapter("oa");
+                proxies[1].DeactivateObjectAdapter("oa");
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing replica groups... ");
+            output.Flush();
+            {
+                proxies[0].ActivateObjectAdapter("oa", "oa1", "rg");
+                proxies[1].ActivateObjectAdapter("oa", "oa2", "rg");
+                proxies[2].ActivateObjectAdapter("oa", "oa3", "rg");
+
+                proxies[0].AddObject("oa", "object");
+                proxies[1].AddObject("oa", "object");
+                proxies[2].AddObject("oa", "object");
+
+                IObjectPrx.Parse(ice1 ? "object @ oa1" : "ice:oa1//object", communicator).IcePing();
+                IObjectPrx.Parse(ice1 ? "object @ oa2" : "ice:oa2//object", communicator).IcePing();
+                IObjectPrx.Parse(ice1 ? "object @ oa3" : "ice:oa3//object", communicator).IcePing();
+
+                IObjectPrx.Parse(ice1 ? "object @ rg" : "ice:rg//object", communicator).IcePing();
+
+                var adapterIds = new List<string>
+                {
+                    "oa1",
+                    "oa2",
+                    "oa3"
+                };
+
+                ITestIntfPrx intf = ITestIntfPrx.Parse(ice1 ? "object" : "ice:object", communicator).Clone(
+                    cacheConnection: false,
+                    locatorCacheTimeout: TimeSpan.Zero);
+                while (adapterIds.Count > 0)
+                {
+                    adapterIds.Remove(intf.GetAdapterId());
+                }
+
+                // TODO: describe what this test is testing and make sure it does not hang forever!
+                while (true)
+                {
+                    adapterIds.Add("oa1");
+                    adapterIds.Add("oa2");
+                    adapterIds.Add("oa3");
+                    intf = ITestIntfPrx.Parse(ice1 ? "object @ rg" : "ice:rg//object", communicator).Clone(
+                        cacheConnection: false,
+                        locatorCacheTimeout: TimeSpan.Zero);
+                    int nRetry = 100;
+                    while (adapterIds.Count > 0 && --nRetry > 0)
+                    {
+                        adapterIds.Remove(intf.GetAdapterId());
+                    }
+                    if (nRetry > 0)
+                    {
+                        break;
+                    }
+
+                    adapterIds.Clear();
+                }
+
+                proxies[0].DeactivateObjectAdapter("oa");
+                proxies[1].DeactivateObjectAdapter("oa");
+                TestHelper.Assert(
+                    ITestIntfPrx.Parse(
+                        ice1 ? "object @ rg" : "ice:rg//object", communicator).GetAdapterId().Equals("oa3"));
+                proxies[2].DeactivateObjectAdapter("oa");
+
+                proxies[0].ActivateObjectAdapter("oa", "oa1", "rg");
+                proxies[0].AddObject("oa", "object");
+                TestHelper.Assert(
+                    ITestIntfPrx.Parse(
+                        ice1 ? "object @ rg" : "ice:rg//object", communicator).GetAdapterId().Equals("oa1"));
+                proxies[0].DeactivateObjectAdapter("oa");
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing invalid lookup endpoints... ");
+            output.Flush();
+            {
+                string multicast;
+                if (helper.Host.Contains(":"))
+                {
+                    multicast = "\"ff15::1\"";
+                }
+                else
+                {
+                    multicast = "239.255.0.1";
+                }
+
+                {
+                    Dictionary<string, string> properties = communicator.GetProperties();
+                    properties["IceDiscovery.Lookup"] = $"udp -h {multicast} --interface unknown";
+                    using var comm = new Communicator(properties);
+                    TestHelper.Assert(comm.DefaultLocator != null);
+                    try
+                    {
+                        IObjectPrx.Parse(ice1 ? "controller0@control0" : "ice:control0//controller0", comm).IcePing();
+                        TestHelper.Assert(false);
+                    }
+                    catch
+                    {
+                    }
+                }
+                {
+                    Dictionary<string, string> properties = communicator.GetProperties();
+                    string port = $"{helper.BasePort + 10}";
+                    string intf = helper.Host.Contains(":") ? $"\"{helper.Host}\"" : helper.Host;
+                    properties["IceDiscovery.Lookup"] =
+                        $"udp -h {multicast} --interface unknown:udp -h {multicast} -p {port} --interface {intf}";
+                    using var comm = new Communicator(properties);
+                    TestHelper.Assert(comm.DefaultLocator != null);
+                    IObjectPrx.Parse(ice1 ? "controller0@control0" : "ice:control0//controller0", comm).IcePing();
+                }
+            }
+            output.WriteLine("ok");
+
+            output.Write("shutting down... ");
+            output.Flush();
+            foreach (IControllerPrx prx in proxies)
+            {
+                prx.Shutdown();
+            }
+            output.WriteLine("ok");
         }
-        output.WriteLine("ok");
     }
 }

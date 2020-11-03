@@ -4,6 +4,8 @@
 
 #pragma once
 
+[[3.7]]
+
 module Test
 {
 
@@ -12,7 +14,7 @@ class SBase
     string sb;
 }
 
-class SBSKnownDerived extends SBase
+class SBSKnownDerived : SBase
 {
     string sbskd;
 }
@@ -23,7 +25,7 @@ class B
     B pb;
 }
 
-class D1 extends B
+class D1 : B
 {
     string sd1;
     B pd1;
@@ -55,7 +57,7 @@ exception BaseException
     B pb;
 }
 
-exception DerivedException extends BaseException
+exception DerivedException : BaseException
 {
     string sde;
     D1 pd1;
@@ -70,34 +72,34 @@ class PBase
 
 sequence<PBase> PBaseSeq;
 
-["preserve-slice"]
-class Preserved extends PBase
+[preserve-slice]
+class Preserved : PBase
 {
     string ps;
 }
 
-class PDerived extends Preserved
+class PDerived : Preserved
 {
     PBase pb;
 }
 
-class CompactPDerived(56) extends Preserved
+class CompactPDerived(56) : Preserved
 {
     PBase pb;
 }
 
-["preserve-slice"]
+[preserve-slice]
 class PNode
 {
     PNode next;
 }
 
-["preserve-slice"]
+[preserve-slice]
 exception PreservedException
 {
 }
 
-["format:sliced"]
+[format(sliced)]
 interface TestIntf
 {
     Object SBaseAsObject();
@@ -107,7 +109,7 @@ interface TestIntf
 
     SBase SBSUnknownDerivedAsSBase();
 
-    ["format:compact"] SBase SBSUnknownDerivedAsSBaseCompact();
+    [format(compact)] SBase SBSUnknownDerivedAsSBaseCompact();
 
     Object SUnknownAsObject();
     void checkSUnknown(Object o);
@@ -136,10 +138,10 @@ interface TestIntf
     Preserved PBSUnknownAsPreserved();
     void checkPBSUnknown(Preserved p);
 
-    ["amd"] Preserved PBSUnknownAsPreservedWithGraph();
+    [amd] Preserved PBSUnknownAsPreservedWithGraph();
     void checkPBSUnknownWithGraph(Preserved p);
 
-    ["amd"] Preserved PBSUnknown2AsPreservedWithGraph();
+    [amd] Preserved PBSUnknown2AsPreservedWithGraph();
     void checkPBSUnknown2WithGraph(Preserved p);
 
     PNode exchangePNode(PNode pn);
@@ -148,7 +150,7 @@ interface TestIntf
     void throwDerivedAsBase() throws BaseException;
     void throwDerivedAsDerived() throws DerivedException;
     void throwUnknownDerivedAsBase() throws BaseException;
-    ["amd"] void throwPreservedException() throws PreservedException;
+    [amd] void throwPreservedException() throws PreservedException;
 
     void useForward(out Forward f); /* Use of forward-declared class to verify that code is generated correctly. */
 

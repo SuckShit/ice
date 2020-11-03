@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) ZeroC, Inc. All rights reserved.
 #
@@ -18,7 +18,7 @@ class ControllerDriver(Driver):
             self.cross = cross
             self.host = host
             self.args = args
-            self.config.protocol = protocol
+            self.config.transport = protocol
 
     @classmethod
     def getSupportedArgs(self):
@@ -40,7 +40,7 @@ class ControllerDriver(Driver):
         parseOptions(self, options, { "clean" : "clean" })
 
         if not self.endpoints:
-            self.endpoints = ("tcp -h " + self.interface) if self.interface else "tcp"
+            self.endpoints = "tcp -h {}".format(self.interface)
 
     def run(self, mappings, testSuiteIds):
 
@@ -117,7 +117,7 @@ class ControllerDriver(Driver):
                 c.adapter.remove(c.id)
 
             def updateCurrent(self, config):
-                attrs = ["protocol", "mx", "serialize", "compress", "ipv6", "cprops", "sprops"]
+                attrs = ["transport", "mx", "serialize", "compress", "ipv6", "cprops", "sprops"]
                 for a in attrs:
                     v = getattr(config, a)
                     if v is not Ice.Unset:

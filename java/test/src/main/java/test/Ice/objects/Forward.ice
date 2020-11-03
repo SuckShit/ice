@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["java:package:test.Ice.objects"]]
+[[java:package(test.Ice.objects)]]
 
 module Test
 {
@@ -19,4 +19,4 @@ interface F2
     void op();
 }
 
-};
+}

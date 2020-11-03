@@ -4,14 +4,14 @@
 
 #pragma once
 
-["cs:namespace:Ice.acm"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::ACM
 {
 
 interface TestIntf
 {
     void sleep(int seconds);
-    void sleepAndHold(int seconds);
     void interruptSleep();
     void startHeartbeatCount();
     void waitForHeartbeatCount(int count);
@@ -20,14 +20,12 @@ interface TestIntf
 interface RemoteObjectAdapter
 {
     TestIntf* getTestIntf();
-    void activate();
-    void hold();
     void deactivate();
 }
 
 interface RemoteCommunicator
 {
-    RemoteObjectAdapter* createObjectAdapter(int acmTimeout, int close, int heartbeat);
+    RemoteObjectAdapter* createObjectAdapter(int acmTimeout, string? close, string? heartbeat);
     void shutdown();
 }
 

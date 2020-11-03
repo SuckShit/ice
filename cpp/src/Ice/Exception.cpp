@@ -11,9 +11,6 @@
 #include <Ice/InputStream.h>
 #include <Ice/Initialize.h>
 #include <IceUtil/StringUtil.h>
-#ifdef ICE_OS_UWP
-#    include <Ice/StringConverter.h>
-#endif
 #include <iomanip>
 
 using namespace std;
@@ -30,27 +27,7 @@ socketErrorToString(int error)
     {
         return "unknown error";
     }
-#ifdef ICE_OS_UWP
-    if(error == E_ACCESSDENIED)
-    {
-        ostringstream os;
-        os << "access to a resource or feature is denied, ensure that you have requested the appropriate\n";
-        os << "capability and made the required declarations in the package manifest of your app.";
-        return os.str();
-    }
-    else
-    {
-        //
-        // Don't need to use a wide string converter as the wide string come
-        // from Windows API.
-        //
-        return wstringToString(
-            static_cast<Windows::Networking::Sockets::SocketErrorStatus>(error).ToString()->Data(),
-            getProcessStringConverter());
-    }
-#else
     return IceUtilInternal::errorToString(error);
-#endif
 }
 
 };
@@ -114,18 +91,16 @@ Ice::UserException::ice_staticId()
     return userException_ids[0];
 }
 
-#ifdef ICE_CPP11_MAPPING
 unique_ptr<Ice::UserException>
 Ice::UserException::ice_clone() const
 {
     return unique_ptr<UserException>(static_cast<UserException*>(ice_cloneImpl()));
 }
-#endif
 
 Ice::SlicedDataPtr
 Ice::UserException::ice_getSlicedData() const
 {
-    return ICE_NULLPTR;
+    return nullptr;
 }
 
 void
@@ -156,20 +131,15 @@ Ice::LocalException::LocalException(const char* file, int line) :
 }
 
 Ice::LocalException::~LocalException()
-#ifndef ICE_CPP11_COMPILER
-    throw()
-#endif
 {
    // Out of line to avoid weak vtable
 }
 
-#ifdef ICE_CPP11_MAPPING
 unique_ptr<Ice::LocalException>
 Ice::LocalException::ice_clone() const
 {
     return unique_ptr<LocalException>(static_cast<LocalException*>(ice_cloneImpl()));
 }
-#endif
 
 namespace
 {
@@ -193,19 +163,14 @@ Ice::SystemException::SystemException(const char* file, int line) :
 }
 
 Ice::SystemException::~SystemException()
-#ifndef ICE_CPP11_COMPILER
-    throw()
-#endif
 {
 }
 
-#ifdef ICE_CPP11_MAPPING
 unique_ptr<Ice::SystemException>
 Ice::SystemException::ice_clone() const
 {
     return unique_ptr<SystemException>(static_cast<SystemException*>(ice_cloneImpl()));
 }
-#endif
 
 namespace
 {
@@ -341,7 +306,7 @@ void
 Ice::IllegalIdentityException::ice_print(ostream& out) const
 {
     Exception::ice_print(out);
-    out << ":\nillegal identity: `" << identityToString(id, ICE_ENUM(ToStringMode, Unicode)) << "'";
+    out << ":\nillegal identity: `" << identityToString(id, ToStringMode::Unicode) << "'";
 }
 
 void
@@ -354,7 +319,7 @@ Ice::IllegalServantException::ice_print(ostream& out) const
 static void
 printFailedRequestData(ostream& out, const RequestFailedException& ex)
 {
-    out << ":\nidentity: `" << identityToString(ex.id, ICE_ENUM(ToStringMode, Unicode)) << "'";
+    out << ":\nidentity: `" << identityToString(ex.id, ToStringMode::Unicode) << "'";
     out << "\nfacet: " << ex.facet;
     out << "\noperation: " << ex.operation;
 }
@@ -461,11 +426,7 @@ Ice::DNSException::ice_print(ostream& out) const
 {
     Exception::ice_print(out);
     out << ":\nDNS error: ";
-#ifdef ICE_OS_UWP
-    out << socketErrorToString(error);
-#else
     out << errorToStringDNS(error);
-#endif
     out << "\nhost: " << host;
 }
 

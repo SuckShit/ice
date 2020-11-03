@@ -126,7 +126,7 @@ Ice::PluginManagerI::initializePlugins()
 }
 
 StringSeq
-Ice::PluginManagerI::getPlugins() ICE_NOEXCEPT
+Ice::PluginManagerI::getPlugins() noexcept
 {
     IceUtil::Mutex::Lock sync(*this);
 
@@ -179,7 +179,7 @@ Ice::PluginManagerI::addPlugin(const string& name, const PluginPtr& plugin)
 }
 
 void
-Ice::PluginManagerI::destroy() ICE_NOEXCEPT
+Ice::PluginManagerI::destroy() noexcept
 {
     IceUtil::Mutex::Lock sync(*this);
 
@@ -459,12 +459,6 @@ Ice::PluginManagerI::loadPlugin(const string& name, const string& pluginSpec, St
             }
             throw PluginInitializationException(__FILE__, __LINE__, os.str());
         }
-
-#ifdef __IBMCPP__
-    // xlC warns when casting a void* to function pointer
-#   pragma report(disable, "1540-0216")
-#endif
-
         factory = reinterpret_cast<PluginFactory>(sym);
     }
 

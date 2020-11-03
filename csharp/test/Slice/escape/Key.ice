@@ -4,7 +4,11 @@
 
 #pragma once
 
-[["suppress-warning:deprecated"]]
+[[preserve-case]]
+
+module ZeroC::Slice::Test::Escape
+{
+
 module abstract
 {
 
@@ -20,7 +24,7 @@ struct break
 
 interface case
 {
-    ["amd"] void catch(int checked, out int continue);
+    [amd] void catch(int checked, out int continue);
 }
 
 interface decimal
@@ -35,49 +39,47 @@ class delegate
     int event;
 }
 
-interface explicit extends decimal, case
+interface explicit : decimal, case
 {
 }
 
 dictionary<string, break> while;
 
-class optionalMembers
+class taggedMembers
 {
-    optional(1) break for;
-    optional(2) as goto;
-    optional(3) explicit if;
-    optional(5) while internal;
-    optional(7) string namespace;
-    optional(8) explicit* null;
+    tag(1) break? for;
+    tag(2) as? goto;
+    tag(3) explicit* if;
+    tag(5) while? internal;
+    tag(7) string? namespace;
+    tag(8) explicit* null;
 }
 
-interface optionalParams
+interface taggedParams
 {
-    optional(1) break for(optional(2) as goto,
-                          optional(3) explicit if,
-                          optional(5) while internal,
-                          optional(7) string namespace,
-                          optional(8) explicit* null);
+    tag(1) break? for(tag(2) as? goto,
+                      tag(3) explicit* if,
+                      tag(5) while? internal,
+                      tag(7) string? namespace,
+                      tag(8) explicit* null);
 
-    ["amd"]
-    optional(1) break continue(optional(2) as goto,
-                               optional(3) explicit if,
-                               optional(5) while internal,
-                               optional(7) string namespace,
-                               optional(8) explicit* null);
+    [amd]
+    tag(1) break? continue(tag(2) as? goto,
+                        tag(3) explicit* if,
+                        tag(5) while? internal,
+                        tag(7) string? namespace,
+                        tag(8) explicit* null);
 
-    optional(1) break in(out optional(2) as goto,
-                         out optional(3) explicit if,
-                         out optional(5) while internal,
-                         out optional(7) string namespace,
-                         out optional(8) explicit* null);
+    (tag(1) break? r1, tag(2) as? goto, tag(3) explicit* if,
+                       tag(5) while? internal,
+                       tag(7) string? namespace,
+                       tag(8) explicit* null) in();
 
-    ["amd"]
-    optional(1) break foreach(out optional(2) as goto,
-                              out optional(3) explicit if,
-                              out optional(5) while internal,
-                              out optional(7) string namespace,
-                              out optional(8) explicit* null);
+    [amd]
+    (tag(1) break? r1, tag(2) as? goto, tag(3) explicit* if,
+                       tag(5) while? internal,
+                       tag(7) string? namespace,
+                       tag(8) explicit* null) foreach();
 }
 
 exception fixed
@@ -85,7 +87,7 @@ exception fixed
     int for;
 }
 
-exception foreach extends fixed
+exception foreach : fixed
 {
     int goto;
     int if;
@@ -110,15 +112,8 @@ exception BaseMethods
     int ToString;
 }
 
-local interface implicit
-{
-    as in(break internal, delegate is, explicit lock, case* namespace, decimal* new, delegate null,
-          explicit* operator, int override, int params, int private)
-        throws fixed, foreach;
-}
-
 const int protected = 0;
-const int public = 0;
+const int public = 1;
 
 //
 // System as inner module.
@@ -144,6 +139,8 @@ module System
 interface Test
 {
     void op();
+}
+
 }
 
 }

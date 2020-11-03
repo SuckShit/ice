@@ -1,35 +1,30 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
+using ZeroC.Ice;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Glacier2.Test.SessionHelper
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            communicator.getProperties().setProperty("DeactivatedAdapter.Endpoints", getTestEndpoint(1));
-            communicator.createObjectAdapter("DeactivatedAdapter");
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Test.Protocol"] = "ice1";
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("DeactivatedAdapter.Endpoints", GetTestEndpoint(1));
+            communicator.CreateObjectAdapter("DeactivatedAdapter");
 
-            communicator.getProperties().setProperty("CallbackAdapter.Endpoints", getTestEndpoint(0));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("CallbackAdapter");
-            adapter.add(new CallbackI(), Ice.Util.stringToIdentity("callback"));
-            adapter.activate();
-            communicator.waitForShutdown();
+            communicator.SetProperty("CallbackAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("CallbackAdapter");
+            var callbackI = new Callback();
+            adapter.Add("callback", callbackI);
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

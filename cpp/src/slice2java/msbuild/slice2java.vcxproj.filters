@@ -18,10 +18,10 @@
     <ClCompile Include="..\Gen.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\Main.cpp">
+    <ClCompile Include="..\JavaUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\GenCompat.cpp">
+    <ClCompile Include="..\Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -32,6 +32,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Gen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\JavaUtil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

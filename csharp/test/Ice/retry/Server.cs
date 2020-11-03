@@ -1,35 +1,33 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Retry
 {
-    namespace retry
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                properties.setProperty("Ice.Warn.Dispatch", "0");
-                properties.setProperty("Ice.Warn.Connections", "0");
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new RetryI(), Ice.Util.stringToIdentity("retry"));
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
+            var properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Dispatch"] = "0";
+            properties["Ice.Warn.Connections"] = "0";
+            await using var communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter1.Endpoints", GetTestEndpoint(0));
+            var adapter1 = communicator.CreateObjectAdapter("TestAdapter1");
+            adapter1.Add("retry", new Retry());
+            adapter1.Add("replicated", new Replicated(true));
+            adapter1.Add("nonreplicated", new NonReplicated());
+            await adapter1.ActivateAsync();
 
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            communicator.SetProperty("TestAdapter2.Endpoints", GetTestEndpoint(1));
+            var adapter2 = communicator.CreateObjectAdapter("TestAdapter2");
+            adapter2.Add("replicated", new Replicated(false));
+            await adapter2.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

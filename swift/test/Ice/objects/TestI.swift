@@ -59,8 +59,6 @@ public class FI: F {
     }
 }
 
-public class HI: H {}
-
 public class II: Ice.InterfaceByValue {
     public required init() {
         super.init(id: "::Test::I")
@@ -138,31 +136,19 @@ class InitialI: Initial {
         return _f
     }
 
-    func getI(current _: Ice.Current) throws -> Ice.Value? {
-        return II()
-    }
-
-    func getJ(current _: Ice.Current) throws -> Ice.Value? {
-        return JI()
-    }
-
-    func getH(current _: Ice.Current) throws -> Ice.Value? {
-        return HI()
-    }
-
     func getK(current _: Ice.Current) throws -> K? {
         return K(value: L(data: "l"))
     }
 
-    func opValue(v1: Ice.Value?, current _: Ice.Current) throws -> (returnValue: Ice.Value?, v2: Ice.Value?) {
+    func opClass(v1: Ice.Value?, current _: Ice.Current) throws -> (returnValue: Ice.Value?, v2: Ice.Value?) {
         return (v1, v1)
     }
 
-    func opValueSeq(v1: [Ice.Value?], current _: Ice.Current) throws -> (returnValue: [Ice.Value?], v2: [Ice.Value?]) {
+    func opClassSeq(v1: [Ice.Value?], current _: Ice.Current) throws -> (returnValue: [Ice.Value?], v2: [Ice.Value?]) {
         return (v1, v1)
     }
 
-    func opValueMap(v1: [String: Ice.Value?],
+    func opClassMap(v1: [String: Ice.Value?],
                     current _: Ice.Current) throws -> (returnValue: [String: Ice.Value?],
                                                        v2: [String: Ice.Value?]) {
         return (v1, v1)
@@ -186,8 +172,6 @@ class InitialI: Initial {
     }
 
     func setG(theG _: G?, current _: Ice.Current) throws {}
-
-    func setI(theI _: Ice.Value?, current _: Ice.Current) throws {}
 
     func opBaseSeq(inSeq: [Base?], current _: Ice.Current) throws -> (returnValue: [Base?], outSeq: [Base?]) {
         return (inSeq, inSeq)

@@ -2,8 +2,6 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 //
 
-[["suppress-warning:deprecated"]] // for classes with operations
-
 module Test
 {
 
@@ -54,18 +52,18 @@ interface i2
 module N
 {
 
-    interface n1 extends i1 {}
+    interface n1 : i1 {}
     interface i1 {}            // Changed meaning
-    interface i2 extends i2 {} // Changed meaning
+    interface i2 : i2 {} // Changed meaning
 
 }
 
 module O
 {
 
-    interface n1 extends ::Test::i1 {}
+    interface n1 : ::Test::i1 {}
     interface i1 {}                    // OK
-    interface i2 extends ::Test::i2 {} // OK
+    interface i2 : ::Test::i2 {} // OK
 
 }
 
@@ -75,9 +73,9 @@ exception e2 {}
 
 module E
 {
-    exception ee1 extends e1 {}
+    exception ee1 : e1 {}
     exception e1 {}            // Changed meaning
-    exception e2 extends e2 {} // Changed meaning
+    exception e2 : e2 {} // Changed meaning
 }
 
 interface c1 {}
@@ -86,9 +84,8 @@ class c2 {}
 
 module C
 {
-    class cc1 implements c1 {}
     class c1 {}                // Changed meaning
-    class c2 extends c2 {}     // Changed meaning
+    class c2 : c2 {}     // Changed meaning
 }
 
 enum color { blue }
@@ -194,18 +191,6 @@ interface Foo2
     void op1(int a, int A); // Changed meaning
     void op2(int Foo2); // OK
     void op3(int op3); // Ok
-}
-
-class Foo3
-{
-    void x(int x);
-    string x; // Changed meaning
-}
-
-class Foo4
-{
-    void op(int x);
-    string x; // Ok
 }
 
 exception Foo5

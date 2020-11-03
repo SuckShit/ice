@@ -1,36 +1,17 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Facets
 {
-    namespace facets
+    public sealed class D : ID
     {
-        public sealed class DI : Test.DDisp_
-        {
-            public DI()
-            {
-            }
+        public string CallA(Current current, CancellationToken cancel) => "A";
 
-            public override string callA(Ice.Current current)
-            {
-                return "A";
-            }
+        public string CallB(Current current, CancellationToken cancel) => "B";
 
-            public override string callB(Ice.Current current)
-            {
-                return "B";
-            }
+        public string CallC(Current current, CancellationToken cancel) => "C";
 
-            public override string callC(Ice.Current current)
-            {
-                return "C";
-            }
-
-            public override string callD(Ice.Current current)
-            {
-                return "D";
-            }
-        }
+        public string CallD(Current current, CancellationToken cancel) => "D";
     }
 }

@@ -1,500 +1,464 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System;
 using System.Collections.Generic;
+using System.Threading;
 
-namespace Ice
+namespace ZeroC.Ice.Test.SeqMapping
 {
-    namespace seqMapping
+    public sealed class MyClass : IMyClass
     {
-        public sealed class MyClassI : Test.MyClassDisp_
-        {
-            public override void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            public override byte[] opAByteS(byte[] i, out byte[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<byte> opLByteS(List<byte> i, out List<byte> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<byte> opKByteS(LinkedList<byte> i, out LinkedList<byte> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<byte> opQByteS(Queue<byte> i, out Queue<byte> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<byte> opSByteS(Stack<byte> i, out Stack<byte> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override bool[] opABoolS(bool[] i, out bool[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<bool> opLBoolS(List<bool> i, out List<bool> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<bool> opKBoolS(LinkedList<bool> i, out LinkedList<bool> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<bool> opQBoolS(Queue<bool> i, out Queue<bool> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<bool> opSBoolS(Stack<bool> i, out Stack<bool> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override short[] opAShortS(short[] i, out short[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<short> opLShortS(List<short> i, out List<short> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<short> opKShortS(LinkedList<short> i, out LinkedList<short> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<short> opQShortS(Queue<short> i, out Queue<short> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<short> opSShortS(Stack<short> i, out Stack<short> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override int[] opAIntS(int[] i, out int[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<int> opLIntS(List<int> i, out List<int> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<int> opKIntS(LinkedList<int> i, out LinkedList<int> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<int> opQIntS(Queue<int> i, out Queue<int> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<int> opSIntS(Stack<int> i, out Stack<int> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override long[] opALongS(long[] i, out long[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<long> opLLongS(List<long> i, out List<long> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<long> opKLongS(LinkedList<long> i, out LinkedList<long> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<long> opQLongS(Queue<long> i, out Queue<long> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<long> opSLongS(Stack<long> i, out Stack<long> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override float[] opAFloatS(float[] i, out float[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<float> opLFloatS(List<float> i, out List<float> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<float> opKFloatS(LinkedList<float> i, out LinkedList<float> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<float> opQFloatS(Queue<float> i, out Queue<float> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<float> opSFloatS(Stack<float> i, out Stack<float> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override double[] opADoubleS(double[] i, out double[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<double> opLDoubleS(List<double> i, out List<double> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<double> opKDoubleS(LinkedList<double> i, out LinkedList<double> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<double> opQDoubleS(Queue<double> i, out Queue<double> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<double> opSDoubleS(Stack<double> i, out Stack<double> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override string[] opAStringS(string[] i, out string[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<string> opLStringS(List<string> i, out List<string> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<string> opKStringS(LinkedList<string> i, out LinkedList<string> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<string> opQStringS(Queue<string> i, out Queue<string> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<string> opSStringS(Stack<string> i, out Stack<string> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Ice.Value[] opAObjectS(Ice.Value[] i, out Ice.Value[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Ice.Value> opLObjectS(List<Ice.Value> i, out List<Ice.Value> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Ice.ObjectPrx[] opAObjectPrxS(Ice.ObjectPrx[] i, out Ice.ObjectPrx[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Ice.ObjectPrx> opLObjectPrxS(List<Ice.ObjectPrx> i,
-                                                                      out List<Ice.ObjectPrx> o,
-                                                                      Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<Ice.ObjectPrx> opKObjectPrxS(LinkedList<Ice.ObjectPrx> i,
-                                                                            out LinkedList<Ice.ObjectPrx> o,
-                                                                            Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<Ice.ObjectPrx> opQObjectPrxS(Queue<Ice.ObjectPrx> i,
-                                                                       out Queue<Ice.ObjectPrx> o,
-                                                                       Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<Ice.ObjectPrx> opSObjectPrxS(Stack<Ice.ObjectPrx> i,
-                                                                       out Stack<Ice.ObjectPrx> o,
-                                                                       Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.S[] opAStructS(Test.S[] i, out Test.S[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.S> opLStructS(List<Test.S> i, out List<Test.S> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<Test.S> opKStructS(LinkedList<Test.S> i, out LinkedList<Test.S> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<Test.S> opQStructS(Queue<Test.S> i, out Queue<Test.S> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<Test.S> opSStructS(Stack<Test.S> i, out Stack<Test.S> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.SD[] opAStructSD(Test.SD[] i, out Test.SD[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.SD> opLStructSD(List<Test.SD> i, out List<Test.SD> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<Test.SD> opKStructSD(LinkedList<Test.SD> i, out LinkedList<Test.SD> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<Test.SD> opQStructSD(Queue<Test.SD> i, out Queue<Test.SD> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<Test.SD> opSStructSD(Stack<Test.SD> i, out Stack<Test.SD> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.CV[] opACVS(Test.CV[] i, out Test.CV[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.CV> opLCVS(List<Test.CV> i, out List<Test.CV> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.CR[] opACRS(Test.CR[] i, out Test.CR[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.CR> opLCRS(List<Test.CR> i, out List<Test.CR> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.En[] opAEnS(Test.En[] i, out Test.En[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.En> opLEnS(List<Test.En> i, out List<Test.En> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<Test.En> opKEnS(LinkedList<Test.En> i, out LinkedList<Test.En> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<Test.En> opQEnS(Queue<Test.En> i, out Queue<Test.En> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<Test.En> opSEnS(Stack<Test.En> i, out Stack<Test.En> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Test.IPrx[] opAIPrxS(Test.IPrx[] i, out Test.IPrx[] o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override List<Test.IPrx> opLIPrxS(List<Test.IPrx> i, out List<Test.IPrx> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override LinkedList<Test.IPrx> opKIPrxS(LinkedList<Test.IPrx> i, out LinkedList<Test.IPrx> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Queue<Test.IPrx> opQIPrxS(Queue<Test.IPrx> i, out Queue<Test.IPrx> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Stack<Test.IPrx> opSIPrxS(Stack<Test.IPrx> i, out Stack<Test.IPrx> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Custom<int> opCustomIntS(Custom<int> i, out Custom<int> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Custom<Test.CV> opCustomCVS(Custom<Test.CV> i, out Custom<Test.CV> o, Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Custom<Custom<int>> opCustomIntSS(Custom<Custom<int>> i, out Custom<Custom<int>> o,
-                                                              Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Custom<Custom<Test.CV>> opCustomCVSS(Custom<Custom<Test.CV>> i, out Custom<Custom<Test.CV>> o,
-                                                                 Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Serialize.Small opSerialSmallCSharp(Serialize.Small i, out Serialize.Small o,
-                                                                Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Serialize.Large opSerialLargeCSharp(Serialize.Large i, out Serialize.Large o,
-                                                                Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-
-            public override Serialize.Struct opSerialStructCSharp(Serialize.Struct i, out Serialize.Struct o,
-                                                                  Ice.Current current)
-            {
-                o = i;
-                return i;
-            }
-        }
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        public (ReadOnlyMemory<byte>, ReadOnlyMemory<byte>) OpAByteS(
+            byte[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<byte>, IEnumerable<byte>) OpLByteS(
+            List<byte> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<byte>, IEnumerable<byte>) OpKByteS(
+            LinkedList<byte> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<byte>, IEnumerable<byte>) OpQByteS(
+            Queue<byte> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<byte>, IEnumerable<byte>) OpSByteS(
+            Stack<byte> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<byte>, IEnumerable<byte>) OpCByteS(
+            Custom<byte> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<bool>, ReadOnlyMemory<bool>) OpABoolS(
+            bool[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<bool>, IEnumerable<bool>) OpLBoolS(
+            List<bool> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<bool>, IEnumerable<bool>) OpKBoolS(
+            LinkedList<bool> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<bool>, IEnumerable<bool>) OpQBoolS(
+            Queue<bool> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<bool>, IEnumerable<bool>) OpSBoolS(
+            Stack<bool> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<bool>, IEnumerable<bool>) OpCBoolS(
+            Custom<bool> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<short>, ReadOnlyMemory<short>) OpAShortS(
+            short[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<short>, IEnumerable<short>) OpLShortS(
+            List<short> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<short>, IEnumerable<short>) OpKShortS(
+            LinkedList<short> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<short>, IEnumerable<short>) OpQShortS(
+            Queue<short> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<short>, IEnumerable<short>) OpSShortS(
+            Stack<short> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<short>, IEnumerable<short>) OpCShortS(
+            Custom<short> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<int>, ReadOnlyMemory<int>) OpAIntS(
+            int[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpLIntS(
+            List<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpKIntS(
+            LinkedList<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpQIntS(
+            Queue<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpSIntS(
+            Stack<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpCIntS(
+            Custom<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<long>, ReadOnlyMemory<long>) OpALongS(
+            long[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<long>, IEnumerable<long>) OpLLongS(
+            List<long> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<long>, IEnumerable<long>) OpKLongS(
+            LinkedList<long> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<long>, IEnumerable<long>) OpQLongS(
+            Queue<long> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<long>, IEnumerable<long>) OpSLongS(
+            Stack<long> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<long>, IEnumerable<long>) OpCLongS(
+            Custom<long> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<float>, ReadOnlyMemory<float>) OpAFloatS(
+            float[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<float>, IEnumerable<float>) OpLFloatS(
+            List<float> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<float>, IEnumerable<float>) OpKFloatS(
+            LinkedList<float> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<float>, IEnumerable<float>) OpQFloatS(
+            Queue<float> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<float>, IEnumerable<float>) OpSFloatS(
+            Stack<float> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<float>, IEnumerable<float>) OpCFloatS(
+            Custom<float> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (ReadOnlyMemory<double>, ReadOnlyMemory<double>) OpADoubleS(
+            double[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<double>, IEnumerable<double>) OpLDoubleS(
+            List<double> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<double>, IEnumerable<double>) OpKDoubleS(
+            LinkedList<double> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<double>, IEnumerable<double>) OpQDoubleS(
+            Queue<double> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<double>, IEnumerable<double>) OpSDoubleS(
+            Stack<double> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<double>, IEnumerable<double>) OpCDoubleS(
+            Custom<double> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpAStringS(
+            string[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpLStringS(
+            List<string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpKStringS(
+            LinkedList<string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpQStringS(
+            Queue<string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpSStringS(
+            Stack<string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<string>, IEnumerable<string>) OpCStringS(
+            Custom<string> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<AnyClass?>, IEnumerable<AnyClass?>) OpAObjectS(
+            AnyClass?[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<AnyClass?>, IEnumerable<AnyClass?>) OpLObjectS(
+            List<AnyClass?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<AnyClass?>, IEnumerable<AnyClass?>) OpCObjectS(
+            Custom<AnyClass?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpAObjectPrxS(
+            IObjectPrx?[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpLObjectPrxS(
+            List<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpKObjectPrxS(
+            LinkedList<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpQObjectPrxS(
+            Queue<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpSObjectPrxS(
+            Stack<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>) OpCObjectPrxS(
+            Custom<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpAStructS(
+            S[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpLStructS(
+            List<S> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpKStructS(
+            LinkedList<S> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpQStructS(
+            Queue<S> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpSStructS(
+            Stack<S> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<S>, IEnumerable<S>) OpCStructS(
+            Custom<S> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpAStructSD(
+            SD[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpLStructSD(
+            List<SD> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpKStructSD(
+            LinkedList<SD> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpQStructSD(
+            Queue<SD> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpSStructSD(
+            Stack<SD> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<SD>, IEnumerable<SD>) OpCStructSD(
+            Custom<SD> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CV?>, IEnumerable<CV?>) OpACVS(
+            CV?[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CV?>, IEnumerable<CV?>) OpLCVS(
+            List<CV?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpAIPrxS(
+            IIPrx?[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpLIPrxS(
+            List<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpKIPrxS(
+            LinkedList<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpQIPrxS(
+            Queue<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpSIPrxS(
+            Stack<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IIPrx?>, IEnumerable<IIPrx?>) OpCIPrxS(
+            Custom<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CR?>, IEnumerable<CR?>) OpACRS(
+            CR?[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CR?>, IEnumerable<CR?>) OpLCRS(
+            List<CR?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CR?>, IEnumerable<CR?>) OpCCRS(
+            Custom<CR?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpAEnS(
+            En[] i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpLEnS(
+            List<En> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpKEnS(
+            LinkedList<En> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpQEnS(
+            Queue<En> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpSEnS(
+            Stack<En> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<En>, IEnumerable<En>) OpCEnS(
+            Custom<En> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<int>, IEnumerable<int>) OpCustomIntS(
+            Custom<int> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<CV?>, IEnumerable<CV?>) OpCustomCVS(
+            Custom<CV?> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IEnumerable<int>>, IEnumerable<IEnumerable<int>>) OpCustomIntSS(
+            Custom<Custom<int>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
+
+        public (IEnumerable<IEnumerable<CV?>>, IEnumerable<IEnumerable<CV?>>) OpCustomCVSS(
+            Custom<Custom<CV?>> i,
+            Current current,
+            CancellationToken cancel) => (i, i);
     }
 }

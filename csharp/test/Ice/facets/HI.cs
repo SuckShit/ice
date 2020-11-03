@@ -1,34 +1,19 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Facets
 {
-    namespace facets
+    public sealed class H : IH
     {
-        public sealed class HI : Test.HDisp_
-        {
-            public HI(Ice.Communicator communicator)
-            {
-                _communicator = communicator;
-            }
+        public H(Communicator communicator) => _communicator = communicator;
 
-            public override string callG(Ice.Current current)
-            {
-                return "G";
-            }
+        public string CallG(Current current, CancellationToken cancel) => "G";
 
-            public override string callH(Ice.Current current)
-            {
-                return "H";
-            }
+        public string CallH(Current current, CancellationToken cancel) => "H";
 
-            public override void shutdown(Ice.Current current)
-            {
-                _communicator.shutdown();
-            }
+        public void Shutdown(Current current, CancellationToken cancel) => _communicator.ShutdownAsync();
 
-            private Ice.Communicator _communicator;
-        }
+        private readonly Communicator _communicator;
     }
 }

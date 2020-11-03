@@ -21,7 +21,7 @@ public:
 
 static FactoryTableInit factoryTableInitializer;    // Dummy variable to force initialization of factoryTable
 
-extern ICE_API FactoryTable* factoryTable ICE_GLOBAL_VAR_SUFFIX;
+extern ICE_API FactoryTable* factoryTable;
 
 class ICE_API CompactIdInit
 {
@@ -42,11 +42,7 @@ public:
 
     DefaultUserExceptionFactoryInit(const char* tId) : typeId(tId)
     {
-#ifdef ICE_CPP11_MAPPING
         factoryTable->addExceptionFactory(typeId, defaultUserExceptionFactory<E>);
-#else
-        factoryTable->addExceptionFactory(typeId, new DefaultUserExceptionFactory<E>(typeId));
-#endif
     }
 
     ~DefaultUserExceptionFactoryInit()
@@ -64,11 +60,7 @@ public:
 
     DefaultValueFactoryInit(const char* tId) : typeId(tId)
     {
-#ifdef ICE_CPP11_MAPPING
         factoryTable->addValueFactory(typeId, defaultValueFactory<O>);
-#else
-        factoryTable->addValueFactory(typeId, new DefaultValueFactory<O>(typeId));
-#endif
     }
 
     ~DefaultValueFactoryInit()

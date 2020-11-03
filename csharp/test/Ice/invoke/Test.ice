@@ -4,8 +4,9 @@
 
 #pragma once
 
-["cs:namespace:Ice.invoke"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Invoke
 {
 
 exception MyException
@@ -16,9 +17,9 @@ interface MyClass
 {
     void opOneway();
 
-    string opString(string s1, out string s2);
+    (string r1, string r2) opString(string s1);
 
-    void opException() throws MyException;
+    void opException();
 
     void shutdown();
 }

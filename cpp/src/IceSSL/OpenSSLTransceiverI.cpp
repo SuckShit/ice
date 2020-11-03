@@ -346,7 +346,7 @@ OpenSSL::TransceiverI::initialize(IceInternal::Buffer& readBuffer, IceInternal::
         // Peer hostname verification is new in OpenSSL 1.0.2 for older versions
         // We use IceSSL built-in hostname verification.
         //
-        _engine->verifyPeerCertName(address, info);
+        _engine->verifyPeerCertName(_host, ICE_DYNAMIC_CAST(ConnectionInfo, getInfo()));
     }
     catch(const SecurityException&)
     {
@@ -823,7 +823,7 @@ OpenSSL::TransceiverI::toDetailedString() const
 Ice::ConnectionInfoPtr
 OpenSSL::TransceiverI::getInfo() const
 {
-    ConnectionInfoPtr info = ICE_MAKE_SHARED(ConnectionInfo);
+    ConnectionInfoPtr info = std::make_shared<ConnectionInfo>();
     info->underlying = _delegate->getInfo();
     info->incoming = _incoming;
     info->adapterName = _adapterName;

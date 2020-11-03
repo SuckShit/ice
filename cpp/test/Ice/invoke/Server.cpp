@@ -19,27 +19,26 @@ public:
         {
             if(async)
             {
-                _blobject = ICE_MAKE_SHARED(BlobjectArrayAsyncI);
+                _blobject = std::make_shared<BlobjectArrayAsyncI>();
             }
             else
             {
-                _blobject = ICE_MAKE_SHARED(BlobjectArrayI);
+                _blobject = std::make_shared<BlobjectArrayI>();
             }
         }
         else
         {
             if(async)
             {
-                _blobject = ICE_MAKE_SHARED(BlobjectAsyncI);
+                _blobject = std::make_shared<BlobjectAsyncI>();
             }
             else
             {
-                _blobject = ICE_MAKE_SHARED(BlobjectI);
+                _blobject = std::make_shared<BlobjectI>();
             }
         }
     }
 
-#ifdef ICE_CPP11_MAPPING
     virtual Ice::ObjectPtr
     locate(const Ice::Current&, shared_ptr<void>&)
     {
@@ -50,18 +49,6 @@ public:
     finished(const Ice::Current&, const Ice::ObjectPtr&, const shared_ptr<void>&)
     {
     }
-#else
-    virtual Ice::ObjectPtr
-    locate(const Ice::Current&, Ice::LocalObjectPtr&)
-    {
-        return _blobject;
-    }
-
-    virtual void
-    finished(const Ice::Current&, const Ice::ObjectPtr&, const Ice::LocalObjectPtr&)
-    {
-    }
-#endif
     virtual void
     deactivate(const string&)
     {
@@ -102,7 +89,7 @@ Server::run(int argc, char** argv)
 
     communicator->getProperties()->setProperty("TestAdapter.Endpoints", getTestEndpoint());
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, array, async), "");
+    adapter->addServantLocator(std::make_shared<ServantLocatorI>(array, async), "");
     adapter->activate();
 
     serverReady();

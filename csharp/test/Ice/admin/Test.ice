@@ -5,10 +5,11 @@
 #ifndef TEST_ICE
 #define TEST_ICE
 
-#include <Ice/Properties.ice>
+#include <Ice/PropertiesAdmin.ice>
 
-["cs:namespace:Ice.admin"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Admin
 {
 
 interface RemoteCommunicator

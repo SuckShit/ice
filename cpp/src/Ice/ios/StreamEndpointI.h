@@ -53,9 +53,6 @@ public:
 
 private:
 
-#ifndef ICE_SWIFT
-    const bool _voip;
-#endif
     const Ice::CommunicatorPtr _communicator;
     IceInternal::UniqueRef<CFMutableDictionaryRef> _proxySettings;
     std::string _proxyHost;
@@ -78,7 +75,7 @@ public:
     StreamEndpointI(const InstancePtr&);
     StreamEndpointI(const InstancePtr&, Ice::InputStream*);
 
-    virtual Ice::EndpointInfoPtr getInfo() const ICE_NOEXCEPT;
+    virtual Ice::EndpointInfoPtr getInfo() const noexcept;
 
     virtual Ice::Int timeout() const;
     virtual IceInternal::EndpointIPtr timeout(Ice::Int) const;
@@ -92,19 +89,12 @@ public:
     virtual IceInternal::AcceptorPtr acceptor(const std::string&) const;
     virtual std::string options() const;
 
-#ifdef ICE_CPP11_MAPPING
-
     std::shared_ptr<StreamEndpointI> shared_from_this()
     {
         return std::static_pointer_cast<StreamEndpointI>(IceInternal::IPEndpointI::shared_from_this());
     }
-
     virtual bool operator==(const Ice::Endpoint&) const;
     virtual bool operator<(const Ice::Endpoint&) const;
-#else
-    virtual bool operator==(const Ice::LocalObject&) const;
-    virtual bool operator<(const Ice::LocalObject&) const;
-#endif
 
     StreamEndpointIPtr endpoint(const StreamAcceptorPtr&) const;
 

@@ -4,7 +4,7 @@
 
 #pragma once
 
-[["js:es6-module"]]
+[[js:es6-module]]
 
 module Test
 {
@@ -41,11 +41,6 @@ interface TestIntf
 interface TestActivation
 {
     void activateServantLocator(bool activate);
-}
-
-local class Cookie
-{
-    ["cpp:const"] string message();
 }
 
 interface Echo

@@ -4,8 +4,9 @@
 
 #pragma once
 
-[["java:package:test.Ice.metrics"]]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Metrics
 {
 
 exception UserEx
@@ -20,8 +21,7 @@ interface Metrics
 
     idempotent void fail();
 
-    void opWithUserException()
-        throws UserEx;
+    void opWithUserException();
 
     void opWithRequestFailedException();
 

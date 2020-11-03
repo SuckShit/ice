@@ -1,56 +1,60 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Threading;
+using Test;
+
+namespace ZeroC.Ice.Test.Binding
 {
-    namespace binding
+    public class RemoteCommunicator : IRemoteCommunicator
     {
-        public class RemoteCommunicatorI : Test.RemoteCommunicatorDisp_
+        public IRemoteObjectAdapterPrx CreateObjectAdapter(
+            string name,
+            string transport,
+            Current current,
+            CancellationToken cancel)
         {
-            public override Test.RemoteObjectAdapterPrx
-            createObjectAdapter(string name, string endpts, Ice.Current current)
+            int retry = 5;
+            while (true)
             {
-                int retry = 5;
-                while(true)
+                try
                 {
-                    try
-                    {
-                        Ice.Communicator communicator = current.adapter.getCommunicator();
-                        string endpoints = endpts;
-                        if(endpoints.IndexOf("-p") < 0)
-                        {
-                            endpoints = global::Test.TestHelper.getTestEndpoint(communicator.getProperties(), _nextPort++, endpoints);
-                        }
+                    string endpoints =
+                        TestHelper.GetTestEndpoint(current.Communicator.GetProperties(), _nextPort++, transport);
 
-                        communicator.getProperties().setProperty(name + ".ThreadPool.Size", "1");
-                        Ice.ObjectAdapter adapter = communicator.createObjectAdapterWithEndpoints(name, endpoints);
-                        return Test.RemoteObjectAdapterPrxHelper.uncheckedCast(
-                            current.adapter.addWithUUID(new RemoteObjectAdapterI(adapter)));
-                    }
-                    catch(Ice.SocketException)
+                    ObjectAdapter adapter = current.Communicator.CreateObjectAdapterWithEndpoints(name, endpoints);
+                    return current.Adapter.AddWithUUID(
+                        new RemoteObjectAdapter(adapter), IRemoteObjectAdapterPrx.Factory);
+                }
+                catch (TransportException)
+                {
+                    if (--retry == 0)
                     {
-                        if(--retry == 0)
-                        {
-                            throw;
-                        }
+                        throw;
                     }
                 }
             }
-
-            public override void
-            deactivateObjectAdapter(Test.RemoteObjectAdapterPrx adapter, Ice.Current current)
-            {
-                adapter.deactivate(); // Collocated call.
-            }
-
-            public override void
-            shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            private int _nextPort = 10;
         }
+
+        public IRemoteObjectAdapterPrx CreateObjectAdapterWithEndpoints(
+            string name,
+            string endpoints,
+            Current current,
+            CancellationToken cancel)
+        {
+            ObjectAdapter adapter = current.Communicator.CreateObjectAdapterWithEndpoints(name, endpoints);
+            return current.Adapter.AddWithUUID(new RemoteObjectAdapter(adapter), IRemoteObjectAdapterPrx.Factory);
+        }
+
+        // Collocated call.
+        public void DeactivateObjectAdapter(
+            IRemoteObjectAdapterPrx? adapter,
+            Current current,
+            CancellationToken cancel) =>
+            adapter!.Deactivate(cancel: cancel);
+
+        public void Shutdown(Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.ShutdownAsync();
+
+        private int _nextPort = 10;
     }
 }

@@ -10,9 +10,6 @@
 #include <Ice/NativePropertiesAdmin.h>
 
 class RemoteCommunicatorI : public virtual Test::RemoteCommunicator,
-#ifndef ICE_CPP11_MAPPING
-                            public virtual Ice::PropertiesAdminUpdateCallback,
-#endif
                             public IceUtil::Monitor<IceUtil::Mutex>
 {
 public:
@@ -25,10 +22,10 @@ public:
     virtual void addUpdateCallback(const Ice::Current&);
     virtual void removeUpdateCallback(const Ice::Current&);
 
-    virtual void print(ICE_IN(std::string), const Ice::Current&);
-    virtual void trace(ICE_IN(std::string), ICE_IN(std::string), const Ice::Current&);
-    virtual void warning(ICE_IN(std::string), const Ice::Current&);
-    virtual void error(ICE_IN(std::string), const Ice::Current&);
+    virtual void print(std::string, const Ice::Current&);
+    virtual void trace(std::string, std::string, const Ice::Current&);
+    virtual void warning(std::string, const Ice::Current&);
+    virtual void error(std::string, const Ice::Current&);
 
     virtual void shutdown(const Ice::Current&);
     virtual void waitForShutdown(const Ice::Current&);
@@ -41,11 +38,7 @@ private:
     Ice::CommunicatorPtr _communicator;
     Ice::PropertyDict _changes;
 
-#ifdef ICE_CPP11_MAPPING
     std::function<void()> _removeCallback;
-#else
-    bool _hasCallback;
-#endif
 };
 ICE_DEFINE_PTR(RemoteCommunicatorIPtr, RemoteCommunicatorI);
 
@@ -53,7 +46,7 @@ class RemoteCommunicatorFactoryI : public Test::RemoteCommunicatorFactory
 {
 public:
 
-    virtual Test::RemoteCommunicatorPrxPtr createCommunicator(ICE_IN(Ice::PropertyDict), const Ice::Current&);
+    virtual Test::RemoteCommunicatorPrxPtr createCommunicator(Ice::PropertyDict, const Ice::Current&);
     virtual void shutdown(const Ice::Current&);
 };
 

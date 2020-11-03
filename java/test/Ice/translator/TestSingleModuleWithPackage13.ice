@@ -6,11 +6,9 @@
 
 #include <SingleModuleWithPackage.ice>
 
-[["java:package:smwp"]]
+[[java:package(smwp)]]
 
-module M
-{
-module N
+module M::N
 {
 
 const smwpEnum smwpTest13Constant = smwpE1;
@@ -29,9 +27,9 @@ sequence<smwpStruct> smwpTest13StructSeq;
 
 dictionary<smwpStruct, smwpBaseClass> smwpTest13StructClassSeq;
 
-interface smwpTest13Interface extends smwpInterface {}
+interface smwpTest13Interface : smwpInterface {}
 
-exception smwpTest13Exception extends smwpException
+exception smwpTest13Exception : smwpException
 {
     smwpEnum e1;
     smwpStruct s1;
@@ -41,7 +39,7 @@ exception smwpTest13Exception extends smwpException
     smwpInterface i1;
 }
 
-class smwpTest13Class extends smwpBaseClass implements smwpBaseInterface
+class smwpTest13Class : smwpBaseClass implements smwpBaseInterface
 {
     smwpStruct
     smwpTest13Op1(smwpEnum i1,
@@ -58,7 +56,7 @@ class smwpTest13Class extends smwpBaseClass implements smwpBaseInterface
                   out smwpClass o6)
         throws smwpException;
 
-    ["amd"]
+    [amd]
     smwpStruct
     smwpTest13Op3(smwpEnum i1,
                   smwpStruct i2,
@@ -75,5 +73,4 @@ class smwpTest13Class extends smwpBaseClass implements smwpBaseInterface
         throws smwpException;
 }
 
-}
 }

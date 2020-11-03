@@ -1,28 +1,18 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Inheritance
 {
-    namespace inheritance
+    public class Client : TestHelper
     {
-        public class Client : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                using(var communicator = initialize(ref args))
-                {
-                    var initial = AllTests.allTests(this);
-                    initial.shutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Client>(args);
-            }
+            await using Communicator communicator = Initialize(ref args);
+            await AllTests.Run(this).ShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

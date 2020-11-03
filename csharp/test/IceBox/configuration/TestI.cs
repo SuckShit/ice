@@ -1,27 +1,20 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using Test;
+using System.Collections.Generic;
+using System.Threading;
+using ZeroC.Ice;
 
-public class TestI : TestIntfDisp_
+namespace ZeroC.IceBox.Test.Configuration
 {
-    public TestI(string[] args)
+    public class TestIntf : ITestIntf
     {
-        _args = args;
-    }
+        private readonly string[] _args;
 
-    public override string
-    getProperty(string name, Ice.Current current)
-    {
-        return current.adapter.getCommunicator().getProperties().getProperty(name);
-    }
+        public TestIntf(string[] args) => _args = args;
 
-    public override string[]
-    getArgs(Ice.Current current)
-    {
-        return _args;
-    }
+        public string GetProperty(string name, Current current, CancellationToken cancel) =>
+            current.Adapter.Communicator.GetProperty(name) ?? "";
 
-    private string[] _args;
+        public IEnumerable<string> GetArgs(Current current, CancellationToken cancel) => _args;
+    }
 }

@@ -121,7 +121,7 @@ checkTrustResult(SecTrustRef trust,
         if(engine->getCheckCertName() && !host.empty())
         {
             UniqueRef<CFStringRef> hostref(toCFString(host));
-            UniqueRef<SecPolicyRef> policy(SecPolicyCreateSSL(false, hostref.get()));
+            UniqueRef<SecPolicyRef> policy(SecPolicyCreateSSL(true, hostref.get()));
             UniqueRef<CFArrayRef> policies;
             if((err = SecTrustCopyPolicies(trust, &policies.get())))
             {
@@ -546,7 +546,7 @@ IceSSL::SecureTransport::TransceiverI::toDetailedString() const
 Ice::ConnectionInfoPtr
 IceSSL::SecureTransport::TransceiverI::getInfo() const
 {
-    IceSSL::ConnectionInfoPtr info = ICE_MAKE_SHARED(IceSSL::ConnectionInfo);
+    IceSSL::ConnectionInfoPtr info = std::make_shared<IceSSL::ConnectionInfo>();
     info->underlying = _delegate->getInfo();
     info->incoming = _incoming;
     info->adapterName = _adapterName;

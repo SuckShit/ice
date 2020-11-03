@@ -1,39 +1,29 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Proxy
 {
-    namespace proxy
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                //
-                // We don't want connection warnings because of the timeout test.
-                //
-                properties.setProperty("Ice.Warn.Connections", "0");
-                properties.setProperty("Ice.Warn.Dispatch", "0");
+            var properties = CreateTestProperties(ref args);
 
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    adapter.add(new MyDerivedClassI(), Ice.Util.stringToIdentity("test"));
-                    adapter.activate();
-                    serverReady();
-                    communicator.waitForShutdown();
-                }
-            }
+            // We don't want connection warnings because of the timeout test.
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.Warn.Dispatch"] = "0";
 
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            var adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new MyDerivedClass());
+            await adapter.ActivateAsync();
+            ServerReady();
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

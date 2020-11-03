@@ -1,23 +1,19 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Threading.Tasks;
 using Test;
-using System;
 
-public class Client : Test.TestHelper
+namespace ZeroC.Ice.Test.Slicing.Exceptions
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            TestIntfPrx test = AllTests.allTests(this, false);
-            test.shutdown();
+            await using Communicator communicator = Initialize(ref args);
+            ITestIntfPrx test = AllTests.Run(this);
+            await test.ShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

@@ -1,35 +1,26 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
-using System.Reflection;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Client : Test.TestHelper
+namespace ZeroC.IceSSL.Test.Configuration
 {
-    public override void run(string[] args)
+    public class Client : TestHelper
     {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            if(args.Length < 1)
+            await using Ice.Communicator communicator = Initialize(ref args);
+            if (args.Length < 1)
             {
                 throw new ArgumentException("Usage: client testdir");
             }
 
-            Test.ServerFactoryPrx factory;
-            factory = AllTests.allTests(this, args[0]);
-            factory.shutdown();
+            IServerFactoryPrx factory;
+            factory = AllTests.Run(this, args[0]);
+            await factory.ShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Client>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Client>(args);
     }
 }

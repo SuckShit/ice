@@ -1,184 +1,273 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+using ZeroC.Ice;
 
 namespace Test
 {
-    public interface ControllerHelper
+    public interface IControllerHelper
     {
-        void serverReady();
-        void communicatorInitialized(Ice.Communicator communicator);
+        void ServerReady();
+        void CommunicatorInitialized(Communicator communicator);
     }
 
-    public interface PlatformAdapter
+    public interface IPlatformAdapter
     {
-        bool isEmulator();
+        bool IsEmulator();
 
-        string processControllerRegistryHost();
+        string ProcessControllerRegistryHost();
 
-        string processControllerIdentity();
+        string ProcessControllerIdentity();
     }
 
     public abstract class TestHelper
     {
-        public abstract void run(string[] args);
+        private TextWriter? _writer;
 
-        public string getTestEndpoint(int num = 0, string protocol = "")
+        public ushort BasePort => GetTestBasePort(Communicator!.GetProperties());
+
+        public IControllerHelper? ControllerHelper { get; set; }
+        public Communicator? Communicator { get; private set; }
+
+        public ZeroC.Ice.Encoding Encoding => GetTestEncoding(Communicator!.GetProperties());
+
+        public string Host => GetTestHost(Communicator!.GetProperties());
+
+        public Protocol Protocol => GetTestProtocol(Communicator!.GetProperties());
+
+        public string Transport => GetTestTransport(Communicator!.GetProperties());
+
+        public TextWriter Output
         {
-            return getTestEndpoint(_communicator.getProperties(), num, protocol);
+            get => _writer ?? Console.Out;
+            set => _writer = value;
         }
 
-        static public string getTestEndpoint(Ice.Properties properties, int num = 0, string protocol = "")
+        public static void Assert([DoesNotReturnIf(false)] bool b, string message = "")
         {
-            StringBuilder sb = new StringBuilder();
-            sb.Append(protocol == "" ? properties.getPropertyWithDefault("Ice.Default.Protocol", "default") :
-                                       protocol);
-            sb.Append(" -p ");
-            sb.Append(properties.getPropertyAsIntWithDefault("Test.BasePort", 12010) + num);
-            return sb.ToString();
-        }
-
-        public string getTestHost()
-        {
-            return getTestHost(_communicator.getProperties());
-        }
-
-        static public string getTestHost(Ice.Properties properties)
-        {
-            return properties.getPropertyWithDefault("Ice.Default.Host", "127.0.0.1");
-        }
-
-        public String getTestProtocol()
-        {
-            return getTestProtocol(_communicator.getProperties());
-        }
-
-        static public String getTestProtocol(Ice.Properties properties)
-        {
-            return properties.getPropertyWithDefault("Ice.Default.Protocol", "tcp");
-        }
-
-        public int getTestPort(int num)
-        {
-            return getTestPort(_communicator.getProperties(), num);
-        }
-
-        static public int getTestPort(Ice.Properties properties, int num)
-        {
-            return properties.getPropertyAsIntWithDefault("Test.BasePort", 12010) + num;
-        }
-
-        public TextWriter getWriter()
-        {
-            if(_writer == null)
+            if (!b)
             {
-                return Console.Out;
+                Debug.Assert(false, message);
+                throw new Exception(message);
+            }
+        }
+        public abstract Task RunAsync(string[] args);
+
+        public string GetTestEndpoint(int num = 0, string transport = "", bool ephemeral = false) =>
+            GetTestEndpoint(Communicator!.GetProperties(), num, transport, ephemeral);
+
+        public static string GetTestEndpoint(
+            Dictionary<string, string> properties, int num = 0, string transport = "", bool ephemeral = false)
+        {
+            if (transport.Length == 0 || transport == "default")
+            {
+                if (properties.TryGetValue("Test.Transport", out string? value))
+                {
+                    transport = value;
+                }
+                else
+                {
+                    transport = "tcp";
+                }
+            }
+
+            string host = GetTestHost(properties);
+            string port = ephemeral ? "0" : $"{GetTestBasePort(properties) + num}";
+
+            if (GetTestProtocol(properties) == Protocol.Ice2 && transport != "udp")
+            {
+                var sb = new StringBuilder("ice+");
+                sb.Append(transport);
+                sb.Append("://");
+
+                if (host.Contains(':'))
+                {
+                    sb.Append('[');
+                    sb.Append(host);
+                    sb.Append(']');
+                }
+                else
+                {
+                    sb.Append(host);
+                }
+                sb.Append(':');
+                sb.Append(port);
+                return sb.ToString();
             }
             else
             {
-                return _writer;
+                var sb = new StringBuilder(transport);
+                sb.Append(" -h ");
+                if (host.Contains(':'))
+                {
+                    sb.Append('"');
+                    sb.Append(host);
+                    sb.Append('"');
+                }
+                else
+                {
+                    sb.Append(host);
+                }
+                sb.Append(" -p ");
+                sb.Append(port);
+                return sb.ToString();
             }
         }
 
-        public void setWriter(TextWriter writer)
+        public string GetTestProxy(string identity, int num = 0, string? transport = null) =>
+            GetTestProxy(identity, Communicator!.GetProperties(), num, transport);
+
+        public static string GetTestProxy(
+            string identity,
+            Dictionary<string, string> properties,
+            int num = 0,
+            string? transport = null)
         {
-            _writer = writer;
+            if (GetTestProtocol(properties) == Protocol.Ice2 && transport != "udp")
+            {
+                var sb = new StringBuilder("ice+");
+                sb.Append(transport ?? GetTestTransport(properties));
+                sb.Append("://");
+                string host = GetTestHost(properties);
+                if (host.Contains(':'))
+                {
+                    sb.Append('[');
+                    sb.Append(host);
+                    sb.Append(']');
+                }
+                else
+                {
+                    sb.Append(host);
+                }
+                sb.Append(':');
+                sb.Append(GetTestBasePort(properties) + num);
+                sb.Append('/');
+                sb.Append(identity);
+                return sb.ToString();
+            }
+            else // i.e. ice1
+            {
+                var sb = new StringBuilder(identity);
+                sb.Append(':');
+                sb.Append(transport ?? GetTestTransport(properties));
+                sb.Append(" -h ");
+                string host = GetTestHost(properties);
+                if (host.Contains(':'))
+                {
+                    sb.Append('"');
+                    sb.Append(host);
+                    sb.Append('"');
+                }
+                else
+                {
+                    sb.Append(host);
+                }
+                sb.Append(" -p ");
+                sb.Append(GetTestBasePort(properties) + num);
+                return sb.ToString();
+            }
         }
 
-        public Ice.Properties createTestProperties(ref string[] args)
+        public static string GetTestHost(Dictionary<string, string> properties)
         {
-            Ice.Properties properties = Ice.Util.createProperties(ref args);
-            args = properties.parseCommandLineOptions("Test", args);
+            if (!properties.TryGetValue("Test.Host", out string? host))
+            {
+                host = "127.0.0.1";
+            }
+            return host;
+        }
+
+        public static Protocol GetTestProtocol(Dictionary<string, string> properties)
+        {
+            if (!properties.TryGetValue("Test.Protocol", out string? value))
+            {
+                return Protocol.Ice2;
+            }
+            try
+            {
+                return ProtocolExtensions.Parse(value);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidConfigurationException(
+                    $"invalid value for for Test.Protocol: `{value}'", ex);
+            }
+        }
+
+        public static ZeroC.Ice.Encoding GetTestEncoding(Dictionary<string, string> properties)
+            => ProtocolExtensions.GetEncoding(GetTestProtocol(properties));
+
+        public static string GetTestTransport(Dictionary<string, string> properties)
+        {
+            if (!properties.TryGetValue("Test.Transport", out string? transport))
+            {
+                transport = "tcp";
+            }
+            return transport;
+        }
+
+        public static ushort GetTestBasePort(Dictionary<string, string> properties)
+        {
+            ushort basePort = 12010;
+            if (properties.TryGetValue("Test.BasePort", out string? value))
+            {
+                basePort = ushort.Parse(value);
+            }
+            return basePort;
+        }
+
+        public static Dictionary<string, string> CreateTestProperties(
+            ref string[] args,
+            Dictionary<string, string>? defaults = null)
+        {
+            Dictionary<string, string> properties =
+                defaults == null ? new Dictionary<string, string>() : new Dictionary<string, string>(defaults);
+            properties.ParseIceArgs(ref args);
+            properties.ParseArgs(ref args, "Test");
             return properties;
         }
 
-        public Ice.Communicator initialize(ref string[] args)
-        {
-            Ice.InitializationData initData = new Ice.InitializationData();
-            initData.properties = createTestProperties(ref args);
-            return initialize(initData);
-        }
+        public Communicator Initialize(ref string[] args,
+            Dictionary<string, string>? defaults = null,
+            ZeroC.Ice.Instrumentation.ICommunicatorObserver? observer = null) =>
+            Initialize(CreateTestProperties(ref args, defaults), observer);
 
-        public Ice.Communicator initialize(Ice.Properties properties)
+        public Communicator Initialize(
+            Dictionary<string, string> properties,
+            ZeroC.Ice.Instrumentation.ICommunicatorObserver? observer = null)
         {
-            Ice.InitializationData initData = new Ice.InitializationData();
-            initData.properties = properties;
-            return initialize(initData);
-        }
-
-        public Ice.Communicator initialize(Ice.InitializationData initData)
-        {
-            Ice.Communicator communicator = Ice.Util.initialize(initData);
-            if(_communicator == null)
+            var tlsServerOptions = new TlsServerOptions();
+            if (properties.TryGetValue("Test.Transport", out string? value))
             {
-                _communicator = communicator;
+                // When running test with WSS disable client authentication for browser compatibility
+                tlsServerOptions.RequireClientCertificate = value == "ssl";
             }
-            if(_controllerHelper != null)
-            {
-                _controllerHelper.communicatorInitialized(communicator);
-            }
-            return  communicator;
+            var communicator = new Communicator(properties, tlsServerOptions: tlsServerOptions, observer: observer);
+
+            Communicator ??= communicator;
+            ControllerHelper?.CommunicatorInitialized(communicator);
+
+            return communicator;
         }
 
-        public Ice.Communicator communicator()
-        {
-            return _communicator;
-        }
-
-        public static void test(bool b)
-        {
-            if (!b)
-            {
-                Debug.Assert(false);
-                throw new Exception();
-            }
-        }
-
-        public void setControllerHelper(ControllerHelper controllerHelper)
-        {
-            _controllerHelper = controllerHelper;
-        }
-
-        public void serverReady()
-        {
-            if (_controllerHelper != null)
-            {
-                _controllerHelper.serverReady();
-            }
-        }
-
-        private Ice.Communicator _communicator;
-        private ControllerHelper _controllerHelper;
-        private TextWriter _writer;
-    }
-
-    public abstract class AllTests
-    {
-        protected static void test(bool b)
-        {
-            if (!b)
-            {
-                Debug.Assert(false);
-                throw new Exception();
-            }
-        }
+        public void ServerReady() => ControllerHelper?.ServerReady();
     }
 
     public static class TestDriver
     {
-        public static int runTest<T>(string[] args)
-            where T : TestHelper, new()
+        public static async Task<int> RunTestAsync<T>(string[] args) where T : TestHelper, new()
         {
             int status = 0;
             try
             {
-                T h = new T();
-                h.run(args);
+                var h = new T();
+                await h.RunAsync(args);
             }
             catch (Exception ex)
             {

@@ -1,625 +1,731 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static void Run(TestHelper helper)
         {
-            public static void allTests(global::Test.TestHelper helper)
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            bool ice1 = helper.Protocol == Protocol.Ice1;
+            var manager = IServerManagerPrx.Parse(helper.GetTestProxy("ServerManager", 0), communicator);
+            var locator = communicator.DefaultLocator!.Clone(ITestLocatorPrx.Factory);
+            Console.WriteLine("registry checkedcast");
+            var registry = locator.GetRegistry()!.Clone(ITestLocatorRegistryPrx.Factory);
+            TestHelper.Assert(registry != null);
+
+            System.IO.TextWriter output = helper.Output;
+            output.Write("testing ice1 string/URI parsing... ");
+            output.Flush();
+            IObjectPrx base1, base2, base3, base4, base5, base6, base7;
+            if (ice1)
             {
-                Ice.Communicator communicator = helper.communicator();
-                var manager = Test.ServerManagerPrxHelper.checkedCast(
-                                                communicator.stringToProxy("ServerManager :" + helper.getTestEndpoint(0)));
-                test(manager != null);
-                var locator = Test.TestLocatorPrxHelper.uncheckedCast(communicator.getDefaultLocator());
-                test(locator != null);
-                var registry = Test.TestLocatorRegistryPrxHelper.checkedCast(locator.getRegistry());
-                test(registry != null);
+                base1 = IObjectPrx.Parse("test @ TestAdapter", communicator);
+                base2 = IObjectPrx.Parse("test @ TestAdapter", communicator);
+                base3 = IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator);
+                base4 = IObjectPrx.Parse("ServerManager", communicator);
+                base5 = IObjectPrx.Parse("test2", communicator);
+                base6 = IObjectPrx.Parse("test @ ReplicatedAdapter", communicator);
+                base7 = IObjectPrx.Parse("test3 -f facet", communicator);
+            }
+            else
+            {
+                base1 = IObjectPrx.Parse("ice:TestAdapter//test", communicator);
+                base2 = IObjectPrx.Parse("ice:TestAdapter//test", communicator);
+                base3 = IObjectPrx.Parse("ice:test", communicator);
+                base4 = IObjectPrx.Parse("ice:ServerManager", communicator);
+                base5 = IObjectPrx.Parse("ice:test2", communicator);
+                base6 = IObjectPrx.Parse("ice:ReplicatedAdapter//test", communicator);
+                base7 = IObjectPrx.Parse("ice:test3#facet", communicator);
+            }
+            output.WriteLine("ok");
 
-                var output = helper.getWriter();
-                output.Write("testing stringToProxy... ");
-                output.Flush();
-                Ice.ObjectPrx @base = communicator.stringToProxy("test @ TestAdapter");
-                Ice.ObjectPrx base2 = communicator.stringToProxy("test @ TestAdapter");
-                Ice.ObjectPrx base3 = communicator.stringToProxy("test");
-                Ice.ObjectPrx base4 = communicator.stringToProxy("ServerManager");
-                Ice.ObjectPrx base5 = communicator.stringToProxy("test2");
-                Ice.ObjectPrx base6 = communicator.stringToProxy("test @ ReplicatedAdapter");
-                output.WriteLine("ok");
+            output.Write("testing ice_locator and ice_getLocator... ");
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Locator!, communicator.DefaultLocator!));
+            var anotherLocator =
+                ILocatorPrx.Parse(ice1 ? "anotherLocator" : "ice:anotherLocator", communicator);
+            base1 = base1.Clone(locator: anotherLocator);
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Locator!, anotherLocator));
+            communicator.DefaultLocator = null;
+            base1 = IObjectPrx.Parse(ice1 ? "test @ TestAdapter" : "ice:TestAdapter//test", communicator);
+            TestHelper.Assert(base1.Locator == null);
+            base1 = base1.Clone(locator: anotherLocator);
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Locator!, anotherLocator));
+            communicator.DefaultLocator = locator;
+            base1 = IObjectPrx.Parse(ice1 ? "test @ TestAdapter" : "ice:TestAdapter//test", communicator);
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Locator!, communicator.DefaultLocator!));
 
-                output.Write("testing ice_locator and ice_getLocator... ");
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getLocator(), communicator.getDefaultLocator()) == 0);
-                Ice.LocatorPrx anotherLocator =
-                    Ice.LocatorPrxHelper.uncheckedCast(communicator.stringToProxy("anotherLocator"));
-                @base = @base.ice_locator(anotherLocator);
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getLocator(), anotherLocator) == 0);
-                communicator.setDefaultLocator(null);
-                @base = communicator.stringToProxy("test @ TestAdapter");
-                test(@base.ice_getLocator() == null);
-                @base = @base.ice_locator(anotherLocator);
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getLocator(), anotherLocator) == 0);
-                communicator.setDefaultLocator(locator);
-                @base = communicator.stringToProxy("test @ TestAdapter");
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getLocator(), communicator.getDefaultLocator()) == 0);
+            // TODO: We also test ice_router/ice_getRouter(perhaps we should add a test/Ice/router test?)
+            TestHelper.Assert(base1.Router == null);
+            var anotherRouter = IRouterPrx.Parse(ice1 ? "anotherRouter" : "ice:anotherRouter", communicator);
+            base1 = base1.Clone(router: anotherRouter);
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Router!, anotherRouter));
+            var router = IRouterPrx.Parse(ice1 ? "dummyrouter" : "ice:dummyrouter", communicator);
+            communicator.DefaultRouter = router;
+            base1 = IObjectPrx.Parse(ice1 ? "test @ TestAdapter" : "ice:TestAdapter//test", communicator);
+            TestHelper.Assert(ProxyComparer.Identity.Equals(base1.Router!, communicator.DefaultRouter!));
+            communicator.DefaultRouter = null;
+            base1 = IObjectPrx.Parse(ice1 ? "test @ TestAdapter" : "ice:TestAdapter//test", communicator);
+            TestHelper.Assert(base1.Router == null);
+            output.WriteLine("ok");
 
-                //
-                // We also test ice_router/ice_getRouter(perhaps we should add a
-                // test/Ice/router test?)
-                //
-                test(@base.ice_getRouter() == null);
-                Ice.RouterPrx anotherRouter =
-                    Ice.RouterPrxHelper.uncheckedCast(communicator.stringToProxy("anotherRouter"));
-                @base = @base.ice_router(anotherRouter);
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getRouter(), anotherRouter) == 0);
-                Ice.RouterPrx router = Ice.RouterPrxHelper.uncheckedCast(communicator.stringToProxy("dummyrouter"));
-                communicator.setDefaultRouter(router);
-                @base = communicator.stringToProxy("test @ TestAdapter");
-                test(Ice.Util.proxyIdentityCompare(@base.ice_getRouter(), communicator.getDefaultRouter()) == 0);
-                communicator.setDefaultRouter(null);
-                @base = communicator.stringToProxy("test @ TestAdapter");
-                test(@base.ice_getRouter() == null);
-                output.WriteLine("ok");
+            output.Write("starting server... ");
+            output.Flush();
+            manager.StartServer();
+            output.WriteLine("ok");
 
-                output.Write("starting server... ");
-                output.Flush();
-                manager.startServer();
-                output.WriteLine("ok");
+            output.Write("testing checked cast... ");
+            output.Flush();
+            var obj1 = base1.CheckedCast(ITestIntfPrx.Factory);
+            TestHelper.Assert(obj1 != null);
+            var obj2 = base2.CheckedCast(ITestIntfPrx.Factory);
+            TestHelper.Assert(obj2 != null);
+            var obj3 = base3.CheckedCast(ITestIntfPrx.Factory);
+            TestHelper.Assert(obj3 != null);
+            var obj4 = base4.CheckedCast(IServerManagerPrx.Factory);
+            TestHelper.Assert(obj4 != null);
+            var obj5 = base5.CheckedCast(ITestIntfPrx.Factory);
+            TestHelper.Assert(obj5 != null);
+            var obj6 = base6.CheckedCast(ITestIntfPrx.Factory);
+            TestHelper.Assert(obj6 != null);
+            output.WriteLine("ok");
 
-                output.Write("testing checked cast... ");
-                output.Flush();
-                var obj = Test.TestIntfPrxHelper.checkedCast(@base);
-                test(obj != null);
-                var obj2 = Test.TestIntfPrxHelper.checkedCast(base2);
-                test(obj2 != null);
-                var obj3 = Test.TestIntfPrxHelper.checkedCast(base3);
-                test(obj3 != null);
-                var obj4 = Test.ServerManagerPrxHelper.checkedCast(base4);
-                test(obj4 != null);
-                var obj5 = Test.TestIntfPrxHelper.checkedCast(base5);
-                test(obj5 != null);
-                var obj6 = Test.TestIntfPrxHelper.checkedCast(base6);
-                test(obj6 != null);
-                output.WriteLine("ok");
+            output.Write("testing AdapterId//id indirect proxy... ");
+            output.Flush();
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj2.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing id@AdapterId indirect proxy... ");
-                output.Flush();
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj2.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                output.WriteLine("ok");
+            output.Write("testing ReplicaGroupId//id indirect proxy... ");
+            output.Flush();
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj6.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing id@ReplicaGroupId indirect proxy... ");
-                output.Flush();
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj6.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                output.WriteLine("ok");
+            output.Write("testing identity indirect proxy... ");
+            output.Flush();
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj3.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            try
+            {
+                obj2.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj2.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            try
+            {
+                obj3.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj2.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj3.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            obj1.Shutdown();
+            manager.StartServer();
+            try
+            {
+                obj5 = base5.CheckedCast(ITestIntfPrx.Factory);
+                TestHelper.Assert(obj5 != null);
+                obj5.IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing identity indirect proxy... ");
-                output.Flush();
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj3.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                try
-                {
-                    obj2.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj2.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                try
-                {
-                    obj3.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj2.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj3.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                obj.shutdown();
-                manager.startServer();
-                try
-                {
-                    obj5 = Test.TestIntfPrxHelper.checkedCast(base5);
-                    obj5.ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                output.WriteLine("ok");
+            output.Write("testing proxy with unknown identity... ");
+            output.Flush();
+            try
+            {
+                base1 = IObjectPrx.Parse(ice1 ? "unknown/unknown" : "ice:unknown/unknown", communicator);
+                base1.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing proxy with unknown identity... ");
-                output.Flush();
-                try
-                {
-                    @base = communicator.stringToProxy("unknown/unknown");
-                    @base.ice_ping();
-                    test(false);
-                }
-                catch(Ice.NotRegisteredException ex)
-                {
-                    test(ex.kindOfObject.Equals("object"));
-                    test(ex.id.Equals("unknown/unknown"));
-                }
-                output.WriteLine("ok");
+            output.Write("testing proxy with unknown adapter... ");
+            output.Flush();
+            try
+            {
+                base1 = IObjectPrx.Parse(
+                    ice1 ? "test @ TestAdapterUnknown" : "ice:TestAdapterUnknown//test", communicator);
+                base1.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing proxy with unknown adapter... ");
-                output.Flush();
-                try
-                {
-                    @base = communicator.stringToProxy("test @ TestAdapterUnknown");
-                    @base.ice_ping();
-                    test(false);
-                }
-                catch(Ice.NotRegisteredException ex)
-                {
-                    test(ex.kindOfObject.Equals("object adapter"));
-                    test(ex.id.Equals("TestAdapterUnknown"));
-                }
-                output.WriteLine("ok");
+            output.Write("testing locator cache timeout... ");
+            output.Flush();
 
-                output.Write("testing locator cache timeout... ");
-                output.Flush();
+            IObjectPrx basencc = IObjectPrx.Parse(
+                ice1 ? "test@TestAdapter" : "ice:TestAdapter//test", communicator).Clone(cacheConnection: false);
+            int count = locator.GetRequestCount();
+            basencc.Clone(locatorCacheTimeout: TimeSpan.Zero).IcePing(); // No locator cache.
+            TestHelper.Assert(++count == locator.GetRequestCount());
+            basencc.Clone(locatorCacheTimeout: TimeSpan.Zero).IcePing(); // No locator cache.
+            TestHelper.Assert(++count == locator.GetRequestCount());
+            basencc.Clone(locatorCacheTimeout: TimeSpan.FromSeconds(2)).IcePing(); // 2s timeout.
+            TestHelper.Assert(count == locator.GetRequestCount());
+            Thread.Sleep(1300); // 1300ms
+            basencc.Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout.
+            TestHelper.Assert(++count == locator.GetRequestCount());
 
-                Ice.ObjectPrx basencc = communicator.stringToProxy("test@TestAdapter").ice_connectionCached(false);
-                int count = locator.getRequestCount();
-                basencc.ice_locatorCacheTimeout(0).ice_ping(); // No locator cache.
-                test(++count == locator.getRequestCount());
-                basencc.ice_locatorCacheTimeout(0).ice_ping(); // No locator cache.
-                test(++count == locator.getRequestCount());
-                basencc.ice_locatorCacheTimeout(2).ice_ping(); // 2s timeout.
-                test(count == locator.getRequestCount());
-                System.Threading.Thread.Sleep(1300); // 1300ms
-                basencc.ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout.
-                test(++count == locator.getRequestCount());
+            IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator)
+                .Clone(locatorCacheTimeout: TimeSpan.Zero).IcePing(); // No locator cache.
+            count += 2;
+            TestHelper.Assert(count == locator.GetRequestCount());
+            IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator)
+                .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(2)).IcePing(); // 2s timeout
+            TestHelper.Assert(count == locator.GetRequestCount());
+            System.Threading.Thread.Sleep(1300); // 1300ms
+            IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator)
+                .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout
+            count += 2;
+            TestHelper.Assert(count == locator.GetRequestCount());
 
-                communicator.stringToProxy("test").ice_locatorCacheTimeout(0).ice_ping(); // No locator cache.
-                count += 2;
-                test(count == locator.getRequestCount());
-                communicator.stringToProxy("test").ice_locatorCacheTimeout(2).ice_ping(); // 2s timeout
-                test(count == locator.getRequestCount());
-                System.Threading.Thread.Sleep(1300); // 1300ms
-                communicator.stringToProxy("test").ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout
-                count += 2;
-                test(count == locator.getRequestCount());
+            IObjectPrx.Parse(ice1 ? "test@TestAdapter" : "ice:TestAdapter//test", communicator)
+                .Clone(locatorCacheTimeout: Timeout.InfiniteTimeSpan).IcePing();
+            TestHelper.Assert(count == locator.GetRequestCount());
+            IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator).Clone(locatorCacheTimeout: Timeout.InfiniteTimeSpan).IcePing();
+            TestHelper.Assert(count == locator.GetRequestCount());
+            IObjectPrx.Parse(ice1 ? "test@TestAdapter" : "ice:TestAdapter//test", communicator).IcePing();
+            TestHelper.Assert(count == locator.GetRequestCount());
+            IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator).IcePing();
+            TestHelper.Assert(count == locator.GetRequestCount());
 
-                communicator.stringToProxy("test@TestAdapter").ice_locatorCacheTimeout(-1).ice_ping();
-                test(count == locator.getRequestCount());
-                communicator.stringToProxy("test").ice_locatorCacheTimeout(-1).ice_ping();
-                test(count == locator.getRequestCount());
-                communicator.stringToProxy("test@TestAdapter").ice_ping();
-                test(count == locator.getRequestCount());
-                communicator.stringToProxy("test").ice_ping();
-                test(count == locator.getRequestCount());
+            TestHelper.Assert(IObjectPrx.Parse(ice1 ? "test" : "ice:test", communicator)
+                .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(99)).LocatorCacheTimeout == TimeSpan.FromSeconds(99));
 
-                test(communicator.stringToProxy("test").ice_locatorCacheTimeout(99).ice_getLocatorCacheTimeout() == 99);
+            output.WriteLine("ok");
 
-                output.WriteLine("ok");
+            output.Write("testing proxy from server... ");
+            output.Flush();
+            obj1 = ITestIntfPrx.Parse(ice1 ? "test@TestAdapter" : "ice:TestAdapter//test", communicator);
+            IHelloPrx? hello = obj1.GetHello();
+            TestHelper.Assert(hello != null);
+            TestHelper.Assert(hello.Location.Count == 1 && hello.Location[0] == "TestAdapter");
+            hello.SayHello();
+            hello = obj1.GetReplicatedHello();
+            TestHelper.Assert(hello != null);
+            TestHelper.Assert(hello.Location.Count == 1 && hello.Location[0] == "ReplicatedAdapter");
+            hello.SayHello();
+            output.WriteLine("ok");
 
-                output.Write("testing proxy from server... ");
-                output.Flush();
-                obj = Test.TestIntfPrxHelper.checkedCast(communicator.stringToProxy("test@TestAdapter"));
-                var hello = obj.getHello();
-                test(hello.ice_getAdapterId().Equals("TestAdapter"));
-                hello.sayHello();
-                hello = obj.getReplicatedHello();
-                test(hello.ice_getAdapterId().Equals("ReplicatedAdapter"));
-                hello.sayHello();
-                output.WriteLine("ok");
+            output.Write("testing well-known proxy with facet... ");
+            output.Flush();
+            hello = IHelloPrx.Parse(ice1 ? "bonjour -f abc" : "ice:bonjour#abc", communicator);
+            hello.SayHello();
+            hello = IHelloPrx.Parse(ice1 ? "hello -f abc" : "ice:hello#abc", communicator);
+            try
+            {
+                hello.SayHello();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException) // hello does not have an abc facet
+            {
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing locator request queuing... ");
-                output.Flush();
-                hello =(Test.HelloPrx)obj.getReplicatedHello().ice_locatorCacheTimeout(0).ice_connectionCached(false);
-                count = locator.getRequestCount();
-                hello.ice_ping();
-                test(++count == locator.getRequestCount());
-                List<Ice.AsyncResult<Test.Callback_Hello_sayHello>> results =
-                    new List<Ice.AsyncResult<Test.Callback_Hello_sayHello>>();
-                for(int i = 0; i < 1000; i++)
-                {
-                    Ice.AsyncResult<Test.Callback_Hello_sayHello> result = hello.begin_sayHello().
-                        whenCompleted(
-                           () =>
-                            {
-                            },
-                           (Ice.Exception ex) =>
-                            {
-                                test(false);
-                            });
-                    results.Add(result);
-                }
-                foreach(Ice.AsyncResult<Test.Callback_Hello_sayHello> result in results)
-                {
-                    result.waitForCompleted();
-                }
-                results.Clear();
-                test(locator.getRequestCount() > count && locator.getRequestCount() < count + 999);
-                if(locator.getRequestCount() > count + 800)
-                {
-                    output.Write("queuing = " +(locator.getRequestCount() - count));
-                }
-                count = locator.getRequestCount();
-                hello =(Test.HelloPrx)hello.ice_adapterId("unknown");
-                for(int i = 0; i < 1000; i++)
-                {
-                    Ice.AsyncResult<Test.Callback_Hello_sayHello> result = hello.begin_sayHello().
-                        whenCompleted(
-                           () =>
-                            {
-                                test(false);
-                            },
-                           (Ice.Exception ex) =>
-                            {
-                                test(ex is Ice.NotRegisteredException);
-                            });
-                    results.Add(result);
-                }
-                foreach(Ice.AsyncResult<Test.Callback_Hello_sayHello> result in results)
-                {
-                    result.waitForCompleted();
-                }
-                results.Clear();
-                // XXX:
-                // Take into account the retries.
-                test(locator.getRequestCount() > count && locator.getRequestCount() < count + 1999);
-                if(locator.getRequestCount() > count + 800)
-                {
-                    output.Write("queuing = " +(locator.getRequestCount() - count));
-                }
-                output.WriteLine("ok");
-
-                output.Write("testing adapter locator cache... ");
-                output.Flush();
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter3").ice_ping();
-                    test(false);
-                }
-                catch(Ice.NotRegisteredException ex)
-                {
-                    test(ex.kindOfObject == "object adapter");
-                    test(ex.id.Equals("TestAdapter3"));
-                }
-                registry.setAdapterDirectProxy("TestAdapter3", locator.findAdapterById("TestAdapter"));
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter3").ice_ping();
-                    registry.setAdapterDirectProxy("TestAdapter3",
-                                                   communicator.stringToProxy("dummy:" + helper.getTestEndpoint(99)));
-                    communicator.stringToProxy("test@TestAdapter3").ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter3").ice_locatorCacheTimeout(0).ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter3").ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                registry.setAdapterDirectProxy("TestAdapter3", locator.findAdapterById("TestAdapter"));
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter3").ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-                output.WriteLine("ok");
-
-                output.Write("testing well-known object locator cache... ");
-                output.Flush();
-                registry.addObject(communicator.stringToProxy("test3@TestUnknown"));
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                    test(false);
-                }
-                catch(Ice.NotRegisteredException ex)
-                {
-                    test(ex.kindOfObject == "object adapter");
-                    test(ex.id.Equals("TestUnknown"));
-                }
-                registry.addObject(communicator.stringToProxy("test3@TestAdapter4")); // Update
-                registry.setAdapterDirectProxy("TestAdapter4",
-                                               communicator.stringToProxy("dummy:" + helper.getTestEndpoint(99)));
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                registry.setAdapterDirectProxy("TestAdapter4", locator.findAdapterById("TestAdapter"));
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-
-                registry.setAdapterDirectProxy("TestAdapter4",
-                                               communicator.stringToProxy("dummy:" + helper.getTestEndpoint(99)));
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter4").ice_locatorCacheTimeout(0).ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                try
-                {
-                    communicator.stringToProxy("test@TestAdapter4").ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                registry.addObject(communicator.stringToProxy("test3@TestAdapter"));
-                try
-                {
-                    communicator.stringToProxy("test3").ice_ping();
-                }
-                catch(Ice.LocalException)
-                {
-                    test(false);
-                }
-
-                registry.addObject(communicator.stringToProxy("test4"));
-                try
-                {
-                    communicator.stringToProxy("test4").ice_ping();
-                    test(false);
-                }
-                catch(Ice.NoEndpointException)
-                {
-                }
-                output.WriteLine("ok");
-
-                output.Write("testing locator cache background updates... ");
-                output.Flush();
-                {
-                    Ice.InitializationData initData = new Ice.InitializationData();
-                    initData.properties = communicator.getProperties().ice_clone_();
-                    initData.properties.setProperty("Ice.BackgroundLocatorCacheUpdates", "1");
-                    Ice.Communicator ic = helper.initialize(initData);
-
-                    registry.setAdapterDirectProxy("TestAdapter5", locator.findAdapterById("TestAdapter"));
-                    registry.addObject(communicator.stringToProxy("test3@TestAdapter"));
-
-                    count = locator.getRequestCount();
-                    ic.stringToProxy("test@TestAdapter5").ice_locatorCacheTimeout(0).ice_ping(); // No locator cache.
-                    ic.stringToProxy("test3").ice_locatorCacheTimeout(0).ice_ping(); // No locator cache.
-                    count += 3;
-                    test(count == locator.getRequestCount());
-                    registry.setAdapterDirectProxy("TestAdapter5", null);
-                    registry.addObject(communicator.stringToProxy("test3:" + helper.getTestEndpoint(99)));
-                    ic.stringToProxy("test@TestAdapter5").ice_locatorCacheTimeout(10).ice_ping(); // 10s timeout.
-                    ic.stringToProxy("test3").ice_locatorCacheTimeout(10).ice_ping(); // 10s timeout.
-                    test(count == locator.getRequestCount());
-                    System.Threading.Thread.Sleep(1200);
-
-                    // The following request should trigger the background
-                    // updates but still use the cached endpoints and
-                    // therefore succeed.
-                    ic.stringToProxy("test@TestAdapter5").ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout.
-                    ic.stringToProxy("test3").ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout.
-
-                    try
+            output.Write("testing locator request queuing... ");
+            output.Flush();
+            hello = obj1.GetReplicatedHello()!.Clone(locatorCacheTimeout: TimeSpan.Zero, cacheConnection: false);
+            TestHelper.Assert(hello != null);
+            count = locator.GetRequestCount();
+            hello.IcePing();
+            TestHelper.Assert(++count == locator.GetRequestCount());
+            var results = new List<Task>();
+            for (int i = 0; i < 1000; i++)
+            {
+                results.Add(hello.SayHelloAsync());
+            }
+            Task.WaitAll(results.ToArray());
+            results.Clear();
+            if (locator.GetRequestCount() > count + 800)
+            {
+                output.Write("queuing = " + (locator.GetRequestCount() - count));
+            }
+            TestHelper.Assert(locator.GetRequestCount() > count && locator.GetRequestCount() < count + 999);
+            count = locator.GetRequestCount();
+            hello = hello.Clone(location: ImmutableArray.Create("unknown"));
+            for (int i = 0; i < 1000; i++)
+            {
+                results.Add(hello.SayHelloAsync().ContinueWith(
+                    t =>
                     {
-                        while(true)
+                        try
                         {
-                            ic.stringToProxy("test@TestAdapter5").ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout.
-                            System.Threading.Thread.Sleep(10);
+                            t.Wait();
                         }
-                    }
-                    catch(Ice.LocalException)
-                    {
-                        // Expected to fail once they endpoints have been updated in the background.
-                    }
-                    try
-                    {
-                        while(true)
+                        catch (AggregateException ex) when (ex.InnerException is NoEndpointException)
                         {
-                            ic.stringToProxy("test3").ice_locatorCacheTimeout(1).ice_ping(); // 1s timeout.
-                            System.Threading.Thread.Sleep(10);
                         }
-                    }
-                    catch(Ice.LocalException)
+                    },
+                    TaskScheduler.Default));
+            }
+            Task.WaitAll(results.ToArray());
+            results.Clear();
+            // XXX:
+            // Take into account the retries.
+            TestHelper.Assert(locator.GetRequestCount() > count && locator.GetRequestCount() < count + 1999);
+            if (locator.GetRequestCount() > count + 800)
+            {
+                output.Write("queuing = " + (locator.GetRequestCount() - count));
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing adapter locator cache... ");
+            output.Flush();
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+
+            RegisterAdapterEndpoints(
+                registry,
+                "TestAdapter3",
+                replicaGroupId: "",
+                ResolveLocation(locator, "TestAdapter")!);
+
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).IcePing();
+
+                RegisterAdapterEndpoints(
+                    registry,
+                    "TestAdapter3",
+                    replicaGroupId: "",
+                    IObjectPrx.Parse(helper.GetTestProxy("dummy", 99), communicator));
+
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).Clone(
+                        locatorCacheTimeout: TimeSpan.Zero).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).IcePing();
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+
+            RegisterAdapterEndpoints(
+                registry,
+                "TestAdapter3",
+                "",
+                ResolveLocation(locator, "TestAdapter")!);
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter3" : "ice:TestAdapter3//test", communicator).IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing well-known object locator cache... ");
+            output.Flush();
+            registry.AddObject(IObjectPrx.Parse(
+                ice1 ? "test3@TestUnknown" : "ice:TestUnknown//test3", communicator));
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            registry.AddObject(IObjectPrx.Parse(
+                ice1 ? "test3@TestAdapter4" : "ice:TestAdapter4//test3", communicator)); // Update
+            RegisterAdapterEndpoints(
+                registry,
+                "TestAdapter4",
+                "",
+                IObjectPrx.Parse(helper.GetTestProxy("dummy", 99), communicator));
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+            RegisterAdapterEndpoints(
+                registry,
+                "TestAdapter4",
+                "",
+                ResolveLocation(locator, "TestAdapter")!);
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            RegisterAdapterEndpoints(
+                registry,
+                "TestAdapter4",
+                "",
+                IObjectPrx.Parse(helper.GetTestProxy("dummy", 99), communicator));
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter4" : "ice:TestAdapter4//test", communicator).Clone(
+                    locatorCacheTimeout: TimeSpan.Zero).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter4" : "ice:TestAdapter4//test", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (ConnectionRefusedException)
+            {
+            }
+            registry.AddObject(IObjectPrx.Parse(
+                ice1 ? "test3@TestAdapter" : "ice:TestAdapter//test3", communicator));
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", communicator).IcePing();
+            }
+            catch
+            {
+                TestHelper.Assert(false);
+            }
+
+            registry.AddObject(IObjectPrx.Parse(ice1 ? "test4" : "ice:test4", communicator));
+            try
+            {
+                IObjectPrx.Parse(ice1 ? "test4" : "ice:test4", communicator).IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            output.WriteLine("ok");
+
+            output.Write("testing locator cache background updates... ");
+            output.Flush();
+            {
+                Dictionary<string, string> properties = communicator.GetProperties();
+                properties["Ice.BackgroundLocatorCacheUpdates"] = "1";
+                using Communicator ic = helper.Initialize(properties);
+
+                RegisterAdapterEndpoints(
+                    registry,
+                    "TestAdapter5",
+                    "",
+                    ResolveLocation(locator, "TestAdapter")!);
+                registry.AddObject(IObjectPrx.Parse(
+                    ice1 ? "test3@TestAdapter" : "ice:TestAdapter//test3", communicator));
+
+                count = locator.GetRequestCount();
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter5" : "ice:TestAdapter5//test", ic)
+                    .Clone(locatorCacheTimeout: TimeSpan.Zero).IcePing(); // No locator cache.
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", ic).Clone(locatorCacheTimeout: TimeSpan.Zero).IcePing(); // No locator cache.
+                count += 3;
+                TestHelper.Assert(count == locator.GetRequestCount());
+                UnregisterAdapterEndpoints(registry, "TestAdapter5", "");
+                registry.AddObject(IObjectPrx.Parse(helper.GetTestProxy("test3", 99), communicator));
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter5" : "ice:TestAdapter5//test", ic)
+                    .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(10)).IcePing(); // 10s timeout.
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", ic)
+                    .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(10)).IcePing(); // 10s timeout.
+                TestHelper.Assert(count == locator.GetRequestCount());
+                Thread.Sleep(1200);
+
+                // The following request should trigger the background
+                // updates but still use the cached endpoints and
+                // therefore succeed.
+                IObjectPrx.Parse(ice1 ? "test@TestAdapter5" : "ice:TestAdapter5//test", ic)
+                    .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout.
+                IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", ic)
+                    .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout.
+
+                try
+                {
+                    while (true)
                     {
-                        // Expected to fail once they endpoints have been updated in the background.
+                        IObjectPrx.Parse(ice1 ? "test@TestAdapter5" : "ice:TestAdapter5//test", ic)
+                            .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout.
+                        Thread.Sleep(10);
                     }
-                    ic.destroy();
                 }
-                output.WriteLine("ok");
+                catch
+                {
+                    // Expected to fail once they endpoints have been updated in the background.
+                }
+                try
+                {
+                    while (true)
+                    {
+                        IObjectPrx.Parse(ice1 ? "test3" : "ice:test3", ic)
+                            .Clone(locatorCacheTimeout: TimeSpan.FromSeconds(1)).IcePing(); // 1s timeout.
+                        Thread.Sleep(10);
+                    }
+                }
+                catch
+                {
+                    // Expected to fail once they endpoints have been updated in the background.
+                }
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing proxy from server after shutdown... ");
-                output.Flush();
-                hello = obj.getReplicatedHello();
-                obj.shutdown();
-                manager.startServer();
-                hello.sayHello();
-                output.WriteLine("ok");
+            output.Write("testing proxy from server after shutdown... ");
+            output.Flush();
+            hello = obj1.GetReplicatedHello();
+            TestHelper.Assert(hello != null);
+            obj1.Shutdown();
+            manager.StartServer();
+            hello.SayHello();
+            output.WriteLine("ok");
 
+            // TODO: this does not work with ice2 because we currently don't retry on any remote exception, including
+            // ONE.
+            if (ice1)
+            {
                 output.Write("testing object migration... ");
                 output.Flush();
-                hello = Test.HelloPrxHelper.checkedCast(communicator.stringToProxy("hello"));
-                obj.migrateHello();
-                hello.ice_getConnection().close(Ice.ConnectionClose.GracefullyWithWait);
-                hello.sayHello();
-                obj.migrateHello();
-                hello.sayHello();
-                obj.migrateHello();
-                hello.sayHello();
+                hello = IHelloPrx.Parse(ice1 ? "hello" : "ice:hello", communicator);
+                obj1.MigrateHello();
+                hello.GetConnection().GoAwayAsync();
+                hello.SayHello();
+                obj1.MigrateHello();
+                hello.SayHello();
+                obj1.MigrateHello();
+                hello.SayHello();
                 output.WriteLine("ok");
+            }
 
-                output.Write("testing locator encoding resolution... ");
-                output.Flush();
-                hello = Test.HelloPrxHelper.checkedCast(communicator.stringToProxy("hello"));
-                count = locator.getRequestCount();
-                communicator.stringToProxy("test@TestAdapter").ice_encodingVersion(Ice.Util.Encoding_1_1).ice_ping();
-                test(count == locator.getRequestCount());
-                communicator.stringToProxy("test@TestAdapter10").ice_encodingVersion(Ice.Util.Encoding_1_0).ice_ping();
-                test(++count == locator.getRequestCount());
-                communicator.stringToProxy("test -e 1.0@TestAdapter10-2").ice_ping();
-                test(++count == locator.getRequestCount());
-                output.WriteLine("ok");
+            output.Write("shutdown server... ");
+            output.Flush();
+            obj1.Shutdown();
+            output.WriteLine("ok");
 
-                output.Write("shutdown server... ");
-                output.Flush();
-                obj.shutdown();
-                output.WriteLine("ok");
+            output.Write("testing whether server is gone... ");
+            output.Flush();
+            try
+            {
+                obj2.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            try
+            {
+                obj3.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            try
+            {
+                TestHelper.Assert(obj5 != null);
+                obj5.IcePing();
+                TestHelper.Assert(false);
+            }
+            catch (NoEndpointException)
+            {
+            }
+            output.WriteLine("ok");
 
-                output.Write("testing whether server is gone... ");
-                output.Flush();
-                try
-                {
-                    obj2.ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                try
-                {
-                    obj3.ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                try
-                {
-                    obj5.ice_ping();
-                    test(false);
-                }
-                catch(Ice.LocalException)
-                {
-                }
-                output.WriteLine("ok");
+            output.Write("testing indirect proxies to colocated objects... ");
+            output.Flush();
 
-                output.Write("testing indirect proxies to collocated objects... ");
-                output.Flush();
+            communicator.SetProperty("Hello.AdapterId", Guid.NewGuid().ToString());
+            ObjectAdapter adapter = communicator.CreateObjectAdapterWithEndpoints(
+                "Hello", ice1 ? "tcp -h localhost" : "ice+tcp://localhost:0");
 
-                communicator.getProperties().setProperty("Hello.AdapterId", Guid.NewGuid().ToString());
-                Ice.ObjectAdapter adapter = communicator.createObjectAdapterWithEndpoints("Hello", "default");
+            var id = new Identity(Guid.NewGuid().ToString(), "");
+            adapter.Add(id, new Hello());
+            adapter.Activate();
 
-                Ice.Identity id = new Ice.Identity();
-                id.name = Guid.NewGuid().ToString();
-                adapter.add(new HelloI(), id);
-                adapter.activate();
+            // Ensure that calls on the well-known proxy is collocated.
+            IHelloPrx? helloPrx;
+            if (ice1)
+            {
+                helloPrx = IHelloPrx.Parse($"{id}", communicator);
+            }
+            else
+            {
+                helloPrx = IHelloPrx.Parse($"ice:{id}", communicator);
+            }
+            TestHelper.Assert(helloPrx.GetConnection() is ColocatedConnection);
 
-                // Ensure that calls on the well-known proxy is collocated.
-                var helloPrx = Test.HelloPrxHelper.checkedCast(
-                    communicator.stringToProxy("\"" + communicator.identityToString(id) + "\""));
-                test(helloPrx.ice_getConnection() == null);
+            // Ensure that calls on the indirect proxy (with adapter ID) is colocated
+            helloPrx = adapter.CreateProxy(id, IObjectPrx.Factory).CheckedCast(IHelloPrx.Factory);
+            TestHelper.Assert(helloPrx != null && helloPrx.GetConnection() is ColocatedConnection);
 
-                // Ensure that calls on the indirect proxy (with adapter ID) is collocated
-                helloPrx = Test.HelloPrxHelper.checkedCast(adapter.createIndirectProxy(id));
-                test(helloPrx.ice_getConnection() == null);
+            // Ensure that calls on the direct proxy is colocated
+            helloPrx = adapter.CreateProxy(id, IObjectPrx.Factory).Clone(
+                endpoints: adapter.PublishedEndpoints,
+                location: ImmutableArray<string>.Empty).CheckedCast(IHelloPrx.Factory);
+            TestHelper.Assert(helloPrx != null && helloPrx.GetConnection() is ColocatedConnection);
 
-                // Ensure that calls on the direct proxy is collocated
-                helloPrx = Test.HelloPrxHelper.checkedCast(adapter.createDirectProxy(id));
-                test(helloPrx.ice_getConnection() == null);
+            output.WriteLine("ok");
 
-                output.WriteLine("ok");
+            output.Write("shutdown server manager... ");
+            output.Flush();
+            manager.Shutdown();
+            output.WriteLine("ok");
+        }
 
-                output.Write("shutdown server manager... ");
-                output.Flush();
-                manager.shutdown();
-                output.WriteLine("ok");
+        private static void RegisterAdapterEndpoints(
+            ILocatorRegistryPrx registry,
+            string adapterId,
+            string replicaGroupId,
+            IObjectPrx proxy)
+        {
+            if (proxy.Protocol == Protocol.Ice1)
+            {
+                registry.SetReplicatedAdapterDirectProxy(adapterId, replicaGroupId, proxy);
+            }
+            else
+            {
+                registry.RegisterAdapterEndpoints(adapterId, replicaGroupId, proxy.Endpoints.ToEndpointDataList());
+            }
+        }
+
+        private static IObjectPrx? ResolveLocation(ILocatorPrx locator, string adapterId)
+        {
+            if (locator.Protocol == Protocol.Ice1)
+            {
+                return locator.FindAdapterById(adapterId);
+            }
+            else
+            {
+                (EndpointData[] dataArray, string[] newLocation) =
+                    locator.ResolveLocation(ImmutableArray.Create(adapterId));
+
+                return dataArray.Length > 0 ?
+                    locator.Clone(endpoints: dataArray.ToEndpointList(locator.Communicator), location: newLocation) :
+                        null;
+            }
+        }
+
+        private static void UnregisterAdapterEndpoints(
+            ILocatorRegistryPrx registry,
+            string adapterId,
+            string replicaGroupId)
+        {
+            if (registry.Protocol == Protocol.Ice1)
+            {
+                registry.SetReplicatedAdapterDirectProxy(adapterId, replicaGroupId, null);
+            }
+            else
+            {
+                registry.UnregisterAdapterEndpoints(adapterId, replicaGroupId);
             }
         }
     }

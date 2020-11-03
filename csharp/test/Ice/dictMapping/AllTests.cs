@@ -1,36 +1,33 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.IO;
+using Test;
+
+namespace ZeroC.Ice.Test.DictMapping
 {
-    namespace dictMapping
+    public static class AllTests
     {
-        public class AllTests : global::Test.AllTests
+        public static IMyClassPrx Run(TestHelper helper, bool collocated)
         {
-            public static Test.MyClassPrx allTests(global::Test.TestHelper helper, bool collocated)
+            Communicator? communicator = helper.Communicator;
+            TestHelper.Assert(communicator != null);
+            TextWriter output = helper.Output;
+
+            var cl = IMyClassPrx.Parse(helper.GetTestProxy("test", 0), communicator);
+
+            output.Write("testing twoway operations... ");
+            output.Flush();
+            Twoways.Run(cl);
+            output.WriteLine("ok");
+
+            if (!collocated)
             {
-                var communicator = helper.communicator();
-                var output = helper.getWriter();
+                output.Write("testing twoway operations with AMI... ");
                 output.Flush();
-                string rf = "test:" + helper.getTestEndpoint(0);
-                var baseProxy = communicator.stringToProxy(rf);
-                var cl = Test.MyClassPrxHelper.checkedCast(baseProxy);
-
-                output.Write("testing twoway operations... ");
-                output.Flush();
-                Twoways.twoways(communicator, cl);
+                TwowaysAMI.Run(cl);
                 output.WriteLine("ok");
-
-                if(!collocated)
-                {
-                    output.Write("testing twoway operations with AMI... ");
-                    output.Flush();
-                    TwowaysAMI.twowaysAMI(communicator, cl);
-                    output.WriteLine("ok");
-                }
-                return cl;
             }
+            return cl;
         }
     }
 }

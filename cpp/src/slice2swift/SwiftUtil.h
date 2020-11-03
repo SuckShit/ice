@@ -13,26 +13,21 @@ typedef std::list<std::pair<std:: string, std::string> > StringPairList;
 namespace Slice
 {
 
-const int TypeContextInParam = 1;
-const int TypeContextProtocol = 2;
-const int TypeContextLocal = 32;
-
 std::string getSwiftModule(const ModulePtr&, std::string&);
 std::string getSwiftModule(const ModulePtr&);
 ModulePtr getTopLevelModule(const ContainedPtr&);
 ModulePtr getTopLevelModule(const TypePtr&);
 
 std::string fixIdent(const std::string&);
-StringList splitScopedName(const std::string&);
 
 struct ParamInfo
 {
     std::string name;
     TypePtr type;
     std::string typeStr;
-    bool optional;
+    bool isTagged;
     int tag;
-    ParamDeclPtr param; // 0 == return value
+    MemberPtr param; // 0 == return value
 };
 
 typedef std::list<ParamInfo> ParamInfoList;
@@ -55,7 +50,7 @@ public:
 
     virtual ~SwiftGenerator() {};
 
-    static void validateMetaData(const UnitPtr&);
+    static void validateMetadata(const UnitPtr&);
 
 protected:
 
@@ -68,31 +63,31 @@ protected:
     void writeDocSentence(IceUtilInternal::Output&, const StringList&);
     void writeSeeAlso(IceUtilInternal::Output&, const StringList&, const ContainerPtr&);
     void writeDocSummary(IceUtilInternal::Output&, const ContainedPtr&);
-    void writeOpDocSummary(IceUtilInternal::Output&, const OperationPtr&, bool, bool, bool = false);
+    void writeOpDocSummary(IceUtilInternal::Output&, const OperationPtr&, bool, bool = false);
 
-    void writeProxyDocSummary(IceUtilInternal::Output&, const ClassDefPtr&, const std::string&);
-    void writeServantDocSummary(IceUtilInternal::Output&, const ClassDefPtr&, const std::string&);
-    void writeMemberDoc(IceUtilInternal::Output&, const DataMemberPtr&);
+    void writeProxyDocSummary(IceUtilInternal::Output&, const InterfaceDefPtr&, const std::string&);
+    void writeServantDocSummary(IceUtilInternal::Output&, const InterfaceDefPtr&, const std::string&);
+    void writeMemberDoc(IceUtilInternal::Output&, const MemberPtr&);
 
-    std::string paramLabel(const std::string&, const ParamDeclList&);
-    std::string operationReturnType(const OperationPtr&, int typeCtx = 0);
+    std::string paramLabel(const std::string&, const MemberList&);
+    std::string operationReturnType(const OperationPtr&);
     bool operationReturnIsTuple(const OperationPtr&);
     std::string operationReturnDeclaration(const OperationPtr&);
     std::string operationInParamsDeclaration(const OperationPtr&);
 
     bool operationIsAmd(const OperationPtr&);
 
-    ParamInfoList getAllInParams(const OperationPtr&, int = 0);
+    ParamInfoList getAllInParams(const OperationPtr&);
     void getInParams(const OperationPtr&, ParamInfoList&, ParamInfoList&);
 
-    ParamInfoList getAllOutParams(const OperationPtr&, int = 0);
+    ParamInfoList getAllOutParams(const OperationPtr&);
     void getOutParams(const OperationPtr&, ParamInfoList&, ParamInfoList&);
 
-    std::string typeToString(const TypePtr&, const ContainedPtr&, const StringList& = StringList(), bool = false,
-                             int = 0);
+    std::string typeToString(const TypePtr&, const ContainedPtr&, const StringList& = StringList());
 
     std::string getAbsolute(const TypePtr&);
-    std::string getAbsolute(const ProxyPtr&);
+    std::string getAbsolute(const InterfaceDeclPtr&);
+    std::string getAbsolute(const InterfaceDefPtr&);
     std::string getAbsolute(const ClassDeclPtr&);
     std::string getAbsolute(const ClassDefPtr&);
     std::string getAbsolute(const StructPtr&);
@@ -104,25 +99,17 @@ protected:
 
     std::string getUnqualified(const std::string&, const std::string&);
     std::string modeToString(Operation::Mode);
-    std::string getOptionalFormat(const TypePtr&);
-
-    static bool isNullableType(const TypePtr&);
-    bool isProxyType(const TypePtr&);
-    bool isClassType(const TypePtr&);
-
-    bool containsClassMembers(const StructPtr&);
+    std::string getTagFormat(const TypePtr&);
 
     std::string getValue(const std::string&, const TypePtr&);
     void writeConstantValue(IceUtilInternal::Output& out, const TypePtr&, const SyntaxTreeBasePtr&,
                             const std::string&, const StringList&, const std::string&, bool optional = false);
     void writeDefaultInitializer(IceUtilInternal::Output&,  bool, bool);
-    void writeMemberwiseInitializer(IceUtilInternal::Output&, const DataMemberList&, const ContainedPtr&);
-    void writeMemberwiseInitializer(IceUtilInternal::Output&, const DataMemberList&, const DataMemberList&,
-                                    const DataMemberList&, const ContainedPtr&,
-                                    bool local = false,
-                                    bool rootClass = false,
-                                    const StringPairList& = StringPairList());
-    void writeMembers(IceUtilInternal::Output&, const DataMemberList&, const ContainedPtr&, int = 0);
+    void writeMemberwiseInitializer(IceUtilInternal::Output&, const MemberList&, const ContainedPtr&);
+    void writeMemberwiseInitializer(IceUtilInternal::Output&, const MemberList&, const MemberList&,
+                                    const MemberList&, const ContainedPtr&,
+                                    bool rootClass = false);
+    void writeMembers(IceUtilInternal::Output&, const MemberList&, const ContainedPtr&);
 
     void writeMarshalUnmarshalCode(::IceUtilInternal::Output&,
                                    const TypePtr&,
@@ -146,26 +133,24 @@ protected:
 
 private:
 
-    class MetaDataVisitor : public ParserVisitor
+    class MetadataVisitor : public ParserVisitor
     {
     public:
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual void visitOperation(const OperationPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        void visitOperation(const OperationPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
 
     private:
 
-        StringList validate(const SyntaxTreeBasePtr&, const StringList&,
-                            const std::string&, const std::string&,
-                            bool local = false,
-                            bool operationParameter = false);
+        StringList validate(const SyntaxTreeBasePtr&, const StringList&, const std::string&, int);
 
         typedef std::map<std::string, std::string> ModuleMap;
         typedef std::map<std::string, ModuleMap> ModulePrefix;

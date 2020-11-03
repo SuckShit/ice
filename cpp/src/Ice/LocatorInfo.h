@@ -10,7 +10,7 @@
 #include <IceUtil/Monitor.h>
 #include <IceUtil/Time.h>
 #include <Ice/LocatorInfoF.h>
-#include <Ice/LocatorF.h>
+#include <Ice/Locator.h>
 #include <Ice/ReferenceF.h>
 #include <Ice/Identity.h>
 #include <Ice/EndpointIF.h>
@@ -40,13 +40,9 @@ private:
 
     const bool _background;
 
-#ifdef ICE_CPP11_MAPPING
     using LocatorInfoTable = std::map<std::shared_ptr<Ice::LocatorPrx>,
                                       LocatorInfoPtr,
                                       Ice::TargetCompare<std::shared_ptr<Ice::LocatorPrx>, std::less>>;
-#else
-    typedef std::map<Ice::LocatorPrx, LocatorInfoPtr> LocatorInfoTable;
-#endif
     LocatorInfoTable _table;
     LocatorInfoTable::iterator _tableHint;
 

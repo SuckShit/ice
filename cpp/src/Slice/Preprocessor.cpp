@@ -53,7 +53,7 @@ Slice::Preprocessor::Preprocessor(const string& path, const string& fileName, co
     _fileName(fullPath(fileName)),
     _shortFileName(fileName),
     _args(args),
-    _cppHandle(0)
+    _cppHandle(nullptr)
 {
 }
 
@@ -88,7 +88,7 @@ Slice::Preprocessor::addQuotes(const string& arg)
     // Add quotes around the given argument to ensure that arguments
     // with spaces will be preserved as a single argument
     //
-    return "\"" + escapeString(arg, "", IceUtilInternal::Unicode) + "\"";
+    return "\"" + escapeString(arg, "", IceUtilInternal::ToStringMode::Unicode) + "\"";
 }
 
 string
@@ -186,7 +186,7 @@ Slice::Preprocessor::preprocess(bool keepComments, const vector<string>& extraAr
 {
     if(!checkInputFile())
     {
-        return 0;
+        return nullptr;
     }
 
     //
@@ -260,7 +260,7 @@ Slice::Preprocessor::preprocess(bool keepComments, const vector<string>& extraAr
         //
         // If that fails try to open file in current directory.
         //
-        if(_cppHandle == 0)
+        if(!_cppHandle)
         {
 #ifdef _WIN32
             _cppFile = "slice-" + IceUtil::generateUUID();
@@ -270,7 +270,7 @@ Slice::Preprocessor::preprocess(bool keepComments, const vector<string>& extraAr
             _cppHandle = IceUtilInternal::fopen(_cppFile, "w+");
         }
 
-        if(_cppHandle != 0)
+        if(_cppHandle)
         {
             if(buf)
             {
@@ -687,37 +687,15 @@ Slice::Preprocessor::printMakefileDependencies(ostream& out, Language lang, cons
             }
             break;
         }
-        case Ruby:
+        case Swift:
         {
             //
-            // Change .o[bj] suffix to .rb suffix.
+            // Change .o[bj] suffix to .swift suffix.
             //
             pos = 0;
-            if((pos = result.find(suffix)) != string::npos)
+            if ((pos = result.find(suffix)) != string::npos)
             {
-                result.replace(pos, suffix.size() - 1, ".rb");
-            }
-            break;
-        }
-        case PHP:
-        {
-            //
-            // Change .o[bj] suffix to .php suffix.
-            //
-            pos = 0;
-            if((pos = result.find(suffix)) != string::npos)
-            {
-                result.replace(pos, suffix.size() - 1, ".php");
-            }
-            break;
-        }
-        case ObjC:
-        {
-            pos = result.find(suffix);
-            if(pos != string::npos)
-            {
-                string name = result.substr(0, pos);
-                result.replace(0, pos + suffix.size() - 1, name + ".h " + name + ".m");
+                result.replace(pos, suffix.size() - 1, ".swift");
             }
             break;
         }
@@ -738,10 +716,10 @@ Slice::Preprocessor::printMakefileDependencies(ostream& out, Language lang, cons
 bool
 Slice::Preprocessor::close()
 {
-    if(_cppHandle != 0)
+    if(_cppHandle)
     {
         int status = fclose(_cppHandle);
-        _cppHandle = 0;
+        _cppHandle = nullptr;
 
         if(_cppFile.size() != 0)
         {

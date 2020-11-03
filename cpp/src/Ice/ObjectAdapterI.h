@@ -35,24 +35,22 @@ ICE_DEFINE_PTR(ObjectAdapterIPtr, ObjectAdapterI);
 
 class ObjectAdapterI : public ObjectAdapter,
                        public IceUtil::Monitor<IceUtil::RecMutex>
-#ifdef ICE_CPP11_MAPPING
                      , public std::enable_shared_from_this<ObjectAdapterI>
-#endif
 
 {
 public:
 
-    virtual std::string getName() const ICE_NOEXCEPT;
+    virtual std::string getName() const noexcept;
 
-    virtual CommunicatorPtr getCommunicator() const ICE_NOEXCEPT;
+    virtual CommunicatorPtr getCommunicator() const noexcept;
 
     virtual void activate();
     virtual void hold();
     virtual void waitForHold();
-    virtual void deactivate() ICE_NOEXCEPT;
-    virtual void waitForDeactivate() ICE_NOEXCEPT;
-    virtual bool isDeactivated() const ICE_NOEXCEPT;
-    virtual void destroy() ICE_NOEXCEPT;
+    virtual void deactivate() noexcept;
+    virtual void waitForDeactivate() noexcept;
+    virtual bool isDeactivated() const noexcept;
+    virtual void destroy() noexcept;
 
     virtual ObjectPrxPtr add(const ObjectPtr&, const Identity&);
     virtual ObjectPrxPtr addFacet(const ObjectPtr&, const Identity&, const std::string&);
@@ -78,11 +76,11 @@ public:
     virtual ObjectPrxPtr createIndirectProxy(const Identity&) const;
 
     virtual void setLocator(const LocatorPrxPtr&);
-    virtual Ice::LocatorPrxPtr getLocator() const ICE_NOEXCEPT;
-    virtual EndpointSeq getEndpoints() const ICE_NOEXCEPT;
+    virtual Ice::LocatorPrxPtr getLocator() const noexcept;
+    virtual EndpointSeq getEndpoints() const noexcept;
 
     virtual void refreshPublishedEndpoints();
-    virtual EndpointSeq getPublishedEndpoints() const ICE_NOEXCEPT;
+    virtual EndpointSeq getPublishedEndpoints() const noexcept;
     virtual void setPublishedEndpoints(const EndpointSeq&);
 
 #ifdef ICE_SWIFT

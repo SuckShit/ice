@@ -1,56 +1,51 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System.Collections.Immutable;
+using System.Threading;
+using Test;
+
+namespace ZeroC.Ice.Test.Location
 {
-    namespace location
+    public class TestIntf : ITestIntf
     {
-        public class TestI : Test.TestIntfDisp_
+        private ObjectAdapter _adapter1;
+        private ObjectAdapter _adapter2;
+        private ServerLocatorRegistry _registry;
+
+        internal TestIntf(ObjectAdapter adapter1, ObjectAdapter adapter2, ServerLocatorRegistry registry)
         {
-            internal TestI(Ice.ObjectAdapter adapter1,
-                           Ice.ObjectAdapter adapter2, ServerLocatorRegistry registry)
+            _adapter1 = adapter1;
+            _adapter2 = adapter2;
+            _registry = registry;
+
+            _registry.AddObject(_adapter1.Add("hello", new Hello(), IObjectPrx.Factory));
+            _registry.AddObject(_adapter1.Add("bonjour#abc", new Hello(), IObjectPrx.Factory));
+        }
+
+        public void Shutdown(Current current, CancellationToken cancel) => _adapter1.Communicator.ShutdownAsync();
+
+        public IHelloPrx GetHello(Current current, CancellationToken cancel) =>
+            _adapter1.CreateProxy("hello", IHelloPrx.Factory).Clone(
+                location: ImmutableArray.Create(_adapter1.AdapterId));
+
+        public IHelloPrx GetReplicatedHello(Current current, CancellationToken cancel) =>
+            _adapter1.CreateProxy("hello", IHelloPrx.Factory);
+
+        public void MigrateHello(Current current, CancellationToken cancel)
+        {
+            var id = Identity.Parse("hello");
+
+            IObject? servant = _adapter1.Remove(id);
+            if (servant != null)
             {
-                _adapter1 = adapter1;
-                _adapter2 = adapter2;
-                _registry = registry;
-
-                _registry.addObject(_adapter1.add(new HelloI(), Ice.Util.stringToIdentity("hello")));
+                _registry.AddObject(_adapter2.Add(id, servant, IObjectPrx.Factory), current, cancel);
             }
-
-            public override void shutdown(Ice.Current current)
+            else
             {
-                _adapter1.getCommunicator().shutdown();
+                servant = _adapter2.Remove(id);
+                TestHelper.Assert(servant != null);
+                _registry.AddObject(_adapter1.Add(id, servant, IObjectPrx.Factory), current, cancel);
             }
-
-            public override Test.HelloPrx getHello(Ice.Current current)
-            {
-                return Test.HelloPrxHelper.uncheckedCast(_adapter1.createIndirectProxy(
-                                                                Ice.Util.stringToIdentity("hello")));
-            }
-
-            public override Test.HelloPrx getReplicatedHello(Ice.Current current)
-            {
-                return Test.HelloPrxHelper.uncheckedCast(_adapter1.createProxy(
-                                                                Ice.Util.stringToIdentity("hello")));
-            }
-
-            public override void migrateHello(Ice.Current current)
-            {
-                Ice.Identity id = Ice.Util.stringToIdentity("hello");
-                try
-                {
-                    _registry.addObject(_adapter2.add(_adapter1.remove(id), id));
-                }
-                catch(Ice.NotRegisteredException)
-                {
-                    _registry.addObject(_adapter1.add(_adapter2.remove(id), id));
-                }
-            }
-
-            private Ice.ObjectAdapter _adapter1;
-            private Ice.ObjectAdapter _adapter2;
-            private ServerLocatorRegistry _registry;
         }
     }
 }

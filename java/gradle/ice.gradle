@@ -33,6 +33,8 @@ buildscript {
     }
     dependencies {
         classpath group: "${iceBuilderClassPath}", name: 'slice', version: "${iceBuilderVersion}"
+        classpath group: "org.checkerframework", name: 'checkerframework-gradle-plugin',
+                  version: "${checkerFrameworkPluginVersion}"
     }
 }
 
@@ -42,6 +44,7 @@ buildscript {
 // included in stretch and the Plugin DSL.
 //
 project.apply(plugin: com.zeroc.gradle.icebuilder.slice.SlicePlugin)
+project.apply(plugin: org.checkerframework.gradle.plugin.CheckerFrameworkPlugin)
 
 slice {
     cppConfiguration = project.cppConfiguration
@@ -50,6 +53,19 @@ slice {
         iceHome =  project.hasProperty('iceHome') ? project.iceHome
             : System.getenv("ICE_HOME") != null ? System.env.ICE_HOME : new File(project.ext.topSrcDir).getCanonicalPath()
     }
+}
+
+checkerFramework {
+    //checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+
+    // Workaround for https://github.com/typetools/checker-framework/issues/2878
+    // Only necessary because we target java 8.
+    //extraJavacArgs = ["-Aignorejdkastub"]
+}
+
+dependencies {
+    checkerFramework "org.checkerframework:checker:${checkerFrameworkVersion}"
+    implementation "org.checkerframework:checker-qual:${checkerFrameworkVersion}"
 }
 
 // Android does not have a compileJava task
@@ -93,10 +109,9 @@ def isWindows = System.properties['os.name'].toLowerCase().contains('windows')
 // If the prefix isn't set use these default locations.
 if(!prefix) {
     def prefixVersion = iceVersion
-    if(prefixVersion.indexOf(".0-alpha")){
-        prefixVersion = prefixVersion.replace(".0-alpha", "a")
-    } else if(prefixVersion.indexOf(".0-beta")){
-        prefixVersion = prefixVersion.replace(".0-beta", "b")
+    def dashIndex = prefixVersion.indexOf("-")
+    if(dashIndex) {
+        prefixVersion = prefixVersion.substring(0, dashIndex)
     }
     if(isWindows) {
         prefix = "C:\\Ice-${prefixVersion}"

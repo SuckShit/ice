@@ -4,9 +4,7 @@
 
 #pragma once
 
-[["suppress-warning:deprecated"]] // For classes with operations
-
-[["cpp:source-include:Forward.h"]]
+[[cpp:source-include(Forward.h)]]
 
 module Test
 {
@@ -27,11 +25,6 @@ exception BaseEx
     string reason;
 }
 
-class AbstractBase extends Base
-{
-    void op();
-}
-
 class B;
 class C;
 
@@ -44,7 +37,7 @@ class A
     bool postUnmarshalInvoked;
 }
 
-class B extends A
+class B : A
 {
     A theA;
 }
@@ -67,7 +60,7 @@ class D
     bool postUnmarshalInvoked;
 }
 
-["protected"] class E
+[protected] class E
 {
     int i;
     string s;
@@ -75,12 +68,12 @@ class D
 
 class F
 {
-    ["protected"] E e1;
+    [protected] E e1;
     E e2;
 }
 
 // Exercise empty class with non-empty base
-class G extends Base
+class G : Base
 {
 }
 
@@ -88,11 +81,7 @@ interface I
 {
 }
 
-interface J extends I
-{
-}
-
-class H implements I
+interface J : I
 {
 }
 
@@ -106,7 +95,7 @@ class Compact(1)
 
 const int CompactExtId = 789;
 
-class CompactExt(CompactExtId) extends Compact
+class CompactExt(CompactExtId) : Compact
 {
 }
 
@@ -151,7 +140,7 @@ class B1
     A1 a2;
 }
 
-class D1 extends B1
+class D1 : B1
 {
     A1 a3;
     A1 a4;
@@ -163,7 +152,7 @@ exception EBase
     A1 a2;
 }
 
-exception EDerived extends EBase
+exception EDerived : EBase
 {
     A1 a3;
     A1 a4;
@@ -176,7 +165,7 @@ class Recursive
 
 class K
 {
-    Value value;
+    AnyClass? value;
 }
 
 class L
@@ -184,8 +173,8 @@ class L
     string data;
 }
 
-sequence<Value> ValueSeq;
-dictionary<string, Value> ValueMap;
+sequence<AnyClass?> ClassSeq;
+dictionary<string, AnyClass?> ClassMap;
 
 struct StructKey
 {
@@ -222,25 +211,21 @@ interface Initial
     void setRecursive(Recursive p);
     bool supportsClassGraphDepthMax();
 
-    ["marshaled-result"] B getMB();
-    ["amd", "marshaled-result"] B getAMDMB();
+    [marshaled-result] B getMB();
+    [amd] [marshaled-result] B getAMDMB();
 
     void getAll(out B b1, out B b2, out C theC, out D theD);
 
-    I getH();
-    I getI();
-    I getJ();
     K getK();
 
-    Value opValue(Value v1, out Value v2);
-    ValueSeq opValueSeq(ValueSeq v1, out ValueSeq v2);
-    ValueMap opValueMap(ValueMap v1, out ValueMap v2);
+    AnyClass? opClass(AnyClass? v1, out AnyClass? v2);
+    ClassSeq opClassSeq(ClassSeq v1, out ClassSeq v2);
+    ClassMap opClassMap(ClassMap v1, out ClassMap v2);
 
     D1 getD1(D1 d1);
     void throwEDerived() throws EDerived;
 
     void setG(G theG);
-    void setI(I theI);
 
     BaseSeq opBaseSeq(BaseSeq inSeq, out BaseSeq outSeq);
 

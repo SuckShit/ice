@@ -97,15 +97,6 @@ classdef AllTests
             assert(strcmp(fm.PropertyList(2).GetAccess, 'protected'));
             fprintf('ok\n');
 
-            fprintf('getting I, J and H... ');
-            i = initial.getI();
-            assert(~isempty(i) && strcmp(i.ice_id(), IPrx.ice_staticId()));
-            j = initial.getJ();
-            assert(~isempty(j) && strcmp(j.ice_id(), JPrx.ice_staticId()));
-            h = initial.getH();
-            assert(~isempty(h) && isa(h, 'Test.H'));
-            fprintf('ok\n');
-
             fprintf('getting K... ');
             k = initial.getK();
             assert(~isempty(k));
@@ -114,15 +105,15 @@ classdef AllTests
             fprintf('ok\n');
 
             fprintf('testing Value as parameter... ');
-            [v2, v3] = initial.opValue(L('l'));
+            [v2, v3] = initial.opClass(L('l'));
             assert(strcmp(v2.data, 'l'));
             assert(strcmp(v3.data, 'l'));
-            [v2, v3] = initial.opValueSeq({L('l')});
+            [v2, v3] = initial.opClassSeq({L('l')});
             assert(strcmp(v2{1}.data, 'l'));
             assert(strcmp(v3{1}.data, 'l'));
             d = containers.Map('KeyType', 'char', 'ValueType', 'any');
             d('l') = L('l');
-            [v2, v3] = initial.opValueMap(d);
+            [v2, v3] = initial.opClassMap(d);
             assert(strcmp(v2('l').data, 'l'));
             assert(strcmp(v3('l').data, 'l'));
             fprintf('ok\n');
@@ -157,12 +148,6 @@ classdef AllTests
                     rethrow(ex);
                 end
             end
-            fprintf('ok\n');
-
-            fprintf('setting I... ');
-            initial.setI(i);
-            initial.setI(j);
-            initial.setI(h);
             fprintf('ok\n');
 
             fprintf('testing sequences... ');
@@ -258,16 +243,32 @@ classdef AllTests
             m.v(2).key = StructKey(2, '2');
             m.v(2).value = L('two');
 
+            assert(length(m.v) == 2);
+
             [m1, m2] = initial.opM(m);
 
-            assert(length(m1.v) == 2);
-            assert(length(m2.v) == 2);
+            assert(length(m1.v) == length(m.v));
+            assert(length(m2.v) == length(m.v));
 
-            assert(strcmp(m1.v(1).value.data, 'one'));
-            assert(strcmp(m1.v(2).value.data, 'two'));
+            for i = 1:2
+                if isequal(m1.v(i).key, m.v(1).key)
+                    assert(strcmp(m1.v(i).value.data, m.v(1).value.data));
+                elseif isequal(m1.v(i).key, m.v(2).key)
+                    assert(strcmp(m1.v(i).value.data, m.v(2).value.data));
+                else
+                    assert(false);
+                end
+            end
 
-            assert(strcmp(m2.v(1).value.data, 'one'));
-            assert(strcmp(m2.v(2).value.data, 'two'));
+            for i = 1:2
+                if isequal(m2.v(i).key, m.v(1).key)
+                    assert(strcmp(m2.v(i).value.data, m.v(1).value.data));
+                elseif isequal(m2.v(i).key, m.v(2).key)
+                    assert(strcmp(m2.v(i).value.data, m.v(2).value.data));
+                else
+                    assert(false);
+                end
+            end
 
             fprintf('ok\n');
 

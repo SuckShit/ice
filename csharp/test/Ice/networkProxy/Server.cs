@@ -1,41 +1,29 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
-using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
-[assembly: CLSCompliant(true)]
-
-[assembly: AssemblyTitle("IceTest")]
-[assembly: AssemblyDescription("Ice test")]
-[assembly: AssemblyCompany("ZeroC, Inc.")]
-
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.NetworkProxy
 {
-    class TestI : Test.TestIntfDisp_
+    public class Server : TestHelper
     {
-        public override void shutdown(Ice.Current current)
+        public class TestIntf : ITestIntf
         {
-            current.adapter.getCommunicator().shutdown();
+            public void Shutdown(Current current, CancellationToken cancel) =>
+                current.Adapter.Communicator.ShutdownAsync();
         }
-    }
 
-    public override void run(string[] args)
-    {
-        using(var communicator = initialize(ref args))
+        public override async Task RunAsync(string[] args)
         {
-            communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
-            adapter.activate();
-
-            communicator.waitForShutdown();
+            await using Communicator communicator = Initialize(ref args);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("test", new TestIntf());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

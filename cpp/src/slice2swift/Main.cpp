@@ -209,7 +209,7 @@ compile(const vector<string>& argv)
                 return EXIT_FAILURE;
             }
 
-            UnitPtr u = Unit::createUnit(false, false, false, false);
+            UnitPtr u = Unit::createUnit(false);
             int parseStatus = u->parse(*i, cppHandle, debug);
             u->destroy();
 
@@ -218,7 +218,7 @@ compile(const vector<string>& argv)
                 return EXIT_FAILURE;
             }
 
-            if(!icecpp->printMakefileDependencies(os, depend ? Preprocessor::PHP : Preprocessor::SliceXML,
+            if(!icecpp->printMakefileDependencies(os, depend ? Preprocessor::Swift : Preprocessor::SliceXML,
                                                   includePaths, "-D__SLICE2SWIFT__"))
             {
                 return EXIT_FAILURE;
@@ -242,7 +242,7 @@ compile(const vector<string>& argv)
             if(preprocess)
             {
                 char buf[4096];
-                while(fgets(buf, static_cast<int>(sizeof(buf)), cppHandle) != ICE_NULLPTR)
+                while(fgets(buf, static_cast<int>(sizeof(buf)), cppHandle) != nullptr)
                 {
                     if(fputs(buf, stdout) == EOF)
                     {
@@ -256,7 +256,7 @@ compile(const vector<string>& argv)
             }
             else
             {
-                UnitPtr u = Unit::createUnit(false, false, false, false);
+                UnitPtr u = Unit::createUnit(false);
                 int parseStatus = u->parse(*i, cppHandle, debug);
 
                 if(!icecpp->close())

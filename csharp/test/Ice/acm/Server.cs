@@ -1,38 +1,29 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.ACM
 {
-    namespace acm
+    public class Server : TestHelper
     {
-        public class Server : TestHelper
+        public override async Task RunAsync(string[] args)
         {
-            public override void run(string[] args)
-            {
-                var properties = createTestProperties(ref args);
-                properties.setProperty("Ice.Warn.Connections", "0");
-                properties.setProperty("Ice.ACM.Timeout", "1");
-                using(var communicator = initialize(properties))
-                {
-                    communicator.getProperties().setProperty("TestAdapter.Endpoints", getTestEndpoint(0));
-                    communicator.getProperties().setProperty("TestAdapter.ACM.Timeout", "0");
-                    var adapter = communicator.createObjectAdapter("TestAdapter");
-                    var id = Util.stringToIdentity("communicator");
-                    adapter.add(new RemoteCommunicatorI(), id);
-                    adapter.activate();
-                    serverReady();
-                    communicator.getProperties().setProperty("Ice.PrintAdapterReady", "0");
-                    communicator.waitForShutdown();
-                }
-            }
-
-            public static int Main(string[] args)
-            {
-                return TestDriver.runTest<Server>(args);
-            }
+            Dictionary<string, string> properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Connections"] = "0";
+            properties["Ice.ACM.Timeout"] = "1s";
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            communicator.SetProperty("TestAdapter.ACM.Timeout", "infinite");
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("communicator", new RemoteCommunicator());
+            await adapter.ActivateAsync();
+            ServerReady();
+            communicator.SetProperty("Ice.PrintAdapterReady", "0");
+            await communicator.WaitForShutdownAsync();
         }
+
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

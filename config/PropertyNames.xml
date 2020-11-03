@@ -46,7 +46,7 @@ classes:
     <class name="proxy" prefix-only="false">
         <suffix name="EndpointSelection" />
         <suffix name="ConnectionCached" />
-        <suffix name="PreferSecure"  />
+        <suffix name="PreferNonSecure"  />
         <suffix name="LocatorCacheTimeout"  />
         <suffix name="Locator"  />
         <suffix name="Router"  />
@@ -67,7 +67,7 @@ This definition is equivalent to the following:
         <property name="Default.Locator" />
         <property name="Default.Locator.EndpointSelection" />
         <property name="Default.Locator.ConnectionCached" />
-        <property name="Default.Locator.PreferSecure" />
+        <property name="Default.Locator.PreferNonSecure" />
         <property name="Default.Locator.LocatorCacheTimeout" />
         <property name="Default.Locator.Locator" />
         <property name="Default.Locator.Router" />
@@ -196,7 +196,7 @@ const IceInternal::Property IceInternal::Properties::IcePropsData[] =
     IceInternal::Property("Ice.Default.Locator", false, 0),
     IceInternal::Property("Ice.Default.Locator.EndpointSelection", false, 0),
     IceInternal::Property("Ice.Default.Locator.ConnectionCached", false, 0),
-    IceInternal::Property("Ice.Default.Locator.PreferSecure", false, 0),
+    IceInternal::Property("Ice.Default.Locator.PreferNoneSecure", false, 0),
     IceInternal::Property("Ice.Default.Locator.LocatorCacheTimeout", false, 0),
     IceInternal::Property("Ice.Default.Locator.Locator", false, 0),
     IceInternal::Property("Ice.Default.Locator.Router", false, 0),
@@ -234,15 +234,16 @@ generated from the section label.
 -->
 <properties>
     <class name="proxy" prefix-only="false">
-        <suffix name="EndpointSelection" />
+        <suffix name="CollocationOptimized" />
         <suffix name="ConnectionCached" />
-        <suffix name="PreferSecure" />
-        <suffix name="LocatorCacheTimeout" />
+        <suffix name="Context.[any]" />
+        <suffix name="EndpointSelection" />
         <suffix name="InvocationTimeout" />
         <suffix name="Locator" />
+        <suffix name="LocatorCacheTimeout" />
+        <suffix name="PreferNonSecure" />
+        <suffix name="PreferSecure" />
         <suffix name="Router" />
-        <suffix name="CollocationOptimized" />
-        <suffix name="Context.[any]" />
     </class>
 
     <class name="acm" prefix-only="false">
@@ -265,12 +266,14 @@ generated from the section label.
         <suffix name="ACM" class="acm"/>
         <suffix name="AdapterId" />
         <suffix name="Endpoints" />
+        <suffix name="IncomingFrameSizeMax" />
         <suffix name="Locator" class="proxy"/>
         <suffix name="PublishedEndpoints" />
         <suffix name="ReplicaGroupId" />
         <suffix name="Router" class="proxy"/>
         <suffix name="ProxyOptions" />
         <suffix name="ThreadPool" class="threadpool" />
+        <!-- TODO: Remove replaced by IncomingFrameSizeMax -->
         <suffix name="MessageSizeMax" />
     </class>
 
@@ -305,6 +308,7 @@ generated from the section label.
         <property name="ACM" class="acm"/>
         <property name="ACM.Client" class="acm"/>
         <property name="ACM.Server" class="acm"/>
+        <property name="AcceptNonSecureConnections" />
         <property name="Admin" class="objectadapter" />
         <property name="Admin.DelayCreation" />
         <property name="Admin.Enabled" />
@@ -320,38 +324,56 @@ generated from the section label.
         <property name="ChangeUser" />
         <property name="ClassGraphDepthMax" />
         <property name="ClientAccessPolicyProtocol" />
-        <property name="Compression.Level" />
+        <property name="CloseTimeout" />
+        <property name="CompressionLevel" />
+        <property name="CompressionMinSize" />
+        <property name="ConnectTimeout" />
         <property name="CollectObjects"/>
         <property name="Config" />
         <property name="ConsoleListener" />
         <property name="Default.CollocationOptimized" />
+        <!-- TODO: remove Default.Encoding -->
+        <property name="Default.Encoding" />
+        <!-- TODO deprecate Default.EncodingVersion, replaced by Default.Encoding -->
         <property name="Default.EncodingVersion" />
         <property name="Default.EndpointSelection" />
+        <!-- TODO: remove Default.Host -->
         <property name="Default.Host" />
         <property name="Default.Locator" class="proxy" />
         <property name="Default.LocatorCacheTimeout" />
         <property name="Default.InvocationTimeout" />
         <property name="Default.Package" />
+        <property name="Default.PreferNonSecure" />
+        <!-- TODO remove PreferSecure -->
         <property name="Default.PreferSecure" />
+        <!-- TODO: remove Default.Protocol -->
         <property name="Default.Protocol" />
         <property name="Default.Router" class="proxy" />
         <property name="Default.SlicedFormat" />
         <property name="Default.SourceAddress" />
+        <!-- TODO: remove Default.Timeout -->
         <property name="Default.Timeout" />
+        <!-- TODO: do we really need a default transport? -->
+        <property name="Default.Transport" />
         <property name="EventLog.Source" />
         <property name="FactoryAssemblies" />
         <property name="HTTPProxyHost" />
         <property name="HTTPProxyPort" />
         <property name="ImplicitContext" />
+        <property name="IncomingFrameSizeMax" />
         <property name="InitPlugins" />
+        <!-- TODO: Remove IPv4 -->
         <property name="IPv4" />
+        <!-- TODO: Remove IPv6 -->
         <property name="IPv6" />
         <property name="LogFile" />
         <property name="LogFile.SizeMax" />
         <property name="LogStdErr.Convert"/>
+        <!-- TODO: remove replaced by IncomingFrameSizeMax -->
         <property name="MessageSizeMax" />
         <property name="Nohup" />
         <property name="NullHandleAbort" />
+        <!-- TODO: remove Override.* properties -->
         <property name="Override.CloseTimeout" />
         <property name="Override.Compress" />
         <property name="Override.ConnectTimeout" />
@@ -360,13 +382,16 @@ generated from the section label.
         <property name="Package.[any]" />
         <property name="Plugin.[any]" />
         <property name="PluginLoadOrder" />
+        <!-- TODO: remove PreferIPv6Address -->
         <property name="PreferIPv6Address" />
         <property name="PreloadAssemblies" />
         <property name="PrintAdapterReady" />
         <property name="PrintProcessId" />
         <property name="PrintStackTraces" />
         <property name="ProgramName" />
-        <property name="RetryIntervals" />
+        <property name="RetryBufferSizeMax" />
+        <property name="RetryRequestSizeMax" />
+        <property name="RetryIntervals" /> <!-- TODO remove -->
         <property name="ServerIdleTime" />
         <property name="SOCKSProxyHost" />
         <property name="SOCKSProxyPort" />
@@ -380,11 +405,13 @@ generated from the section label.
         <property name="Trace.Admin.Properties" />
         <property name="Trace.Admin.Logger" />
         <property name="Trace.Locator" />
+        <!-- TODO remove Trace.Network once all mappings implement Trace.Transport -->
         <property name="Trace.Network" />
         <property name="Trace.Protocol" />
         <property name="Trace.Retry" />
         <property name="Trace.Slicing" />
         <property name="Trace.ThreadPool" />
+        <property name="Trace.Transport" />
         <property name="UDP.RcvSize" />
         <property name="UDP.SndSize" />
         <property name="TCP.Backlog" />
@@ -418,6 +445,7 @@ generated from the section label.
         <property name="Timeout"/>
         <property name="RetryCount"/>
         <property name="LatencyMultiplier"/>
+        <!-- TODO: Remove Address, Port, and Interface -->
         <property name="Address"/>
         <property name="Port"/>
         <property name="Interface"/>
@@ -547,20 +575,6 @@ generated from the section label.
         <property name="Registry.UserAccounts" />
     </section>
 
-    <section name="IcePatch2">
-        <property class="objectadapter" />
-        <property name="Directory" />
-        <property name="InstanceName" />
-    </section>
-
-    <section name="IcePatch2Client">
-        <property name="ChunkSize" />
-        <property name="Directory" />
-        <property name="Proxy" />
-        <property name="Remove" />
-        <property name="Thorough" />
-    </section>
-
     <section name="IceSSL">
         <property name="Alias" />
         <property name="CAs"/>
@@ -569,16 +583,15 @@ generated from the section label.
         <property name="CertStore" />
         <property name="CertStoreLocation" />
         <property name="CertFile" />
-        <property name="CertVerifier" />
-        <property name="CheckCertName" />
-        <property name="CheckCRL" />
-        <property name="Ciphers" />
+        <property name="CertVerifier" />  <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="CheckCertName" /> <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="CheckCRL" />      <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="Ciphers" />       <!-- TODO Remove this property, already removed in C# 4.0-->
         <property name="DefaultDir" />
         <property name="DH.[any]" />
         <property name="DHParams" />
         <property name="EntropyDaemon" />
-        <property name="FindCert" />
-        <property name="FindCert.[any]" deprecated="true"/>
+        <property name="FindCert" />      <!-- TODO Remove this property, already removed in C# 4.0-->
         <property name="InitOpenSSL" />
         <property name="KeyFile" deprecated="true"/>
         <property name="Keychain"/>
@@ -587,14 +600,15 @@ generated from the section label.
         <property name="KeystorePassword" />
         <property name="KeystoreType" />
         <property name="Password" />
-        <property name="PasswordCallback" />
-        <property name="PasswordRetryMax" />
+        <property name="PasswordCallback" /> <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="PasswordRetryMax" /> <!-- TODO Remove this property, already removed in C# 4.0-->
         <property name="Protocols" />
         <property name="ProtocolVersionMax" />
         <property name="ProtocolVersionMin" />
         <property name="Random" />
         <property name="SchannelStrongCrypto" />
         <property name="Trace.Security" />
+        <!-- TODO remove TrustOnly properties once TrustManager is removed from all mappings -->
         <property name="TrustOnly" />
         <property name="TrustOnly.Client" />
         <property name="TrustOnly.Server" />
@@ -602,9 +616,9 @@ generated from the section label.
         <property name="Truststore" />
         <property name="TruststorePassword" />
         <property name="TruststoreType" />
-        <property name="UsePlatformCAs" />
-        <property name="VerifyDepthMax" />
-        <property name="VerifyPeer" />
+        <property name="UsePlatformCAs" />     <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="VerifyDepthMax" />     <!-- TODO Remove this property, already removed in C# 4.0-->
+        <property name="VerifyPeer" />         <!-- TODO Remove this property, already removed in C# 4.0-->
     </section>
 
     <section name="IceStormAdmin">
@@ -621,7 +635,6 @@ generated from the section label.
     <section name="Glacier2">
         <property name="AddConnectionContext"/>
         <property name="Client" class="objectadapter"/>
-        <property name="Client.AlwaysBatch" />
         <property name="Client.Buffered" />
         <property name="Client.ForwardContext" />
         <property name="Client.SleepTime" />
@@ -642,7 +655,6 @@ generated from the section label.
         <property name="SSLPermissionsVerifier" class="proxy" />
         <property name="RoutingTable.MaxSize" />
         <property name="Server" class="objectadapter" />
-        <property name="Server.AlwaysBatch" />
         <property name="Server.Buffered" />
         <property name="Server.ForwardContext" />
         <property name="Server.SleepTime" />
@@ -650,7 +662,6 @@ generated from the section label.
         <property name="Server.Trace.Request" />
         <property name="SessionManager" class="proxy" />
         <property name="SSLSessionManager" class="proxy" />
-        <property name="SessionTimeout" />
         <property name="Trace.RoutingTable" />
         <property name="Trace.Session" />
     </section>
@@ -658,35 +669,6 @@ generated from the section label.
     <section name="Glacier2CryptPermissionsVerifier">
         <property name="[any].PermissionsVerifier" />
         <property name="[any].AdminPermissionsVerifier" />
-    </section>
-
-    <section name="Freeze">
-        <property name="DbEnv.[any].CheckpointPeriod" />
-        <property name="DbEnv.[any].DbHome" />
-        <property name="DbEnv.[any].DbPrivate" />
-        <property name="DbEnv.[any].DbRecoverFatal" />
-        <property name="DbEnv.[any].EncodingVersion" />
-        <property name="DbEnv.[any].LockFile" />
-        <property name="DbEnv.[any].OldLogsAutoDelete" />
-        <property name="DbEnv.[any].PeriodicCheckpointMinSize" />
-        <property name="Evictor.[any].BtreeMinKey" />
-        <property name="Evictor.[any].Checksum" />
-        <property name="Evictor.[any].MaxTxSize" />
-        <property name="Evictor.[any].PageSize" />
-        <property name="Evictor.[any].PopulateEmptyIndices" />
-        <property name="Evictor.[any].RollbackOnUserException" />
-        <property name="Evictor.[any].SavePeriod" />
-        <property name="Evictor.[any].SaveSizeTrigger" />
-        <property name="Evictor.[any].StreamTimeout" />
-        <property name="Map.[any].BtreeMinKey" />
-        <property name="Map.[any].Checksum" />
-        <property name="Map.[any].PageSize" />
-        <property name="Trace.DbEnv" />
-        <property name="Trace.Evictor" />
-        <property name="Trace.Map" />
-        <property name="Trace.Transaction" />
-        <property name="Warn.Deadlocks" />
-        <property name="Warn.Rollback" />
     </section>
 
 </properties>

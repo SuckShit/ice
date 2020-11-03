@@ -6,6 +6,7 @@
 #define ICE_ICE_H
 
 #include <IceUtil/PushDisableWarnings.h>
+#include <IceUtil/CtrlCHandler.h>
 #include <Ice/Config.h>
 #include <Ice/Comparable.h>
 #include <Ice/Initialize.h>
@@ -17,7 +18,6 @@
 #include <Ice/LoggerUtil.h>
 #include <Ice/RemoteLogger.h>
 #include <Ice/Communicator.h>
-#include <Ice/CommunicatorAsync.h>
 #include <Ice/ObjectFactory.h>
 #include <Ice/ObjectAdapter.h>
 #include <Ice/ServantLocator.h>
@@ -27,12 +27,7 @@
 #include <Ice/OutgoingAsync.h>
 #include <Ice/IncomingAsync.h>
 #include <Ice/Process.h>
-#if !defined(ICE_OS_UWP) && (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
-#   include <Ice/Application.h>
-#endif
 #include <Ice/Connection.h>
-#include <Ice/ConnectionAsync.h>
-#include <Ice/Functional.h>
 #include <Ice/ImplicitContext.h>
 #include <Ice/Locator.h>
 #include <Ice/Router.h>
@@ -41,7 +36,6 @@
 #include <Ice/NativePropertiesAdmin.h>
 #include <Ice/Instrumentation.h>
 #include <Ice/Metrics.h>
-#include <Ice/SliceChecksums.h>
 #if !defined(ICE_OS_UWP) && (!defined(__APPLE__) || TARGET_OS_IPHONE == 0)
 #   include <Ice/Service.h>
 #endif

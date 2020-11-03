@@ -1,74 +1,24 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
+using Test;
 
-public class BlobjectI : Ice.BlobjectAsync
+namespace ZeroC.Ice.Test.Echo
 {
-    public void startBatch()
+    public class BlobjectI : IObject
     {
-        Debug.Assert(_batchProxy != null);
-        _startBatch = true;
-    }
-
-    public void flushBatch()
-    {
-        Debug.Assert(_batchProxy != null);
-        _batchProxy.ice_flushBatchRequests();
-        _batchProxy = null;
-    }
-
-    public override Task<Ice.Object_Ice_invokeResult>
-    ice_invokeAsync(byte[] inEncaps, Ice.Current current)
-    {
-        bool twoway = current.requestId > 0;
-        Ice.ObjectPrx obj = current.con.createProxy(current.id);
-        if(!twoway)
+        public ValueTask<OutgoingResponseFrame> DispatchAsync(
+            IncomingRequestFrame request,
+            Current current,
+            CancellationToken cancel)
         {
-            if(_startBatch)
-            {
-                _startBatch = false;
-                _batchProxy = obj.ice_batchOneway();
-            }
-            if(_batchProxy != null)
-            {
-                obj = _batchProxy;
-            }
-
-            if(current.facet.Length != 0)
-            {
-                obj = obj.ice_facet(current.facet);
-            }
-
-            if(_batchProxy != null)
-            {
-                byte[] outEncaps;
-                obj.ice_invoke(current.operation, current.mode, inEncaps, out outEncaps, current.ctx);
-                return Task.FromResult(new Ice.Object_Ice_invokeResult(true, new byte[0]));
-            }
-            else
-            {
-                return obj.ice_oneway().ice_invokeAsync(current.operation,
-                                                        current.mode,
-                                                        inEncaps,
-                                                        current.ctx);
-            }
-        }
-        else
-        {
-            if(current.facet.Length != 0)
-            {
-                obj = obj.ice_facet(current.facet);
-            }
-            return obj.ice_invokeAsync(current.operation,
-                                       current.mode,
-                                       inEncaps,
-                                       current.ctx);
+            TestHelper.Assert(current.Connection != null);
+            IObjectPrx proxy = current.Connection.CreateProxy(current.Identity, IObjectPrx.Factory).Clone(
+                IObjectPrx.Factory,
+                facet: current.Facet,
+                oneway: current.IsOneway);
+            return proxy.ForwardAsync(current.IsOneway, request, cancel: cancel);
         }
     }
-
-    private Ice.ObjectPrx _batchProxy;
-    private bool _startBatch;
 }

@@ -4,7 +4,6 @@
 
 #include <JsUtil.h>
 #include <Slice/Util.h>
-#include <IceUtil/Functional.h>
 #include <IceUtil/StringUtil.h>
 
 #include <sys/types.h>
@@ -33,6 +32,32 @@ using namespace std;
 using namespace Slice;
 using namespace IceUtil;
 using namespace IceUtilInternal;
+
+namespace
+{
+
+const std::array<std::string, 17> builtinSuffixTable =
+{
+    "Bool",
+    "Byte",
+    "Short",
+    "UShort",
+    "Int",
+    "UInt",
+    "VarInt",
+    "VarUInt",
+    "Long",
+    "ULong",
+    "VarLong",
+    "VarULong",
+    "Float",
+    "Double",
+    "String",
+    "Proxy",
+    "Object"
+};
+
+}
 
 string
 Slice::relativePath(const string& p1, const string& p2)
@@ -118,69 +143,30 @@ lookupKwd(const string& name)
     return name;
 }
 
-//
-// Split a scoped name into its components and return the components as a list of (unscoped) identifiers.
-//
-static StringList
-splitScopedName(const string& scoped)
-{
-    assert(scoped[0] == ':');
-    StringList ids;
-    string::size_type next = 0;
-    string::size_type pos;
-    while((pos = scoped.find("::", next)) != string::npos)
-    {
-        pos += 2;
-        if(pos != scoped.size())
-        {
-            string::size_type endpos = scoped.find("::", pos);
-            if(endpos != string::npos)
-            {
-                ids.push_back(scoped.substr(pos, endpos - pos));
-            }
-        }
-        next = pos;
-    }
-    if(next != scoped.size())
-    {
-        ids.push_back(scoped.substr(next));
-    }
-    else
-    {
-        ids.push_back("");
-    }
-
-    return ids;
-}
-
-static StringList
-fixIds(const StringList& ids)
-{
-    StringList newIds;
-    for(StringList::const_iterator i = ids.begin(); i != ids.end(); ++i)
-    {
-        newIds.push_back(lookupKwd(*i));
-    }
-    return newIds;
-}
-
 string
-Slice::JsGenerator::getModuleMetadata(const TypePtr& type)
+Slice::JsGenerator::getModuleMetadata(const TypePtr& constType)
 {
-    static const char* builtinModuleTable[] =
+    TypePtr type = unwrapIfOptional(constType);
+
+    static const std::array<std::string, 17> builtinModuleTable =
     {
-        "",           // byte
         "",           // bool
+        "",           // byte
+        "",           // short
         "",           // short
         "",           // int
+        "",           // int
+        "",           // int
+        "",           // int
+        "ice",        // long
+        "ice",        // long
+        "ice",        // long
         "ice",        // long
         "",           // float
         "",           // double
         "",           // string
-        "ice",        // Ice.Value
         "ice",        // Ice.ObjectPrx
-        "",           // LocalObject
-        "ice"         // Ice.Object
+        "ice"         // Ice.Value
     };
 
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
@@ -189,9 +175,7 @@ Slice::JsGenerator::getModuleMetadata(const TypePtr& type)
         return builtinModuleTable[builtin->kind()];
     }
 
-    ProxyPtr proxy = ProxyPtr::dynamicCast(type);
-    return getModuleMetadata(proxy ? ContainedPtr::dynamicCast(proxy->_class()) :
-                                     ContainedPtr::dynamicCast(type));
+    return getModuleMetadata(ContainedPtr::dynamicCast(type));
 }
 
 string
@@ -203,16 +187,8 @@ Slice::JsGenerator::getModuleMetadata(const ContainedPtr& p)
     DefinitionContextPtr dc = p->definitionContext();
     assert(dc);
     const string prefix = "js:module:";
-    const string value = dc->findMetaData(prefix);
+    const string value = dc->findMetadata(prefix);
     return value.empty() ? value : value.substr(prefix.size());
-}
-
-bool
-Slice::JsGenerator::isClassType(const TypePtr& type)
-{
-    BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
-    return (builtin && (builtin->kind() == Builtin::KindObject || builtin->kind() == Builtin::KindValue)) ||
-        ClassDeclPtr::dynamicCast(type);
 }
 
 //
@@ -233,13 +209,13 @@ Slice::JsGenerator::fixId(const string& name)
         return lookupKwd(name);
     }
 
-    const StringList ids = splitScopedName(name);
-    const StringList newIds = fixIds(ids);
+    auto ids = splitScopedName(name);
+    transform(begin(ids), end(ids), begin(ids), lookupKwd);
 
     stringstream result;
-    for(StringList::const_iterator j = newIds.begin(); j != newIds.end(); ++j)
+    for(vector<string>::const_iterator j = ids.begin(); j != ids.end(); ++j)
     {
-        if(j != newIds.begin())
+        if(j != ids.begin())
         {
             result << '.';
         }
@@ -255,37 +231,20 @@ Slice::JsGenerator::fixId(const ContainedPtr& cont)
 }
 
 string
-Slice::JsGenerator::importPrefix(const TypePtr& type,
+Slice::JsGenerator::importPrefix(const TypePtr& constType,
                                  const ContainedPtr& toplevel,
                                  const vector<pair<string, string> >& imports)
 {
+    TypePtr type = unwrapIfOptional(constType);
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
     if(builtin)
     {
         return typeToString(type, toplevel, imports, true);
     }
-    else if(ProxyPtr::dynamicCast(type))
-    {
-        ProxyPtr proxy = ProxyPtr::dynamicCast(type);
-        return importPrefix(ContainedPtr::dynamicCast(proxy->_class()), toplevel, imports);
-    }
     else if(ContainedPtr::dynamicCast(type))
     {
-        bool local = false;
-        if(toplevel)
-        {
-            if(ConstructedPtr::dynamicCast(toplevel))
-            {
-                local = ConstructedPtr::dynamicCast(toplevel)->isLocal();
-            }
-            else if(ClassDefPtr::dynamicCast(toplevel))
-            {
-                local = ClassDefPtr::dynamicCast(toplevel)->isLocal();
-            }
-        }
-
-        ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
-        if(cl && cl->isInterface() && !local)
+        InterfaceDeclPtr proxy = InterfaceDeclPtr::dynamicCast(type);
+        if(proxy)
         {
             return "iceNS0.";
         }
@@ -344,9 +303,9 @@ Slice::JsGenerator::importPrefix(const ContainedPtr& contained,
 }
 
 bool
-Slice::JsGenerator::findMetaData(const string& prefix, const StringList& metaData, string& value)
+Slice::JsGenerator::findMetadata(const string& prefix, const StringList& metadata, string& value)
 {
-    for(StringList::const_iterator i = metaData.begin(); i != metaData.end(); i++)
+    for(StringList::const_iterator i = metadata.begin(); i != metadata.end(); i++)
     {
         string s = *i;
         if(s.find(prefix) == 0)
@@ -384,59 +343,58 @@ Slice::JsGenerator::getUnqualified(const string& type, const string& scope, cons
 }
 
 string
-Slice::JsGenerator::typeToString(const TypePtr& type,
+Slice::JsGenerator::typeToString(const TypePtr& constType,
                                  const ContainedPtr& toplevel,
                                  const vector<pair<string, string> >& imports,
                                  bool typescript,
                                  bool definition)
 {
+    TypePtr type = unwrapIfOptional(constType);
+
     if(!type)
     {
         return "void";
     }
 
-    bool local = false;
-    if(toplevel)
+    static const std::array<std::string, 17> typeScriptBuiltinTable =
     {
-        if(ConstructedPtr::dynamicCast(toplevel))
-        {
-            local = ConstructedPtr::dynamicCast(toplevel)->isLocal();
-        }
-        else if(ClassDefPtr::dynamicCast(toplevel))
-        {
-            local = ClassDefPtr::dynamicCast(toplevel)->isLocal();
-        }
-    }
-
-    static const char* typeScriptBuiltinTable[] =
-    {
-        "number",           // byte
         "boolean",          // bool
+        "number",           // byte
         "number",           // short
+        "number",           // ushort
         "number",           // int
+        "number",           // uint
+        "number",           // varint
+        "number",           // varuint
         "Ice.Long",         // long
+        "Ice.Long",         // ulong
+        "Ice.Long",         // varlong
+        "Ice.Long",         // varulong
         "number",           // float
         "number",           // double
         "string",
-        "Ice.Object",
         "Ice.ObjectPrx",
-        "Object",
         "Ice.Value"
     };
 
-    static const char* javaScriptBuiltinTable[] =
+    static const std::array<std::string, 17> javaScriptBuiltinTable =
     {
-        "Number",           // byte
         "Boolean",          // bool
+        "Number",           // byte
         "Number",           // short
+        "Number",           // ushort
         "Number",           // int
+        "Number",           // uint
+        "Number",           // varint
+        "Number",           // varuint
         "Ice.Long",         // long
+        "Ice.Long",         // ulong
+        "Ice.Long",         // varlong
+        "Ice.Long",         // varulong
         "Number",           // float
         "Number",           // double
         "String",
-        "Ice.Value",
         "Ice.ObjectPrx",
-        "Object",
         "Ice.Value"
     };
 
@@ -445,13 +403,12 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
     {
         if(typescript)
         {
-            int kind = (!local && builtin->kind() == Builtin::KindObject) ? Builtin::KindValue : builtin->kind();
             ostringstream os;
             if(getModuleMetadata(type) == "ice" && getModuleMetadata(toplevel) != "ice")
             {
                 os << "iceNS0.";
             }
-            os << getUnqualified(typeScriptBuiltinTable[kind], toplevel->scope(), "iceNS0.");
+            os << getUnqualified(typeScriptBuiltinTable[builtin->kind()], toplevel->scope(), "iceNS0.");
             return os.str();
         }
         else
@@ -467,26 +424,12 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
         ostringstream os;
         if(typescript)
         {
-            if(cl->isInterface() && !local)
-            {
-                prefix = importPrefix("Ice.Value", toplevel);
-            }
-            else
-            {
-                prefix = importPrefix(ContainedPtr::dynamicCast(cl), toplevel, imports);
-            }
+            prefix = importPrefix(ContainedPtr::dynamicCast(cl), toplevel, imports);
         }
         os << prefix;
         if(!prefix.empty() && typescript)
         {
-            if(cl->isInterface() && !local)
-            {
-                os << getUnqualified("Ice.Value", toplevel->scope(), prefix);
-            }
-            else
-            {
-                os << getUnqualified(fixId(cl->scoped()), toplevel->scope(), prefix);
-            }
+            os << getUnqualified(fixId(cl->scoped()), toplevel->scope(), prefix);
         }
         else
         {
@@ -495,39 +438,28 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
         return os.str();
     }
 
-    ProxyPtr proxy = ProxyPtr::dynamicCast(type);
+    InterfaceDeclPtr proxy = InterfaceDeclPtr::dynamicCast(type);
     if(proxy)
     {
         ostringstream os;
-        ClassDefPtr def = proxy->_class()->definition();
-        if(!def || def->isAbstract())
-        {
-            string prefix;
-            if(typescript)
-            {
-                prefix = importPrefix(ContainedPtr::dynamicCast(proxy->_class()), toplevel, imports);
-                os << prefix;
-            }
+        InterfaceDefPtr def = proxy->definition();
 
-            if(prefix.empty() && typescript)
-            {
-                os << getUnqualified(fixId(proxy->_class()->scoped() + "Prx"), toplevel->scope(), prefix);
-            }
-            else
-            {
-                os << fixId(proxy->_class()->scoped() + "Prx");
-            }
+        string prefix;
+        if (typescript)
+        {
+            prefix = importPrefix(ContainedPtr::dynamicCast(proxy), toplevel, imports);
+            os << prefix;
+        }
+
+        if (prefix.empty() && typescript)
+        {
+            os << getUnqualified(fixId(proxy->scoped() + "Prx"), toplevel->scope(), prefix);
         }
         else
         {
-            if(getModuleMetadata(toplevel) != "ice")
-            {
-                os << "iceNS0.";
-            }
-            os << getUnqualified(typeScriptBuiltinTable[Builtin::KindObjectProxy],
-                                 toplevel->scope(),
-                                 getModuleMetadata(toplevel));
+            os << fixId(proxy->scoped() + "Prx");
         }
+
         return os.str();
     }
 
@@ -553,7 +485,9 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
             const TypePtr keyType = d->keyType();
             BuiltinPtr builtin = BuiltinPtr::dynamicCast(keyType);
             ostringstream os;
-            if ((builtin && builtin->kind() == Builtin::KindLong) || StructPtr::dynamicCast(keyType))
+            if ((builtin && (builtin->kind() == Builtin::KindLong || builtin->kind() == Builtin::KindULong ||
+                 builtin->kind() == Builtin::KindVarLong || builtin->kind() == Builtin::KindVarULong)) ||
+                 StructPtr::dynamicCast(keyType))
             {
                 const string prefix = importPrefix("Ice.HashMap", toplevel);
                 os << prefix << getUnqualified("Ice.HashMap", toplevel->scope(), prefix);
@@ -595,17 +529,19 @@ Slice::JsGenerator::typeToString(const TypePtr& type,
         return os.str();
     }
 
+    assert(0);
     return "???";
 }
 
 string
-Slice::JsGenerator::typeToString(const TypePtr& type,
+Slice::JsGenerator::typeToString(const TypePtr& constType,
                                  const ContainedPtr& toplevel,
                                  const std::vector<std::pair<std::string, std::string> >& imports,
                                  bool typeScript,
                                  bool definition,
                                  bool usealias)
 {
+    TypePtr type = unwrapIfOptional(constType);
     string t = typeToString(type, toplevel, imports, typeScript, definition);
     if(usealias)
     {
@@ -659,13 +595,14 @@ Slice::JsGenerator::getLocalScope(const string& scope, const string& separator)
     {
         return "";
     }
-    const StringList ids = fixIds(splitScopedName(fixedScope));
+    auto ids = splitScopedName(fixedScope);
+    transform(begin(ids), end(ids), begin(ids), lookupKwd);
 
     //
     // Return local scope for "::A::B::C" as A.B.C
     //
     stringstream result;
-    for(StringList::const_iterator i = ids.begin(); i != ids.end(); ++i)
+    for(vector<string>::const_iterator i = ids.begin(); i != ids.end(); ++i)
     {
         if(i != ids.begin())
         {
@@ -677,175 +614,63 @@ Slice::JsGenerator::getLocalScope(const string& scope, const string& separator)
 }
 
 void
-Slice::JsGenerator::writeMarshalUnmarshalCode(Output &out,
-                                              const TypePtr& type,
+Slice::JsGenerator::writeMarshalUnmarshalCode(Output& out,
+                                              const TypePtr& constType,
                                               const string& param,
                                               bool marshal)
 {
-    string stream = marshal ? "ostr" : "istr";
+    TypePtr type = unwrapIfOptional(constType);
 
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
-    if(builtin)
+    // Builtin types that use classes are handled by isClassType below.
+    if(builtin && !builtin->usesClasses())
     {
-        switch(builtin->kind())
+        if(marshal)
         {
-            case Builtin::KindByte:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeByte(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readByte()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindBool:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeBool(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readBool()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindShort:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeShort(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readShort()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindInt:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeInt(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readInt()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindLong:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeLong(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readLong()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindFloat:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeFloat(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readFloat()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindDouble:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeDouble(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readDouble()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindString:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeString(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readString()" << ';';
-                }
-                return;
-            }
-            case Builtin::KindObject:
-            case Builtin::KindValue:
-            {
-                // Handle by isClassType below.
-                break;
-            }
-            case Builtin::KindObjectProxy:
-            {
-                if(marshal)
-                {
-                    out << nl << stream << ".writeProxy(" << param << ");";
-                }
-                else
-                {
-                    out << nl << param << " = " << stream << ".readProxy();";
-                }
-                return;
-            }
-            case Builtin::KindLocalObject:
-            {
-                assert(false);
-                return;
-            }
+            out << nl << "ostr.write" << builtinSuffixTable[builtin->kind()] << "(" << param << ");";
         }
+        else
+        {
+            out << nl << param << " = " << "istr.read" << builtinSuffixTable[builtin->kind()] << "();";
+        }
+        return;
     }
 
     if(EnumPtr::dynamicCast(type))
     {
         if(marshal)
         {
-            out << nl << typeToString(type) << "._write(" << stream << ", " << param << ");";
+            out << nl << typeToString(type) << "._write(ostr, " << param << ");";
         }
         else
         {
-            out << nl << param << " = " << typeToString(type) << "._read(" << stream << ");";
+            out << nl << param << " = " << typeToString(type) << "._read(istr);";
         }
         return;
     }
 
-    if(ProxyPtr::dynamicCast(type) || StructPtr::dynamicCast(type))
+    if(InterfaceDeclPtr::dynamicCast(type) || StructPtr::dynamicCast(type))
     {
         if(marshal)
         {
-            out << nl << typeToString(type) << ".write(" << stream << ", " << param << ");";
+            out << nl << typeToString(type) << ".write(ostr, " << param << ");";
         }
         else
         {
-            out << nl << param << " = " << typeToString(type) << ".read(" << stream << ", " << param << ");";
+            out << nl << param << " = " << typeToString(type) << ".read(istr, " << param << ");";
         }
         return;
     }
 
-    if(isClassType(type))
+    if(type->isClassType())
     {
         if(marshal)
         {
-            out << nl << stream << ".writeValue(" << param << ");";
+            out << nl << "ostr.writeValue(" << param << ");";
         }
         else
         {
-            out << nl << stream << ".readValue(obj => " << param << " = obj, " << typeToString(type) << ");";
+            out << nl << "istr.readValue(obj => " << param << " = obj, " << typeToString(type) << ");";
         }
         return;
     }
@@ -854,11 +679,11 @@ Slice::JsGenerator::writeMarshalUnmarshalCode(Output &out,
     {
         if(marshal)
         {
-            out << nl << getHelper(type) <<".write(" << stream << ", " << param << ");";
+            out << nl << getHelper(type) <<".write(ostr, " << param << ");";
         }
         else
         {
-            out << nl << param << " = " << getHelper(type) << ".read(" << stream << ");";
+            out << nl << param << " = " << getHelper(type) << ".read(istr);";
         }
         return;
     }
@@ -867,15 +692,16 @@ Slice::JsGenerator::writeMarshalUnmarshalCode(Output &out,
 }
 
 void
-Slice::JsGenerator::writeOptionalMarshalUnmarshalCode(Output &out,
-                                                      const TypePtr& type,
+Slice::JsGenerator::writeTaggedMarshalUnmarshalCode(Output& out,
+                                                      const TypePtr& constType,
                                                       const string& param,
                                                       int tag,
                                                       bool marshal)
 {
+    TypePtr type = unwrapIfOptional(constType);
     string stream = marshal ? "ostr" : "istr";
 
-    if(isClassType(type))
+    if(type->isClassType())
     {
         if(marshal)
         {
@@ -913,59 +739,19 @@ Slice::JsGenerator::writeOptionalMarshalUnmarshalCode(Output &out,
 }
 
 std::string
-Slice::JsGenerator::getHelper(const TypePtr& type)
+Slice::JsGenerator::getHelper(const TypePtr& constType)
 {
+    TypePtr type = unwrapIfOptional(constType);
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
     if(builtin)
     {
-        switch(builtin->kind())
+        if(builtin->kind() == Builtin::KindObject)
         {
-            case Builtin::KindByte:
-            {
-                return "Ice.ByteHelper";
-            }
-            case Builtin::KindBool:
-            {
-                return "Ice.BoolHelper";
-            }
-            case Builtin::KindShort:
-            {
-                return "Ice.ShortHelper";
-            }
-            case Builtin::KindInt:
-            {
-                return "Ice.IntHelper";
-            }
-            case Builtin::KindLong:
-            {
-                return "Ice.LongHelper";
-            }
-            case Builtin::KindFloat:
-            {
-                return "Ice.FloatHelper";
-            }
-            case Builtin::KindDouble:
-            {
-                return "Ice.DoubleHelper";
-            }
-            case Builtin::KindString:
-            {
-                return "Ice.StringHelper";
-            }
-            case Builtin::KindObject:
-            case Builtin::KindValue:
-            {
-                return "Ice.ObjectHelper";
-            }
-            case Builtin::KindObjectProxy:
-            {
-                return "Ice.ObjectPrx";
-            }
-            case Builtin::KindLocalObject:
-            {
-                assert(false);
-                break;
-            }
+            return "Ice.ObjectPrx";
+        }
+        else
+        {
+            return "Ice." + builtinSuffixTable[builtin->kind()] + "Helper";
         }
     }
 
@@ -979,18 +765,10 @@ Slice::JsGenerator::getHelper(const TypePtr& type)
         return typeToString(type);
     }
 
-    ProxyPtr prx = ProxyPtr::dynamicCast(type);
-    if(prx)
+    InterfaceDeclPtr proxy = InterfaceDeclPtr::dynamicCast(type);
+    if(proxy)
     {
-        ClassDefPtr def = prx->_class()->definition();
-        if(!def || def->isAbstract())
-        {
-            return typeToString(type);
-        }
-        else
-        {
-            return "Ice.ObjectPrx";
-        }
+        return typeToString(type);
     }
 
     if(SequencePtr::dynamicCast(type) || DictionaryPtr::dynamicCast(type))
@@ -1005,6 +783,5 @@ Slice::JsGenerator::getHelper(const TypePtr& type)
         return "Ice.ObjectHelper";
     }
 
-    assert(false);
-    return "???";
+    throw logic_error("");
 }

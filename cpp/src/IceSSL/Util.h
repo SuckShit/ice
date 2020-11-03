@@ -9,6 +9,7 @@
 #include <IceUtil/Shared.h>
 #include <IceUtil/Handle.h>
 #include <IceSSL/Plugin.h>
+#include <IceSSL/ConnectionInfoF.h>
 
 #if defined(__APPLE__)
 #  include <CoreFoundation/CoreFoundation.h>
@@ -31,14 +32,10 @@ std::string fromCFString(CFStringRef);
 inline CFStringRef
 toCFString(const std::string& s)
 {
-    return CFStringCreateWithCString(ICE_NULLPTR, s.c_str(), kCFStringEncodingUTF8);
+    return CFStringCreateWithCString(nullptr, s.c_str(), kCFStringEncodingUTF8);
 }
 #endif
 
-#ifdef ICE_CPP11_MAPPING
-//
-// Adapts the C++11 functions to C++98-like callbacks
-//
 class ICESSL_API CertificateVerifier
 {
 public:
@@ -64,7 +61,6 @@ private:
     std::function<std::string()> _prompt;
 };
 using PasswordPromptPtr = std::shared_ptr<PasswordPrompt>;
-#endif
 
 //
 // Constants for X509 certificate alt names (AltNameOther, AltNameORAddress, AltNameEDIPartyName and

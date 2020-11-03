@@ -1,1230 +1,648 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System;
+using System.Collections.Generic;
+using System.Text;
+using ZeroC.Ice.Instrumentation;
+using ZeroC.IceMX;
+
+namespace ZeroC.IceMX
 {
-    using System;
-    using System.Diagnostics;
-    using System.Text;
-    using System.Collections.Generic;
-
-    using IceMX;
-
-    public class ObserverWithDelegate<T, O> : Observer<T>
-        where T : Metrics, new()
-        where O : Ice.Instrumentation.Observer
+    // Extends generated class that requires a public parameterless constructor in the code below.
+    public partial class InvocationMetrics
     {
-        override public void
-        attach()
+        /// <summary>Constructs a new InvocationMetrics object.</summary>
+        public InvocationMetrics()
+            : this(children: Array.Empty<Metrics>(), remotes: Array.Empty<Metrics>(), collocated: Array.Empty<Metrics>())
         {
-            base.attach();
-            if(delegate_ != null)
+        }
+    }
+}
+
+namespace ZeroC.Ice
+{
+    internal class ChildInvocationObserver :
+        ObserverWithDelegate<ChildInvocationMetrics, IChildInvocationObserver>, IChildInvocationObserver
+    {
+        public void Reply(int size)
+        {
+            ForEach(v => v.ReplySize += size);
+            Delegate?.Reply(size);
+        }
+    }
+
+    internal class CommunicatorObserver : ICommunicatorObserver
+    {
+        public MetricsAdmin AdminFacet { get; }
+
+        private readonly ObserverFactoryWithDelegate<ConnectionMetrics, ConnectionObserver,
+            IConnectionObserver> _connections;
+        private readonly ObserverFactoryWithDelegate<Metrics, ObserverWithDelegate,
+            IObserver> _connects;
+        private readonly ICommunicatorObserver? _delegate;
+        private readonly ObserverFactoryWithDelegate<DispatchMetrics, DispatchObserver,
+            IDispatchObserver> _dispatch;
+        private readonly ObserverFactoryWithDelegate<Metrics, ObserverWithDelegate,
+            IObserver> _endpointLookups;
+        private readonly ObserverFactoryWithDelegate<InvocationMetrics, InvocationObserver,
+            IInvocationObserver> _invocations;
+
+        internal CommunicatorObserver(Communicator communicator, ILogger logger)
+        {
+            AdminFacet = new MetricsAdmin(communicator, logger);
+            _delegate = communicator.Observer;
+            _connections = new ObserverFactoryWithDelegate<ConnectionMetrics, ConnectionObserver,
+                IConnectionObserver>(AdminFacet, "Connection");
+            _dispatch = new ObserverFactoryWithDelegate<DispatchMetrics, DispatchObserver, IDispatchObserver>(
+                AdminFacet, "Dispatch");
+            _invocations = new ObserverFactoryWithDelegate<InvocationMetrics, InvocationObserver,
+                IInvocationObserver>(AdminFacet, "Invocation");
+            _connects = new ObserverFactoryWithDelegate<Metrics, ObserverWithDelegate,
+                IObserver>(AdminFacet, "ConnectionEstablishment");
+            _endpointLookups = new ObserverFactoryWithDelegate<Metrics, ObserverWithDelegate,
+                IObserver>(AdminFacet, "EndpointLookup");
+            _invocations.RegisterSubMap<ChildInvocationMetrics>("ChildInvocation",
+                (obj, metrics) => (obj as InvocationMetrics)!.Children = metrics);
+        }
+
+        public IObserver? GetConnectionEstablishmentObserver(Endpoint endpoint, string connector)
+        {
+            if (_connects.IsEnabled)
             {
-                delegate_.attach();
+                try
+                {
+                    return _connects.GetObserver(new EndpointHelper(endpoint, connector),
+                        _delegate?.GetConnectionEstablishmentObserver(endpoint, connector));
+                }
+                catch (Exception ex)
+                {
+                    AdminFacet.Logger.Error($"unexpected exception trying to obtain observer:\n{ex}");
+                }
+            }
+            return null;
+        }
+
+        public IConnectionObserver? GetConnectionObserver(
+            Connection connection,
+            ConnectionState connectionState,
+            IConnectionObserver? observer)
+        {
+            if (_connections.IsEnabled)
+            {
+                try
+                {
+                    return _connections.GetObserver(
+                        new ConnectionHelper(connection, connectionState),
+                        observer,
+                        _delegate?.GetConnectionObserver(
+                            connection,
+                            connectionState,
+                            (observer as ConnectionObserver)?.Delegate ?? observer));
+                }
+                catch (Exception ex)
+                {
+                    AdminFacet.Logger.Error($"unexpected exception trying to obtain observer:\n{ex}");
+                }
+            }
+            return null;
+        }
+
+        public IDispatchObserver? GetDispatchObserver(Current current, long streamId, int size)
+        {
+            if (_dispatch.IsEnabled)
+            {
+                try
+                {
+                    return _dispatch.GetObserver(new DispatchHelper(current, streamId, size),
+                        _delegate?.GetDispatchObserver(current, streamId, size));
+                }
+                catch (Exception ex)
+                {
+                    AdminFacet.Logger.Error($"unexpected exception trying to obtain observer:\n{ex}");
+                }
+            }
+            return null;
+        }
+
+        public IObserver? GetEndpointLookupObserver(Endpoint endpoint)
+        {
+            if (_endpointLookups.IsEnabled)
+            {
+                try
+                {
+                    return _endpointLookups.GetObserver(new EndpointHelper(endpoint),
+                        _delegate?.GetEndpointLookupObserver(endpoint));
+                }
+                catch (Exception ex)
+                {
+                    AdminFacet.Logger.Error($"unexpected exception trying to obtain observer:\n{ex}");
+                }
+            }
+            return null;
+        }
+
+        public IInvocationObserver? GetInvocationObserver(
+            IObjectPrx prx,
+            string operation,
+            IReadOnlyDictionary<string, string> context)
+        {
+            if (_invocations.IsEnabled)
+            {
+                try
+                {
+                    return _invocations.GetObserver(new InvocationHelper(prx, operation, context),
+                        _delegate?.GetInvocationObserver(prx, operation, context));
+                }
+                catch (Exception ex)
+                {
+                    AdminFacet.Logger.Error($"unexpected exception trying to obtain observer:\n{ex}");
+                }
+            }
+            return null;
+        }
+
+        public void SetObserverUpdater(IObserverUpdater? updater)
+        {
+            if (updater == null)
+            {
+                _connections.SetUpdater(null);
+            }
+            else
+            {
+                _connections.SetUpdater(updater.UpdateConnectionObservers);
+            }
+
+            _delegate?.SetObserverUpdater(updater);
+        }
+    }
+
+    internal class ConnectionHelper : MetricsHelper<ConnectionMetrics>
+    {
+        private string Id
+        {
+            get
+            {
+                if (_id == null)
+                {
+                    var os = new StringBuilder();
+                    if ((_connection as IPConnection)?.LocalEndpoint?.ToString() is string localAddress)
+                    {
+                        os.Append(localAddress);
+                        if ((_connection as IPConnection)?.RemoteEndpoint?.ToString() is string remoteAddress)
+                        {
+                            os.Append(" -> ");
+                            os.Append(remoteAddress);
+                        }
+                    }
+
+                    if (_connection.ConnectionId.Length > 0)
+                    {
+                        os.Append(" [").Append(_connection.ConnectionId).Append(']');
+                    }
+                    _id = os.ToString();
+                }
+                return _id;
             }
         }
 
-        override public void
-        detach()
+        private static readonly AttributeResolver _attributeResolver = new AttributeResolverI();
+
+        private readonly Connection _connection;
+        private string? _id;
+        private readonly ConnectionState _state;
+
+        internal ConnectionHelper(Connection connection, ConnectionState state)
+            : base(_attributeResolver)
         {
-            base.detach();
-            if(delegate_ != null)
+            _connection = connection;
+            _state = state;
+        }
+
+        private class AttributeResolverI : AttributeResolver
+        {
+            internal AttributeResolverI()
             {
-                delegate_.detach();
+                Add("parent", obj => (obj as ConnectionHelper)?._connection?.Adapter?.Name ?? "Communicator");
+                Add("id", obj => (obj as ConnectionHelper)?.Id);
+                Add("state", obj => (obj as ConnectionHelper)?._state.ToString().ToLowerInvariant());
+                Add("incoming", obj => (obj as ConnectionHelper)?._connection.IsIncoming);
+                Add("adapterName", obj => (obj as ConnectionHelper)?._connection.Adapter?.Name);
+                Add("connectionId", obj => (obj as ConnectionHelper)?._connection.ConnectionId);
+
+                Add("localHost", obj =>
+                    ((obj as ConnectionHelper)?._connection as IPConnection)?.LocalEndpoint?.Address);
+
+                Add("localPort", obj =>
+                    ((obj as ConnectionHelper)?._connection as IPConnection)?.LocalEndpoint?.Port);
+
+                Add("remoteHost", obj =>
+                    ((obj as ConnectionHelper)?._connection as IPConnection)?.RemoteEndpoint?.Address);
+
+                Add("remotePort", obj =>
+                    ((obj as ConnectionHelper)?._connection as IPConnection)?.RemoteEndpoint?.Port);
+
+                Add("mcastHost", obj =>
+                    ((obj as ConnectionHelper)?._connection as UdpConnection)?.MulticastEndpoint?.Address);
+
+                Add("mcastPort", obj =>
+                    ((obj as ConnectionHelper)?._connection as UdpConnection)?.MulticastEndpoint?.Port);
+
+                Add("endpoint", obj => (obj as ConnectionHelper)?._connection.Endpoint);
+                Add("endpointTransport", obj => (obj as ConnectionHelper)?._connection.Endpoint?.Transport);
+                Add("endpointIsDatagram", obj => (obj as ConnectionHelper)?._connection.Endpoint?.IsDatagram);
+                Add("endpointIsSecure", obj => (obj as ConnectionHelper)?._connection.Endpoint?.IsSecure);
+                Add("endpointHost", obj => (obj as ConnectionHelper)?._connection.Endpoint?.Host);
+                Add("endpointPort", obj => (obj as ConnectionHelper)?._connection.Endpoint?.Port);
+            }
+        }
+    }
+
+    internal class ConnectionObserver
+        : ObserverWithDelegate<ConnectionMetrics, IConnectionObserver>, IConnectionObserver
+    {
+        private int _receivedBytes;
+        private int _sentBytes;
+
+        public void ReceivedBytes(int num)
+        {
+            _receivedBytes = num;
+            ForEach(v => v.ReceivedBytes += _receivedBytes);
+            Delegate?.ReceivedBytes(num);
+        }
+
+        public void SentBytes(int num)
+        {
+            _sentBytes = num;
+            ForEach(v => v.SentBytes += _sentBytes);
+            Delegate?.SentBytes(num);
+        }
+    }
+
+    internal class DispatchHelper : MetricsHelper<DispatchMetrics>
+    {
+        // It is important to throw here when there isn't a connection, so that the filters doesn't use the
+        // connection attributes for a collocated dispatch.
+        private Connection Connection => _current.Connection ?? throw new MissingFieldException();
+
+        private static readonly AttributeResolver _attributeResolver = new AttributeResolverI();
+
+        private readonly Current _current;
+        private readonly long _streamId;
+
+        private string? _id;
+        private readonly int _size;
+
+        public override void InitMetrics(DispatchMetrics v) => v.Size += _size;
+
+        internal DispatchHelper(Current current, long streamId, int size)
+            : base(_attributeResolver)
+        {
+            _current = current;
+            _streamId = streamId;
+            _size = size;
+        }
+
+        protected override string DefaultResolve(string attribute) =>
+            attribute.StartsWith("context.", StringComparison.InvariantCulture) &&
+            _current.Context.TryGetValue(attribute[8..], out string? v) ?
+                v : throw new MissingFieldException(attribute);
+
+        private class AttributeResolverI : AttributeResolver
+        {
+            internal AttributeResolverI()
+            {
+                Add("parent", obj => (obj as DispatchHelper)?._current.Adapter.Name);
+                Add("id", obj =>
+                    {
+                        DispatchHelper? helper = (obj as DispatchHelper)!;
+                        return helper._id ??= $"{helper._current.Identity} [{helper._current.Operation}]";
+                    });
+
+                Add("incoming", obj => (obj as DispatchHelper)?.Connection.IsIncoming);
+                Add("adapterName", obj => (obj as DispatchHelper)?.Connection.Adapter?.Name);
+                Add("connectionId", obj => (obj as DispatchHelper)?.Connection.ConnectionId);
+
+                Add("localHost", obj =>
+                    ((obj as DispatchHelper)?.Connection as IPConnection)?.LocalEndpoint?.Address);
+
+                Add("localPort", obj =>
+                    ((obj as DispatchHelper)?.Connection as IPConnection)?.LocalEndpoint?.Port);
+
+                Add("remoteHost", obj =>
+                    ((obj as DispatchHelper)?.Connection as IPConnection)?.RemoteEndpoint?.Address);
+
+                Add("remotePort", obj =>
+                    ((obj as DispatchHelper)?.Connection as IPConnection)?.RemoteEndpoint?.Port);
+
+                Add("mcastHost", obj =>
+                    ((obj as DispatchHelper)?.Connection as UdpConnection)?.MulticastEndpoint?.Address);
+
+                Add("mcastPort", obj =>
+                    ((obj as DispatchHelper)?.Connection as UdpConnection)?.MulticastEndpoint?.Port);
+
+                Add("endpoint", obj => (obj as DispatchHelper)?.Connection.Endpoint);
+                Add("endpointTransport", obj => (obj as DispatchHelper)?.Connection.Endpoint?.Transport);
+                Add("endpointIsDatagram", obj => (obj as DispatchHelper)?.Connection.Endpoint?.IsDatagram);
+                Add("endpointIsSecure", obj => (obj as DispatchHelper)?.Connection.Endpoint?.IsSecure);
+                Add("endpointHost", obj => (obj as DispatchHelper)?.Connection.Endpoint?.Host);
+                Add("endpointPort", obj => (obj as DispatchHelper)?.Connection.Endpoint?.Port);
+
+                Add("operation", obj => (obj as DispatchHelper)?._current.Operation);
+                Add("identity", obj =>
+                    {
+                        Current? current = (obj as DispatchHelper)?._current;
+                        return current?.Identity.ToString(current.Adapter!.Communicator.ToStringMode);
+                    });
+                Add("facet", obj => (obj as DispatchHelper)?._current.Facet);
+                Add("streamId", obj => (obj as DispatchHelper)?._streamId);
+                Add("mode", obj => (obj as DispatchHelper)?._current.IsOneway == true ? "oneway" : "twoway");
+            }
+        }
+    }
+
+    internal class DispatchObserver : ObserverWithDelegate<DispatchMetrics, IDispatchObserver>, IDispatchObserver
+    {
+        public void RemoteException()
+        {
+            ForEach(v => ++v.UserException);
+            Delegate?.RemoteException();
+        }
+
+        public void Reply(int size)
+        {
+            ForEach(v => v.ReplySize += size);
+            Delegate?.Reply(size);
+        }
+    }
+
+    internal class EndpointHelper : MetricsHelper<Metrics>
+    {
+        private static readonly AttributeResolver _attributeResolver = new AttributeResolverI();
+
+        private readonly Endpoint _endpoint;
+        private string? _id;
+
+        internal EndpointHelper(Endpoint endpoint, string id)
+            : base(_attributeResolver)
+        {
+            _endpoint = endpoint;
+            _id = id;
+        }
+
+        internal EndpointHelper(Endpoint endpoint)
+            : base(_attributeResolver) => _endpoint = endpoint;
+
+        private class AttributeResolverI : AttributeResolver
+        {
+            internal AttributeResolverI()
+            {
+                Add("parent", obj => "Communicator");
+                Add("id", obj =>
+                    {
+                        EndpointHelper helper = (obj as EndpointHelper)!;
+                        return helper._id ??= helper._endpoint.ToString();
+                    });
+                Add("endpoint", obj => (obj as EndpointHelper)?._endpoint);
+                Add("endpointTransport", obj => (obj as EndpointHelper)?._endpoint?.Transport);
+                Add("endpointIsDatagram", obj => (obj as EndpointHelper)?._endpoint?.IsDatagram);
+                Add("endpointIsSecure", obj => (obj as EndpointHelper)?._endpoint?.IsSecure);
+                Add("endpointHost", obj => (obj as EndpointHelper)?._endpoint.Host);
+                Add("endpointPort", obj => (obj as EndpointHelper)?._endpoint.Port);
+            }
+        }
+    }
+
+    internal class InvocationHelper : MetricsHelper<InvocationMetrics>
+    {
+        private string Id
+        {
+            get
+            {
+                if (_id == null)
+                {
+                    var sb = new StringBuilder();
+                    try
+                    {
+                        sb.Append(_proxy.Clone(endpoints: Array.Empty<Endpoint>()));
+                        sb.Append(" [").Append(_operation).Append(']');
+                    }
+                    catch (Exception)
+                    {
+                        // Either a fixed proxy or the communicator is destroyed.
+                        sb.Append(_proxy.Identity.ToString(_proxy.Communicator.ToStringMode));
+                        sb.Append(" [").Append(_operation).Append(']');
+                    }
+                    _id = sb.ToString();
+                }
+                return _id;
             }
         }
 
-        override public void
-        failed(string exceptionName)
+        private static readonly AttributeResolver _attributeResolver = new AttributeResolverI();
+        private readonly IReadOnlyDictionary<string, string> _context;
+        private string? _id;
+        private readonly string _operation;
+        private readonly IObjectPrx _proxy;
+
+        internal InvocationHelper(IObjectPrx proxy, string operation, IReadOnlyDictionary<string, string> context)
+            : base(_attributeResolver)
         {
-            base.failed(exceptionName);
-            if(delegate_ != null)
+            _proxy = proxy;
+            _operation = operation;
+            _context = context;
+        }
+
+        protected override string DefaultResolve(string attribute) =>
+            attribute.StartsWith("context.", StringComparison.InvariantCulture) &&
+            _context.TryGetValue(attribute[8..], out string? v) ?
+                v : throw new MissingFieldException(attribute);
+
+        private class AttributeResolverI : AttributeResolver
+        {
+            public AttributeResolverI()
             {
-                delegate_.failed(exceptionName);
+                Add("parent", obj => "Communicator");
+                Add("id", obj => (obj as InvocationHelper)?.Id);
+
+                Add("operation", obj => (obj as InvocationHelper)?._operation);
+                Add("identity", obj =>
+                {
+                    IObjectPrx? proxy = (obj as InvocationHelper)?._proxy;
+                    return proxy?.Identity.ToString(proxy.Communicator.ToStringMode);
+                });
+
+                Add("facet", obj => (obj as InvocationHelper)?._proxy.Facet);
+                Add("encoding", obj => (obj as InvocationHelper)?._proxy.Encoding);
+                Add("mode", obj => (obj as InvocationHelper)?._proxy.InvocationMode.ToString().ToLowerInvariant());
+                Add("proxy", obj => (obj as InvocationHelper)?._proxy);
             }
         }
+    }
 
-        public O
-        getDelegate()
+    internal class InvocationObserver : ObserverWithDelegate<InvocationMetrics, IInvocationObserver>,
+        IInvocationObserver
+    {
+        public IChildInvocationObserver? GetChildInvocationObserver(Connection connection, int size) =>
+            GetObserver<ChildInvocationMetrics, ChildInvocationObserver, IChildInvocationObserver>(
+                "ChildInvocation",
+                new ChildInvocationHelper(connection, size),
+                Delegate?.GetChildInvocationObserver(connection, size));
+
+        public void RemoteException()
         {
-            return delegate_;
+            ForEach(v => ++v.UserException);
+            Delegate?.RemoteException();
         }
 
-        public void
-        setDelegate(O del)
+        public void Retried()
         {
-            delegate_ = del;
+            ForEach(v => ++v.Retry);
+            Delegate?.Retried();
+        }
+    }
+
+    internal class ObserverFactoryWithDelegate<T, OImpl, O> : ObserverFactory<T, OImpl>
+        where T : Metrics, new()
+        where OImpl : ObserverWithDelegate<T, O>, O, new()
+        where O : class, IObserver
+    {
+        public ObserverFactoryWithDelegate(MetricsAdmin metrics, string name)
+            : base(metrics, name)
+        {
         }
 
-        public Observer getObserver<S, ObserverImpl, Observer>(string mapName, MetricsHelper<S> helper, Observer del)
+        public O? GetObserver(MetricsHelper<T> helper, O? del)
+        {
+            OImpl? o = GetObserver(helper);
+            if (o != null)
+            {
+                o.Delegate = del;
+                return o;
+            }
+            return del;
+        }
+
+        public O? GetObserver(MetricsHelper<T> helper, object? observer, O? del)
+        {
+            OImpl? o = GetObserver(helper, observer);
+            if (o != null)
+            {
+                o.Delegate = del;
+                return o;
+            }
+            return del;
+        }
+    }
+
+    internal class ObserverWithDelegate<T, O> : Observer<T>
+        where T : Metrics, new()
+        where O : class, IObserver
+    {
+        public O? Delegate { get; set; }
+
+        public override void Attach()
+        {
+            base.Attach();
+            Delegate?.Attach();
+        }
+
+        public override void Detach()
+        {
+            base.Detach();
+            Delegate?.Detach();
+        }
+
+        public override void Failed(string exceptionName)
+        {
+            base.Failed(exceptionName);
+            Delegate?.Failed(exceptionName);
+        }
+
+        public Observer? GetObserver<S, ObserverImpl, Observer>(string mapName, MetricsHelper<S> helper, Observer? del)
             where S : Metrics, new()
             where ObserverImpl : ObserverWithDelegate<S, Observer>, Observer, new()
-            where Observer : Ice.Instrumentation.Observer
+            where Observer : class, IObserver
         {
-            ObserverImpl obsv = getObserver<S, ObserverImpl>(mapName, helper);
-            if(obsv != null)
+            ObserverImpl? obsv = GetObserver<S, ObserverImpl>(mapName, helper);
+            if (obsv != null)
             {
-                obsv.setDelegate(del);
+                obsv.Delegate = del;
                 return obsv;
             }
             return del;
         }
-
-        protected O delegate_;
     }
 
-    public class ObserverFactoryWithDelegate<T, OImpl, O> : ObserverFactory<T, OImpl>
-        where T : Metrics, new()
-        where OImpl : ObserverWithDelegate<T, O>, O, new()
-        where O : Ice.Instrumentation.Observer
+    internal class ObserverWithDelegate : ObserverWithDelegate<Metrics, IObserver>
     {
-        public ObserverFactoryWithDelegate(MetricsAdminI metrics, string name) : base(metrics, name)
-        {
-        }
-
-        public O getObserver(MetricsHelper<T> helper, O del)
-        {
-            OImpl o = getObserver(helper);
-            if(o != null)
-            {
-                o.setDelegate(del);
-                return o;
-            }
-            return del;
-        }
-
-        public O getObserver(MetricsHelper<T> helper, object observer, O del)
-        {
-            OImpl o = getObserver(helper, observer);
-            if(o != null)
-            {
-                o.setDelegate(del);
-                return o;
-            }
-            return del;
-        }
     }
 
-    static class AttrsUtil
+    internal class ChildInvocationHelper : MetricsHelper<ChildInvocationMetrics>
     {
-        public static void
-        addEndpointAttributes<T>(MetricsHelper<T>.AttributeResolver r, Type cl) where T : IceMX.Metrics
+        private string Id
         {
-            r.add("endpoint", cl.GetMethod("getEndpoint"));
-
-            Type cli = typeof(Ice.EndpointInfo);
-            r.add("endpointType", cl.GetMethod("getEndpointInfo"), cli.GetMethod("type"));
-            r.add("endpointIsDatagram", cl.GetMethod("getEndpointInfo"), cli.GetMethod("datagram"));
-            r.add("endpointIsSecure", cl.GetMethod("getEndpointInfo"), cli.GetMethod("secure"));
-            r.add("endpointTimeout", cl.GetMethod("getEndpointInfo"), cli.GetField("timeout"));
-            r.add("endpointCompress", cl.GetMethod("getEndpointInfo"), cli.GetField("compress"));
-
-            cli = typeof(Ice.IPEndpointInfo);
-            r.add("endpointHost", cl.GetMethod("getEndpointInfo"), cli.GetField("host"));
-            r.add("endpointPort", cl.GetMethod("getEndpointInfo"), cli.GetField("port"));
-        }
-
-        public static void
-        addConnectionAttributes<T>(MetricsHelper<T>.AttributeResolver r, Type cl) where T : IceMX.Metrics
-        {
-            Type cli = typeof(Ice.ConnectionInfo);
-            r.add("incoming", cl.GetMethod("getConnectionInfo"), cli.GetField("incoming"));
-            r.add("adapterName", cl.GetMethod("getConnectionInfo"), cli.GetField("adapterName"));
-            r.add("connectionId", cl.GetMethod("getConnectionInfo"), cli.GetField("connectionId"));
-
-            cli = typeof(Ice.IPConnectionInfo);
-            r.add("localHost", cl.GetMethod("getConnectionInfo"), cli.GetField("localAddress"));
-            r.add("localPort", cl.GetMethod("getConnectionInfo"), cli.GetField("localPort"));
-            r.add("remoteHost", cl.GetMethod("getConnectionInfo"), cli.GetField("remoteAddress"));
-            r.add("remotePort", cl.GetMethod("getConnectionInfo"), cli.GetField("remotePort"));
-
-            cli = typeof(Ice.UDPConnectionInfo);
-            r.add("mcastHost", cl.GetMethod("getConnectionInfo"), cli.GetField("mcastAddress"));
-            r.add("mcastPort", cl.GetMethod("getConnectionInfo"), cli.GetField("mcastPort"));
-
-            addEndpointAttributes<T>(r, cl);
-        }
-    }
-
-    class ConnectionHelper : MetricsHelper<ConnectionMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
+            get
             {
-                try
-                {
-                    Type cl = typeof(ConnectionHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-                    add("state", cl.GetMethod("getState"));
-                    AttrsUtil.addConnectionAttributes(this, cl);
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public ConnectionHelper(Ice.ConnectionInfo con, Ice.Endpoint endpt, Ice.Instrumentation.ConnectionState state)
-            : base(_attributes)
-        {
-            _connectionInfo = con;
-            _endpoint = endpt;
-            _state = state;
-        }
-
-        public string getId()
-        {
-            if(_id == null)
-            {
-                StringBuilder os = new StringBuilder();
-                Ice.IPConnectionInfo info = getIPConnectionInfo();
-                if(info != null)
-                {
-                    os.Append(info.localAddress).Append(':').Append(info.localPort);
-                    os.Append(" -> ");
-                    os.Append(info.remoteAddress).Append(':').Append(info.remotePort);
-                }
-                else
-                {
-                    os.Append("connection-").Append(_connectionInfo);
-                }
-                if(_connectionInfo.connectionId.Length > 0)
-                {
-                    os.Append(" [").Append(_connectionInfo.connectionId).Append("]");
-                }
-                _id = os.ToString();
-            }
-            return _id;
-        }
-
-        public string getState()
-        {
-            switch(_state)
-            {
-            case Ice.Instrumentation.ConnectionState.ConnectionStateValidating:
-                return "validating";
-            case Ice.Instrumentation.ConnectionState.ConnectionStateHolding:
-                return "holding";
-            case Ice.Instrumentation.ConnectionState.ConnectionStateActive:
-                return "active";
-            case Ice.Instrumentation.ConnectionState.ConnectionStateClosing:
-                return "closing";
-            case Ice.Instrumentation.ConnectionState.ConnectionStateClosed:
-                return "closed";
-            default:
-                Debug.Assert(false);
-                return "";
+                _id ??= string.IsNullOrEmpty(_connection.ConnectionId) ?
+                    _connection.Endpoint!.ToString() : $"{_connection.Endpoint} [{_connection.ConnectionId}]";
+                return _id;
             }
         }
 
-        public string getParent()
+        private static readonly AttributeResolver _attributeResolver = new AttributeResolverI();
+
+        private readonly Connection _connection;
+        private readonly int _size;
+        private string? _id;
+
+        public override void InitMetrics(ChildInvocationMetrics v) => v.Size += _size;
+
+        internal ChildInvocationHelper(Connection connection, int size)
+            : base(_attributeResolver)
         {
-            if(_connectionInfo.adapterName != null && _connectionInfo.adapterName.Length > 0)
-            {
-                return _connectionInfo.adapterName;
-            }
-            else
-            {
-                return "Communicator";
-            }
-        }
-
-        public Ice.ConnectionInfo getConnectionInfo()
-        {
-            return _connectionInfo;
-        }
-
-        public Ice.Endpoint getEndpoint()
-        {
-            return _endpoint;
-        }
-
-        public Ice.EndpointInfo getEndpointInfo()
-        {
-            if(_endpointInfo == null)
-            {
-                _endpointInfo = _endpoint.getInfo();
-            }
-            return _endpointInfo;
-        }
-
-        private Ice.IPConnectionInfo
-        getIPConnectionInfo()
-        {
-            for(Ice.ConnectionInfo p = _connectionInfo; p != null; p = p.underlying)
-            {
-                if(p is Ice.IPConnectionInfo)
-                {
-                    return (Ice.IPConnectionInfo)p;
-                }
-            }
-            return null;
-        }
-
-        readonly private Ice.ConnectionInfo _connectionInfo;
-        readonly private Ice.Endpoint _endpoint;
-        readonly private Ice.Instrumentation.ConnectionState _state;
-        private string _id;
-        private Ice.EndpointInfo _endpointInfo;
-    }
-
-    class DispatchHelper : MetricsHelper<DispatchMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(DispatchHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-
-                    AttrsUtil.addConnectionAttributes(this, cl);
-
-                    Type clc = typeof(Ice.Current);
-                    add("operation", cl.GetMethod("getCurrent"), clc.GetField("operation"));
-                    add("identity", cl.GetMethod("getIdentity"));
-                    add("facet", cl.GetMethod("getCurrent"), clc.GetField("facet"));
-                    add("current", cl.GetMethod("getCurrent"), clc.GetField("requestId"));
-                    add("mode", cl.GetMethod("getMode"));
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public DispatchHelper(Ice.Current current, int size) : base(_attributes)
-        {
-            _current = current;
+            _connection = connection;
             _size = size;
         }
 
-        override protected string defaultResolve(string attribute)
+        private class AttributeResolverI : AttributeResolver
         {
-            if(attribute.IndexOf("context.", 0) == 0)
+            internal AttributeResolverI()
             {
-                string v;
-                if(_current.ctx.TryGetValue(attribute.Substring(8), out v))
-                {
-                    return v;
-                }
-            }
-            throw new ArgumentOutOfRangeException(attribute);
-        }
-
-        override public void initMetrics(DispatchMetrics v)
-        {
-            v.size += _size;
-        }
-
-        public string getMode()
-        {
-            return _current.requestId == 0 ? "oneway" : "twoway";
-        }
-
-        public string getId()
-        {
-            if(_id == null)
-            {
-                StringBuilder os = new StringBuilder();
-                if(_current.id.category != null && _current.id.category.Length > 0)
-                {
-                    os.Append(_current.id.category).Append('/');
-                }
-                os.Append(_current.id.name).Append(" [").Append(_current.operation).Append(']');
-                _id = os.ToString();
-            }
-            return _id;
-        }
-
-        public string getParent()
-        {
-            return _current.adapter.getName();
-        }
-
-        public Ice.ConnectionInfo getConnectionInfo()
-        {
-            if(_current.con != null)
-            {
-                return _current.con.getInfo();
-            }
-            return null;
-        }
-
-        public Ice.Endpoint getEndpoint()
-        {
-            if(_current.con != null)
-            {
-                return _current.con.getEndpoint();
-            }
-            return null;
-        }
-
-        public Ice.Connection getConnection()
-        {
-            return _current.con;
-        }
-
-        public Ice.EndpointInfo getEndpointInfo()
-        {
-            if(_current.con != null && _endpointInfo == null)
-            {
-                _endpointInfo = _current.con.getEndpoint().getInfo();
-            }
-            return _endpointInfo;
-        }
-
-        public Ice.Current getCurrent()
-        {
-            return _current;
-        }
-
-        public string getIdentity()
-        {
-            return _current.adapter.getCommunicator().identityToString(_current.id);
-        }
-
-        readonly private Ice.Current _current;
-        readonly private int _size;
-        private string _id;
-        private Ice.EndpointInfo _endpointInfo;
-    }
-
-    class InvocationHelper : MetricsHelper<InvocationMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(InvocationHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-
-                    add("operation", cl.GetMethod("getOperation"));
-                    add("identity", cl.GetMethod("getIdentity"));
-
-                    Type cli = typeof(Ice.ObjectPrx);
-                    add("facet", cl.GetMethod("getProxy"), cli.GetMethod("ice_getFacet"));
-                    add("encoding", cl.GetMethod("getEncodingVersion"));
-                    add("mode", cl.GetMethod("getMode"));
-                    add("proxy", cl.GetMethod("getProxy"));
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public InvocationHelper(Ice.ObjectPrx proxy, string op, Dictionary<string, string> ctx) : base(_attributes)
-        {
-            _proxy = proxy;
-            _operation = op;
-            _context = ctx;
-        }
-
-        override protected string defaultResolve(string attribute)
-        {
-            if(attribute.IndexOf("context.", 0) == 0)
-            {
-                string v;
-                if(_context.TryGetValue(attribute.Substring(8), out v))
-                {
-                    return v;
-                }
-            }
-            throw new ArgumentOutOfRangeException(attribute);
-        }
-
-        public string getMode()
-        {
-            if(_proxy == null)
-            {
-                throw new ArgumentOutOfRangeException("mode");
-            }
-
-            if(_proxy.ice_isTwoway())
-            {
-                return "twoway";
-            }
-            else if(_proxy.ice_isOneway())
-            {
-                return "oneway";
-            }
-            else if(_proxy.ice_isBatchOneway())
-            {
-                return "batch-oneway";
-            }
-            else if(_proxy.ice_isDatagram())
-            {
-                return "datagram";
-            }
-            else if(_proxy.ice_isBatchDatagram())
-            {
-                return "batch-datagram";
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException("mode");
-            }
-        }
-
-        public string getId()
-        {
-            if(_id == null)
-            {
-                if(_proxy != null)
-                {
-                    StringBuilder os = new StringBuilder();
-                    try
+                Add("parent", obj =>
                     {
-                        os.Append(_proxy.ice_endpoints(emptyEndpoints)).Append(" [").Append(_operation).Append(']');
-                    }
-                    catch(Ice.Exception)
-                    {
-                        // Either a fixed proxy or the communicator is destroyed.
-                        os.Append(_proxy.ice_getCommunicator().identityToString(_proxy.ice_getIdentity()));
-                        os.Append(" [").Append(_operation).Append(']');
-                    }
-                    _id = os.ToString();
-                }
-                else
-                {
-                    _id = _operation;
-                }
-            }
-            return _id;
-        }
+                        Connection connection = ((ChildInvocationHelper)obj)._connection;
+                        return string.IsNullOrEmpty(connection.Adapter?.Name) ? "Communicator" : connection.Adapter?.Name;
+                    });
+                Add("id", obj => (obj as ChildInvocationHelper)?.Id);
+                Add("incoming", obj => (obj as ChildInvocationHelper)?._connection.IsIncoming);
+                Add("adapterName", obj => (obj as ChildInvocationHelper)?._connection.Adapter?.Name);
+                Add("connectionId", obj => (obj as ChildInvocationHelper)?._connection.ConnectionId);
 
-        public string getParent()
-        {
-            return "Communicator";
-        }
+                Add("localHost", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as IPConnection)?.LocalEndpoint?.Address);
 
-        public Ice.ObjectPrx getProxy()
-        {
-            return _proxy;
-        }
+                Add("localPort", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as IPConnection)?.LocalEndpoint?.Port);
 
-        public string getEncodingVersion()
-        {
-            return Ice.Util.encodingVersionToString(_proxy.ice_getEncodingVersion());
-        }
+                Add("remoteHost", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as IPConnection)?.RemoteEndpoint?.Address);
 
-        public string getIdentity()
-        {
-            if(_proxy != null)
-            {
-                return _proxy.ice_getCommunicator().identityToString(_proxy.ice_getIdentity());
-            }
-            else
-            {
-                return "";
+                Add("remotePort", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as IPConnection)?.RemoteEndpoint?.Port);
+
+                Add("mcastHost", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as UdpConnection)?.MulticastEndpoint?.Address);
+
+                Add("mcastPort", obj =>
+                    ((obj as ChildInvocationHelper)?._connection as UdpConnection)?.MulticastEndpoint?.Port);
+
+                Add("endpoint", obj => (obj as ChildInvocationHelper)?._connection.Endpoint);
+                Add("endpointTransport", obj => (obj as ChildInvocationHelper)?._connection.Endpoint!.Transport);
+                Add("endpointIsDatagram", obj => (obj as ChildInvocationHelper)?._connection.Endpoint!.IsDatagram);
+                Add("endpointIsSecure", obj => (obj as ChildInvocationHelper)?._connection.Endpoint!.IsSecure);
+                Add("endpointHost", obj => (obj as ChildInvocationHelper)?._connection.Endpoint!.Host);
+                Add("endpointPort", obj => (obj as ChildInvocationHelper)?._connection.Endpoint!.Port);
             }
         }
-
-        public string getOperation()
-        {
-            return _operation;
-        }
-
-        readonly private Ice.ObjectPrx _proxy;
-        readonly private string _operation;
-        readonly private Dictionary<string, string> _context;
-        private string _id;
-
-        readonly static private Ice.Endpoint[] emptyEndpoints = new Ice.Endpoint[0];
-    }
-
-    class ThreadHelper : MetricsHelper<ThreadMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(ThreadHelper);
-                    add("parent", cl.GetField("_parent"));
-                    add("id", cl.GetField("_id"));
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public ThreadHelper(string parent, string id, Ice.Instrumentation.ThreadState state) : base(_attributes)
-        {
-            _parent = parent;
-            _id = id;
-            _state = state;
-        }
-
-        override public void initMetrics(ThreadMetrics v)
-        {
-            switch(_state)
-            {
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForIO:
-                ++v.inUseForIO;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForUser:
-                ++v.inUseForUser;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForOther:
-                ++v.inUseForOther;
-                break;
-            default:
-                break;
-            }
-        }
-
-        readonly public string _parent;
-        readonly public string _id;
-        readonly private Ice.Instrumentation.ThreadState _state;
-    }
-
-    class EndpointHelper : MetricsHelper<Metrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(EndpointHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-                    AttrsUtil.addEndpointAttributes(this, cl);
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public EndpointHelper(Ice.Endpoint endpt, string id) : base(_attributes)
-        {
-            _endpoint = endpt;
-            _id = id;
-        }
-
-        public EndpointHelper(Ice.Endpoint endpt) : base(_attributes)
-        {
-            _endpoint = endpt;
-        }
-
-        public Ice.EndpointInfo getEndpointInfo()
-        {
-            if(_endpointInfo == null)
-            {
-                _endpointInfo = _endpoint.getInfo();
-            }
-            return _endpointInfo;
-        }
-
-        public string getParent()
-        {
-            return "Communicator";
-        }
-
-        public string getId()
-        {
-            if(_id == null)
-            {
-                _id = _endpoint.ToString();
-            }
-            return _id;
-        }
-
-        public string getEndpoint()
-        {
-            return _endpoint.ToString();
-        }
-
-        readonly private Ice.Endpoint _endpoint;
-        private string _id;
-        private Ice.EndpointInfo _endpointInfo;
-    }
-
-    public class RemoteInvocationHelper : MetricsHelper<RemoteMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(RemoteInvocationHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-                    add("requestId", cl.GetMethod("getRequestId"));
-                    AttrsUtil.addConnectionAttributes(this, cl);
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public RemoteInvocationHelper(Ice.ConnectionInfo con, Ice.Endpoint endpt, int requestId, int size) :
-            base(_attributes)
-        {
-            _connectionInfo = con;
-            _endpoint = endpt;
-            _requestId = requestId;
-            _size = size;
-        }
-
-        override public void initMetrics(RemoteMetrics v)
-        {
-            v.size += _size;
-        }
-
-        public string getId()
-        {
-            if(_id == null)
-            {
-                _id = _endpoint.ToString();
-                if(_connectionInfo.connectionId != null && _connectionInfo.connectionId.Length > 0)
-                {
-                    _id += " [" + _connectionInfo.connectionId + "]";
-                }
-            }
-            return _id;
-        }
-
-        public int getRequestId()
-        {
-            return _requestId;
-        }
-
-        public string getParent()
-        {
-            if(_connectionInfo.adapterName != null && _connectionInfo.adapterName.Length > 0)
-            {
-                return _connectionInfo.adapterName;
-            }
-            else
-            {
-                return "Communicator";
-            }
-        }
-
-        public Ice.ConnectionInfo getConnectionInfo()
-        {
-            return _connectionInfo;
-        }
-
-        public Ice.Endpoint getEndpoint()
-        {
-            return _endpoint;
-        }
-
-        public Ice.EndpointInfo getEndpointInfo()
-        {
-            if(_endpointInfo == null)
-            {
-                _endpointInfo = _endpoint.getInfo();
-            }
-            return _endpointInfo;
-        }
-
-        readonly private Ice.ConnectionInfo _connectionInfo;
-        readonly private Ice.Endpoint _endpoint;
-        readonly private int _size;
-        readonly private int _requestId;
-        private string _id;
-        private Ice.EndpointInfo _endpointInfo;
-    }
-
-    public class CollocatedInvocationHelper : MetricsHelper<CollocatedMetrics>
-    {
-        class AttributeResolverI : AttributeResolver
-        {
-            public AttributeResolverI()
-            {
-                try
-                {
-                    Type cl = typeof(CollocatedInvocationHelper);
-                    add("parent", cl.GetMethod("getParent"));
-                    add("id", cl.GetMethod("getId"));
-                    add("requestId", cl.GetMethod("getRequestId"));
-                }
-                catch(Exception)
-                {
-                    Debug.Assert(false);
-                }
-            }
-        }
-        static AttributeResolver _attributes = new AttributeResolverI();
-
-        public CollocatedInvocationHelper(Ice.ObjectAdapter adapter, int requestId, int size) :
-            base(_attributes)
-        {
-            _id = adapter.getName();
-            _requestId = requestId;
-            _size = size;
-        }
-
-        override public void initMetrics(CollocatedMetrics v)
-        {
-            v.size += _size;
-        }
-
-        public string getId()
-        {
-            return _id;
-        }
-
-        public int getRequestId()
-        {
-            return _requestId;
-        }
-
-        public string getParent()
-        {
-            return "Communicator";
-        }
-
-        readonly private int _size;
-        readonly private int _requestId;
-        readonly private string _id;
-    }
-
-    public class ObserverWithDelegateI : ObserverWithDelegate<Metrics, Ice.Instrumentation.Observer>
-    {
-    }
-
-    public class ConnectionObserverI : ObserverWithDelegate<ConnectionMetrics, Ice.Instrumentation.ConnectionObserver>,
-        Ice.Instrumentation.ConnectionObserver
-    {
-        public void sentBytes(int num)
-        {
-            _sentBytes = num;
-            forEach(sentBytesUpdate);
-            if(delegate_ != null)
-            {
-                delegate_.sentBytes(num);
-            }
-        }
-
-        public void receivedBytes(int num)
-        {
-            _receivedBytes = num;
-            forEach(receivedBytesUpdate);
-            if(delegate_ != null)
-            {
-                delegate_.receivedBytes(num);
-            }
-        }
-
-        private void sentBytesUpdate(ConnectionMetrics v)
-        {
-            v.sentBytes += _sentBytes;
-        }
-
-        private void receivedBytesUpdate(ConnectionMetrics v)
-        {
-            v.receivedBytes += _receivedBytes;
-        }
-
-        private int _sentBytes;
-        private int _receivedBytes;
-    }
-
-    public class DispatchObserverI : ObserverWithDelegate<DispatchMetrics, Ice.Instrumentation.DispatchObserver>,
-        Ice.Instrumentation.DispatchObserver
-    {
-        public void
-        userException()
-        {
-            forEach(userException);
-            if(delegate_ != null)
-            {
-                delegate_.userException();
-            }
-        }
-
-        public void reply(int size)
-        {
-            forEach((DispatchMetrics v) => {
-                    v.replySize += size;
-                });
-            if(delegate_ != null)
-            {
-                delegate_.reply(size);
-            }
-        }
-
-        private void userException(DispatchMetrics v)
-        {
-            ++v.userException;
-        }
-    }
-
-    public class RemoteObserverI : ObserverWithDelegate<RemoteMetrics, Ice.Instrumentation.RemoteObserver>,
-        Ice.Instrumentation.RemoteObserver
-    {
-        public void reply(int size)
-        {
-            forEach((RemoteMetrics v) => {
-                    v.replySize += size;
-                });
-            if(delegate_ != null)
-            {
-                delegate_.reply(size);
-            }
-        }
-    }
-
-    public class CollocatedObserverI : ObserverWithDelegate<CollocatedMetrics, Ice.Instrumentation.CollocatedObserver>,
-        Ice.Instrumentation.CollocatedObserver
-    {
-        public void reply(int size)
-        {
-            forEach((CollocatedMetrics v) => {
-                    v.replySize += size;
-                });
-            if(delegate_ != null)
-            {
-                delegate_.reply(size);
-            }
-        }
-    }
-
-    public class InvocationObserverI : ObserverWithDelegate<InvocationMetrics, Ice.Instrumentation.InvocationObserver>,
-        Ice.Instrumentation.InvocationObserver
-    {
-        public void
-        userException()
-        {
-            forEach(userException);
-            if(delegate_ != null)
-            {
-                delegate_.userException();
-            }
-        }
-
-        public void
-        retried()
-        {
-            forEach(incrementRetry);
-            if(delegate_ != null)
-            {
-                delegate_.retried();
-            }
-        }
-
-        public Ice.Instrumentation.RemoteObserver getRemoteObserver(Ice.ConnectionInfo con, Ice.Endpoint endpt,
-                                                                    int requestId, int size)
-        {
-            Ice.Instrumentation.RemoteObserver del = null;
-            if(delegate_ != null)
-            {
-                del = delegate_.getRemoteObserver(con, endpt, requestId, size);
-            }
-            return getObserver<RemoteMetrics, RemoteObserverI,
-                Ice.Instrumentation.RemoteObserver>("Remote",
-                                                    new RemoteInvocationHelper(con, endpt, requestId, size),
-                                                    del);
-        }
-
-        public Ice.Instrumentation.CollocatedObserver getCollocatedObserver(Ice.ObjectAdapter adapter,
-                                                                            int requestId,
-                                                                            int size)
-        {
-            Ice.Instrumentation.CollocatedObserver del = null;
-            if(delegate_ != null)
-            {
-                del = delegate_.getCollocatedObserver(adapter, requestId, size);
-            }
-            return getObserver<CollocatedMetrics, CollocatedObserverI,
-                Ice.Instrumentation.CollocatedObserver>("Collocated",
-                                                    new CollocatedInvocationHelper(adapter, requestId, size),
-                                                    del);
-        }
-
-        private void incrementRetry(InvocationMetrics v)
-        {
-            ++v.retry;
-        }
-
-        private void userException(InvocationMetrics v)
-        {
-            ++v.userException;
-        }
-    }
-
-    public class ThreadObserverI : ObserverWithDelegate<ThreadMetrics, Ice.Instrumentation.ThreadObserver>,
-        Ice.Instrumentation.ThreadObserver
-    {
-        public void stateChanged(Ice.Instrumentation.ThreadState oldState, Ice.Instrumentation.ThreadState newState)
-        {
-            _oldState = oldState;
-            _newState = newState;
-            forEach(threadStateUpdate);
-            if(delegate_ != null)
-            {
-                delegate_.stateChanged(oldState, newState);
-            }
-        }
-
-        private void threadStateUpdate(ThreadMetrics v)
-        {
-            switch(_oldState)
-            {
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForIO:
-                --v.inUseForIO;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForUser:
-                --v.inUseForUser;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForOther:
-                --v.inUseForOther;
-                break;
-            default:
-                break;
-            }
-            switch(_newState)
-            {
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForIO:
-                ++v.inUseForIO;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForUser:
-                ++v.inUseForUser;
-                break;
-            case Ice.Instrumentation.ThreadState.ThreadStateInUseForOther:
-                ++v.inUseForOther;
-                break;
-            default:
-                break;
-            }
-        }
-
-        private Ice.Instrumentation.ThreadState _oldState;
-        private Ice.Instrumentation.ThreadState _newState;
-    }
-
-    public class CommunicatorObserverI : Ice.Instrumentation.CommunicatorObserver
-    {
-        public CommunicatorObserverI(Ice.InitializationData initData)
-        {
-            _metrics = new MetricsAdminI(initData.properties, initData.logger);
-            _delegate = initData.observer;
-            _connections = new ObserverFactoryWithDelegate<ConnectionMetrics, ConnectionObserverI,
-                Ice.Instrumentation.ConnectionObserver>(_metrics, "Connection");
-            _dispatch = new ObserverFactoryWithDelegate<DispatchMetrics, DispatchObserverI,
-                Ice.Instrumentation.DispatchObserver>(_metrics, "Dispatch");
-            _invocations = new ObserverFactoryWithDelegate<InvocationMetrics, InvocationObserverI,
-                Ice.Instrumentation.InvocationObserver>(_metrics, "Invocation");
-            _threads = new ObserverFactoryWithDelegate<ThreadMetrics, ThreadObserverI,
-                Ice.Instrumentation.ThreadObserver>(_metrics, "Thread");
-            _connects = new ObserverFactoryWithDelegate<Metrics, ObserverWithDelegateI,
-                Ice.Instrumentation.Observer>(_metrics, "ConnectionEstablishment");
-            _endpointLookups = new ObserverFactoryWithDelegate<Metrics, ObserverWithDelegateI,
-                Ice.Instrumentation.Observer>(_metrics, "EndpointLookup");
-
-            try
-            {
-                Type cl = typeof(InvocationMetrics);
-                _invocations.registerSubMap<RemoteMetrics>("Remote", cl.GetField("remotes"));
-                _invocations.registerSubMap<CollocatedMetrics>("Collocated", cl.GetField("collocated"));
-            }
-            catch(Exception)
-            {
-                Debug.Assert(false);
-            }
-        }
-
-        public Ice.Instrumentation.Observer getConnectionEstablishmentObserver(Ice.Endpoint endpt, string connector)
-        {
-            if(_connects.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.Observer del = null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getConnectionEstablishmentObserver(endpt, connector);
-                    }
-                    return _connects.getObserver(new EndpointHelper(endpt, connector), del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public Ice.Instrumentation.Observer getEndpointLookupObserver(Ice.Endpoint endpt)
-        {
-            if(_endpointLookups.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.Observer del = null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getEndpointLookupObserver(endpt);
-                    }
-                    return _endpointLookups.getObserver(new EndpointHelper(endpt), del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public Ice.Instrumentation.ConnectionObserver getConnectionObserver(Ice.ConnectionInfo c,
-                                                                            Ice.Endpoint e,
-                                                                            Ice.Instrumentation.ConnectionState s,
-                                                                            Ice.Instrumentation.ConnectionObserver obsv)
-        {
-            if(_connections.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.ConnectionObserver del = null;
-                    ConnectionObserverI o = obsv is ConnectionObserverI ? (ConnectionObserverI)obsv : null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getConnectionObserver(c, e, s, o != null ? o.getDelegate() : obsv);
-                    }
-                    return _connections.getObserver(new ConnectionHelper(c, e, s), obsv, del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public Ice.Instrumentation.ThreadObserver getThreadObserver(string parent, string id,
-                                                                    Ice.Instrumentation.ThreadState s,
-                                                                    Ice.Instrumentation.ThreadObserver obsv)
-        {
-            if(_threads.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.ThreadObserver del = null;
-                    ThreadObserverI o = obsv is ThreadObserverI ? (ThreadObserverI)obsv : null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getThreadObserver(parent, id, s, o != null ? o.getDelegate() : obsv);
-                    }
-                    return _threads.getObserver(new ThreadHelper(parent, id, s), obsv, del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public Ice.Instrumentation.InvocationObserver getInvocationObserver(Ice.ObjectPrx prx, string operation,
-                                                                            Dictionary<string, string> ctx)
-        {
-            if(_invocations.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.InvocationObserver del = null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getInvocationObserver(prx, operation, ctx);
-                    }
-                    return _invocations.getObserver(new InvocationHelper(prx, operation, ctx), del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public Ice.Instrumentation.DispatchObserver getDispatchObserver(Ice.Current c, int size)
-        {
-            if(_dispatch.isEnabled())
-            {
-                try
-                {
-                    Ice.Instrumentation.DispatchObserver del = null;
-                    if(_delegate != null)
-                    {
-                        del = _delegate.getDispatchObserver(c, size);
-                    }
-                    return _dispatch.getObserver(new DispatchHelper(c, size), del);
-                }
-                catch(Exception ex)
-                {
-                    _metrics.getLogger().error("unexpected exception trying to obtain observer:\n" + ex);
-                }
-            }
-            return null;
-        }
-
-        public void setObserverUpdater(Ice.Instrumentation.ObserverUpdater updater)
-        {
-            if(updater == null)
-            {
-                _connections.setUpdater(null);
-                _threads.setUpdater(null);
-            }
-            else
-            {
-                _connections.setUpdater(updater.updateConnectionObservers);
-                _threads.setUpdater(updater.updateThreadObservers);
-            }
-            if(_delegate != null)
-            {
-                _delegate.setObserverUpdater(updater);
-            }
-        }
-
-        public MetricsAdminI getFacet()
-        {
-            return _metrics;
-        }
-
-        readonly private MetricsAdminI _metrics;
-        readonly private Ice.Instrumentation.CommunicatorObserver _delegate;
-        readonly private ObserverFactoryWithDelegate<ConnectionMetrics, ConnectionObserverI,
-            Ice.Instrumentation.ConnectionObserver> _connections;
-        readonly private ObserverFactoryWithDelegate<DispatchMetrics, DispatchObserverI,
-            Ice.Instrumentation.DispatchObserver> _dispatch;
-        readonly private ObserverFactoryWithDelegate<InvocationMetrics, InvocationObserverI,
-            Ice.Instrumentation.InvocationObserver> _invocations;
-        readonly private ObserverFactoryWithDelegate<ThreadMetrics, ThreadObserverI,
-            Ice.Instrumentation.ThreadObserver> _threads;
-        readonly private ObserverFactoryWithDelegate<Metrics, ObserverWithDelegateI,
-            Ice.Instrumentation.Observer> _connects;
-        readonly private ObserverFactoryWithDelegate<Metrics, ObserverWithDelegateI,
-            Ice.Instrumentation.Observer> _endpointLookups;
     }
 }

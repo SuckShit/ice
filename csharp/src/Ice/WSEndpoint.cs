@@ -1,361 +1,226 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace IceInternal
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+
+namespace ZeroC.Ice
 {
-    using System;
-    using System.Diagnostics;
-    using System.Collections.Generic;
-
-    sealed class WSEndpoint : EndpointI
+    internal sealed class WSEndpoint : TcpEndpoint
     {
-        internal WSEndpoint(ProtocolInstance instance, EndpointI del, string res)
+        public override bool IsSecure => Transport == Transport.WSS;
+
+        public override string? this[string option] => option == "resource" ? Resource : base[option];
+
+        /// <summary>A URI specifying the resource associated with this endpoint. The value is passed as the target for
+        /// GET in the WebSocket upgrade request.</summary>
+        private string Resource => Data.Options.Length > 0 ? Data.Options[0] : "/";
+
+        protected internal override bool HasOptions => Data.Options.Length > 0 || base.HasOptions;
+
+        // There is no Equals or GetHashCode because they are identical to the base.
+
+        // TODO: can we remove this override?
+        public override bool IsLocal(Endpoint endpoint) => endpoint is WSEndpoint && base.IsLocal(endpoint);
+
+        protected internal override void WriteOptions(OutputStream ostr)
         {
-            _instance = instance;
-            _delegate = del;
-            _resource = res;
+            Debug.Assert(Protocol == Protocol.Ice1);
+            base.WriteOptions(ostr);
+            ostr.WriteString(Resource);
         }
 
-        internal WSEndpoint(ProtocolInstance instance, EndpointI del, List<string> args)
+        protected internal override void AppendOptions(StringBuilder sb, char optionSeparator)
         {
-            _instance = instance;
-            _delegate = del;
-
-            initWithOptions(args);
-
-            if(_resource == null)
+            base.AppendOptions(sb, optionSeparator);
+            if (Resource != "/")
             {
-                _resource = "/";
-            }
-        }
-
-        internal WSEndpoint(ProtocolInstance instance, EndpointI del, Ice.InputStream s)
-        {
-            _instance = instance;
-            _delegate = del;
-
-            _resource = s.readString();
-        }
-
-        private sealed class InfoI : Ice.WSEndpointInfo
-        {
-            public InfoI(EndpointI e)
-            {
-                _endpoint = e;
-            }
-
-            override public short type()
-            {
-                return _endpoint.type();
-            }
-
-            override public bool datagram()
-            {
-                return _endpoint.datagram();
-            }
-
-            override public bool secure()
-            {
-                return _endpoint.secure();
-            }
-
-            private EndpointI _endpoint;
-        }
-
-        public override Ice.EndpointInfo getInfo()
-        {
-            Ice.WSEndpointInfo info = new InfoI(this);
-            info.underlying = _delegate.getInfo();
-            info.resource = _resource;
-            info.compress = info.underlying.compress;
-            info.timeout = info.underlying.timeout;
-            return info;
-        }
-
-        public override short type()
-        {
-            return _delegate.type();
-        }
-
-        public override string protocol()
-        {
-            return _delegate.protocol();
-        }
-
-        public override void streamWriteImpl(Ice.OutputStream s)
-        {
-            _delegate.streamWriteImpl(s);
-            s.writeString(_resource);
-        }
-
-        public override int timeout()
-        {
-            return _delegate.timeout();
-        }
-
-        public override EndpointI timeout(int timeout)
-        {
-            if(timeout == _delegate.timeout())
-            {
-                return this;
-            }
-            else
-            {
-                return new WSEndpoint(_instance, _delegate.timeout(timeout), _resource);
-            }
-        }
-
-        public override string connectionId()
-        {
-            return _delegate.connectionId();
-        }
-
-        public override EndpointI connectionId(string connectionId)
-        {
-            if(connectionId.Equals(_delegate.connectionId()))
-            {
-                return this;
-            }
-            else
-            {
-                return new WSEndpoint(_instance, _delegate.connectionId(connectionId), _resource);
-            }
-        }
-
-        public override bool compress()
-        {
-            return _delegate.compress();
-        }
-
-        public override EndpointI compress(bool compress)
-        {
-            if(compress == _delegate.compress())
-            {
-                return this;
-            }
-            else
-            {
-                return new WSEndpoint(_instance, _delegate.compress(compress), _resource);
-            }
-        }
-
-        public override bool datagram()
-        {
-            return _delegate.datagram();
-        }
-
-        public override bool secure()
-        {
-            return _delegate.secure();
-        }
-
-        public override Transceiver transceiver()
-        {
-            return null;
-        }
-
-        private sealed class EndpointI_connectorsI : EndpointI_connectors
-        {
-            public EndpointI_connectorsI(ProtocolInstance instance, string host, string res, EndpointI_connectors cb)
-            {
-                _instance = instance;
-                _host = host;
-                _resource = res;
-                _callback = cb;
-            }
-
-            public void connectors(List<Connector> connectors)
-            {
-                List<Connector> l = new List<Connector>();
-                foreach(Connector c in connectors)
+                if (Protocol == Protocol.Ice1)
                 {
-                    l.Add(new WSConnector(_instance, c, _host, _resource));
+                    sb.Append(" -r ");
+                    bool addQuote = Resource.IndexOf(':') != -1;
+                    if (addQuote)
+                    {
+                        sb.Append('"');
+                    }
+                    sb.Append(Resource);
+                    if (addQuote)
+                    {
+                        sb.Append('"');
+                    }
                 }
-                _callback.connectors(l);
-            }
-
-            public void exception(Ice.LocalException ex)
-            {
-                _callback.exception(ex);
-            }
-
-            private ProtocolInstance _instance;
-            private string _host;
-            private string _resource;
-            private EndpointI_connectors _callback;
-        }
-
-        public override void connectors_async(Ice.EndpointSelectionType selType, EndpointI_connectors callback)
-        {
-            string host = "";
-            for(Ice.EndpointInfo p = _delegate.getInfo(); p != null; p = p.underlying)
-            {
-                if(p is Ice.IPEndpointInfo)
+                else
                 {
-                    Ice.IPEndpointInfo ipInfo = (Ice.IPEndpointInfo)p;
-                    host = ipInfo.host + ":" + ipInfo.port;
+                    if (base.HasOptions)
+                    {
+                        sb.Append(optionSeparator);
+                    }
+                    sb.Append("resource=");
+                    // resource must be in a URI-compatible format, with for example spaces escaped as %20.
+                    sb.Append(Resource);
                 }
             }
-            _delegate.connectors_async(selType, new EndpointI_connectorsI(_instance, host, _resource, callback));
+        }
+        internal static new WSEndpoint CreateIce1Endpoint(Transport transport, InputStream istr)
+        {
+            Debug.Assert(transport == Transport.WS || transport == Transport.WSS);
+
+            string host = istr.ReadString();
+            ushort port = ReadPort(istr);
+            var timeout = TimeSpan.FromMilliseconds(istr.ReadInt());
+            bool compress = istr.ReadBool();
+            string resource = istr.ReadString();
+
+            string[] options = resource == "/" ? Array.Empty<string>() : new string[] { resource };
+
+            return new WSEndpoint(new EndpointData(transport, host, port, options),
+                                  timeout,
+                                  compress,
+                                  istr.Communicator!);
         }
 
-        public override Acceptor acceptor(string adapterName)
+        internal static new WSEndpoint CreateIce2Endpoint(EndpointData data, Communicator communicator)
         {
-            return new WSAcceptor(this, _instance, _delegate.acceptor(adapterName));
+            Debug.Assert(data.Transport == Transport.WS || data.Transport == Transport.WSS); // TODO: remove WSS
+
+            string[] options = data.Options;
+            if (options.Length > 1)
+            {
+                // Drop extra options since we don't understand them.
+                options = new string[] { options[0] };
+            }
+
+            return new WSEndpoint(new EndpointData(data.Transport, data.Host, data.Port, options), communicator);
         }
 
-        public WSEndpoint endpoint(EndpointI delEndp)
+        internal static new WSEndpoint ParseIce1Endpoint(
+            Transport transport,
+            Dictionary<string, string?> options,
+            Communicator communicator,
+            bool oaEndpoint,
+            string endpointString)
         {
-            if(delEndp == _delegate)
+            (string host, ushort port) = ParseHostAndPort(options, oaEndpoint, endpointString);
+
+            string resource = "/";
+
+            if (options.TryGetValue("-r", out string? argument))
             {
-                return this;
+                resource = argument ??
+                    throw new FormatException($"no argument provided for -r option in endpoint `{endpointString}'");
+
+                options.Remove("-r");
             }
-            else
-            {
-                return new WSEndpoint(_instance, delEndp, _resource);
-            }
+
+            string[] endpointDataOptions = resource == "/" ? Array.Empty<string>() : new string[] { resource };
+
+            return new WSEndpoint(new EndpointData(transport, host, port, endpointDataOptions),
+                                  ParseTimeout(options, endpointString),
+                                  ParseCompress(options, endpointString),
+                                  options,
+                                  communicator,
+                                  oaEndpoint,
+                                  endpointString);
         }
 
-        public override List<EndpointI> expandIfWildcard()
+        internal static new WSEndpoint ParseIce2Endpoint(
+            Transport transport,
+            string host,
+            ushort port,
+            Dictionary<string, string> options,
+            Communicator communicator,
+            bool oaEndpoint)
         {
-            List<EndpointI> l = new List<EndpointI>();
-            foreach(EndpointI e in _delegate.expandIfWildcard())
-            {
-                l.Add(e == _delegate ? this : new WSEndpoint(_instance, e, _resource));
-            }
-            return l;
-        }
+            Debug.Assert(transport == Transport.WS || transport == Transport.WSS);
 
-        public override List<EndpointI> expandHost(out EndpointI publish)
-        {
-            List<EndpointI> l = new List<EndpointI>();
-            foreach(EndpointI e in _delegate.expandHost(out publish))
-            {
-                l.Add(e == _delegate ? this : new WSEndpoint(_instance, e, _resource));
-            }
-            if(publish != null)
-            {
-                publish = publish == _delegate ? this : new WSEndpoint(_instance, publish, _resource);
-            }
-            return l;
-        }
+            string? resource = null;
 
-        public override bool equivalent(EndpointI endpoint)
-        {
-            if(!(endpoint is WSEndpoint))
+            if (options.TryGetValue("resource", out string? value))
             {
-                return false;
+                // The resource value (as supplied in a URI string) must be percent-escaped with '/' separators
+                // We keep it as-is, and will marshal it as-is.
+                resource = value;
+                options.Remove("resource");
             }
-            WSEndpoint wsEndpointI = (WSEndpoint)endpoint;
-            return _delegate.equivalent(wsEndpointI._delegate);
-        }
-
-        public override string options()
-        {
-            //
-            // WARNING: Certain features, such as proxy validation in Glacier2,
-            // depend on the format of proxy strings. Changes to toString() and
-            // methods called to generate parts of the reference string could break
-            // these features. Please review for all features that depend on the
-            // format of proxyToString() before changing this and related code.
-            //
-            string s = _delegate.options();
-
-            if(_resource != null && _resource.Length > 0)
+            else if (options.TryGetValue("option", out value))
             {
-                s += " -r ";
-                bool addQuote = _resource.IndexOf(':') != -1;
-                if(addQuote)
+                // We are parsing a ice+universal endpoint
+                if (value.Contains(','))
                 {
-                    s += "\"";
+                    throw new FormatException("an ice+ws endpoint accepts at most one marshaled option (resource)");
                 }
-                s += _resource;
-                if(addQuote)
-                {
-                    s += "\"";
-                }
+                // Each option of a universal endpoint needs to be unescaped
+                resource = Uri.UnescapeDataString(value);
+                options.Remove("option");
             }
 
-            return s;
+            var data = new EndpointData(transport,
+                                        host,
+                                        port,
+                                        resource == null ? Array.Empty<string>() : new string[] { resource });
+
+            return new WSEndpoint(data, options, communicator, oaEndpoint);
         }
 
-        public override int GetHashCode()
-        {
-            int h = _delegate.GetHashCode();
-            HashUtil.hashAdd(ref h, _resource);
-            return h;
-        }
-
-        public override int CompareTo(EndpointI obj)
-        {
-            if(!(obj is WSEndpoint))
-            {
-                return type() < obj.type() ? -1 : 1;
-            }
-
-            WSEndpoint p = (WSEndpoint)obj;
-            if(this == p)
-            {
-                return 0;
-            }
-
-            int v = string.Compare(_resource, p._resource, StringComparison.Ordinal);
-            if(v != 0)
-            {
-                return v;
-            }
-
-            return _delegate.CompareTo(p._delegate);
-        }
-
-        protected override bool checkOption(string option, string argument, string endpoint)
-        {
-            switch(option[1])
-            {
-            case 'r':
-            {
-                if(argument == null)
-                {
-                    Ice.EndpointParseException e = new Ice.EndpointParseException();
-                    e.str = "no argument provided for -r option in endpoint " + endpoint + _delegate.options();
-                    throw e;
-                }
-                _resource = argument;
-                return true;
-            }
-
-            default:
-            {
-                return false;
-            }
-            }
-        }
-
-        private ProtocolInstance _instance;
-        private EndpointI _delegate;
-        private string _resource;
-    }
-
-    public class WSEndpointFactory : EndpointFactoryWithUnderlying
-    {
-        public WSEndpointFactory(ProtocolInstance instance, short type) : base(instance, type)
+         // Constructor for ice1 unmarshaling
+        private WSEndpoint(EndpointData data, TimeSpan timeout, bool compress, Communicator communicator)
+            : base(data, timeout, compress, communicator)
         {
         }
 
-        override public EndpointFactory cloneWithUnderlying(ProtocolInstance instance, short underlying)
+        // Constructor for ice2 unmarshaling.
+        internal WSEndpoint(EndpointData data, Communicator communicator)
+            : base(data, communicator)
         {
-            return new WSEndpointFactory(instance, underlying);
         }
 
-        override protected EndpointI createWithUnderlying(EndpointI underlying, List<string> args, bool oaEndpoint)
+        // Constructor for ice1 parsing
+        private WSEndpoint(
+            EndpointData data,
+            TimeSpan timeout,
+            bool compress,
+            Dictionary<string, string?> options,
+            Communicator communicator,
+            bool oaEndpoint,
+            string endpointString)
+            : base(data, timeout, compress, options, communicator, oaEndpoint, endpointString)
         {
-            return new WSEndpoint(instance_, underlying, args);
         }
 
-        override protected EndpointI readWithUnderlying(EndpointI underlying, Ice.InputStream s)
+        // Constructor used for ice2 parsing.
+        private WSEndpoint(
+            EndpointData data,
+            Dictionary<string, string> options,
+            Communicator communicator,
+            bool oaEndpoint)
+            : base(data, options, communicator, oaEndpoint)
         {
-            return new WSEndpoint(instance_, underlying, s);
         }
+
+        internal override Connection CreateConnection(
+            IConnectionManager manager,
+            MultiStreamTransceiverWithUnderlyingTransceiver transceiver,
+            IConnector? connector,
+            string connectionId,
+            ObjectAdapter? adapter) =>
+            new WSConnection(manager, this, transceiver, connector, connectionId, adapter);
+
+        // Clone constructor
+        private WSEndpoint(WSEndpoint endpoint, string host, ushort port)
+            : base(endpoint, host, port)
+        {
+        }
+
+        private protected override IPEndpoint Clone(string host, ushort port) =>
+            new WSEndpoint(this, host, port);
+
+        internal override ITransceiver CreateTransceiver(IConnector connector, EndPoint addr, INetworkProxy? proxy) =>
+            new WSTransceiver(Communicator, base.CreateTransceiver(connector, addr, proxy), Host, Resource, connector);
+
+        internal override ITransceiver CreateTransceiver(Socket socket, string adapterName) =>
+            new WSTransceiver(Communicator, base.CreateTransceiver(socket, adapterName));
     }
 }

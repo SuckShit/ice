@@ -16,16 +16,16 @@ public:
 
     JsVisitor(::IceUtilInternal::Output&,
               const std::vector<std::pair<std::string, std::string> >& imports =
-                    std::vector<std::pair<std::string, std::string> >());
+                std::vector<std::pair<std::string, std::string> >());
     virtual ~JsVisitor();
 
     std::vector<std::pair<std::string, std::string> > imports() const;
 
 protected:
 
-    void writeMarshalDataMembers(const DataMemberList&, const DataMemberList&);
-    void writeUnmarshalDataMembers(const DataMemberList&, const DataMemberList&);
-    void writeInitDataMembers(const DataMemberList&);
+    void writeMarshalDataMembers(const MemberList& dataMembers);
+    void writeUnmarshalDataMembers(const MemberList& dataMembers);
+    void writeInitDataMembers(const MemberList&);
 
     std::string getValue(const std::string&, const TypePtr&);
 
@@ -75,13 +75,14 @@ private:
 
         RequireVisitor(::IceUtilInternal::Output&, std::vector<std::string>, bool, bool);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitOperation(const OperationPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitOperation(const OperationPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
 
         std::vector< std::string> writeRequires(const UnitPtr&);
 
@@ -91,15 +92,15 @@ private:
         bool _es6modules;
         bool _seenClass;
         bool _seenCompactId;
+        bool _seenInterface;
         bool _seenOperation;
         bool _seenStruct;
         bool _seenUserException;
-        bool _seenLocalException;
         bool _seenEnum;
         bool _seenObjectSeq;
-        bool _seenObjectProxySeq;
+        bool _seenValueSeq;
         bool _seenObjectDict;
-        bool _seenObjectProxyDict;
+        bool _seenValueDict;
         std::vector<std::string> _includePaths;
     };
 
@@ -109,15 +110,16 @@ private:
 
         TypesVisitor(::IceUtilInternal::Output&, std::vector<std::string>, bool);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
 
     private:
 
@@ -133,7 +135,7 @@ private:
 
         ExportVisitor(::IceUtilInternal::Output&, bool, bool);
 
-        virtual bool visitModuleStart(const ModulePtr&);
+        bool visitModuleStart(const ModulePtr&) override;
 
     private:
 
@@ -148,12 +150,13 @@ private:
 
         TypeScriptRequireVisitor(::IceUtilInternal::Output&, bool);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
 
     private:
 
@@ -173,12 +176,13 @@ private:
 
         TypeScriptAliasVisitor(::IceUtilInternal::Output&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
 
         void writeAlias(const UnitPtr&);
 
@@ -197,15 +201,16 @@ private:
         TypeScriptVisitor(::IceUtilInternal::Output&,
                           const std::vector<std::pair<std::string, std::string> >&);
 
-        virtual bool visitModuleStart(const ModulePtr&);
-        virtual void visitModuleEnd(const ModulePtr&);
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitExceptionStart(const ExceptionPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-        virtual void visitConst(const ConstPtr&);
+        bool visitModuleStart(const ModulePtr&) override;
+        void visitModuleEnd(const ModulePtr&) override;
+        bool visitClassDefStart(const ClassDefPtr&) override;
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) override;
+        bool visitExceptionStart(const ExceptionPtr&) override;
+        bool visitStructStart(const StructPtr&) override;
+        void visitSequence(const SequencePtr&) override;
+        void visitDictionary(const DictionaryPtr&) override;
+        void visitEnum(const EnumPtr&) override;
+        void visitConst(const ConstPtr&) override;
 
     private:
 

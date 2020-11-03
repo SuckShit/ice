@@ -78,19 +78,10 @@
     <ClCompile Include="..\..\..\..\cpp\src\Slice\Grammar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\cpp\src\Slice\MD5.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\cpp\src\Slice\Parser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\cpp\src\Slice\Preprocessor.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\cpp\src\Slice\Python.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\cpp\src\Slice\PythonUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\cpp\src\Slice\Scanner.cpp">
@@ -99,13 +90,13 @@
     <ClCompile Include="..\..\..\..\cpp\src\Slice\SliceUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\cpp\src\Slice\MD5I.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\cpp\src\Slice\Checksum.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\cpp\src\Slice\StringLiteralUtil.cpp" />
+    <ClCompile Include="..\..\..\..\cpp\src\slice2py\Python.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\cpp\src\slice2py\PythonUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\Dispatcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

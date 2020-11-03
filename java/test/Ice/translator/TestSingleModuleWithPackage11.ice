@@ -6,11 +6,9 @@
 
 #include <SingleModuleWithPackage.ice>
 
-[["java:package:smwpTest11"]]
+[[java:package(smwpTest11)]]
 
-module T1
-{
-module T2
+module T1::T2
 {
 
 const M::smwpEnum smwpTest11Constant = M::smwpE1;
@@ -29,9 +27,9 @@ sequence<M::smwpStruct> smwpTest11StructSeq;
 
 dictionary<M::smwpStruct, M::smwpBaseClass> smwpTest11StructClassSeq;
 
-interface smwpTest11Interface extends M::smwpInterface {}
+interface smwpTest11Interface : M::smwpInterface {}
 
-exception smwpTest11Exception extends M::smwpException
+exception smwpTest11Exception : M::smwpException
 {
     M::smwpEnum e1;
     M::smwpStruct s1;
@@ -41,7 +39,7 @@ exception smwpTest11Exception extends M::smwpException
     M::smwpInterface i1;
 }
 
-class smwpTest11Class extends M::smwpBaseClass implements M::smwpBaseInterface
+class smwpTest11Class : M::smwpBaseClass implements M::smwpBaseInterface
 {
     M::smwpStruct
     smwpTest11Op1(M::smwpEnum i1,
@@ -58,7 +56,7 @@ class smwpTest11Class extends M::smwpBaseClass implements M::smwpBaseInterface
                   out M::smwpClass o6)
         throws M::smwpException;
 
-    ["amd"]
+    [amd]
     M::smwpStruct
     smwpTest11Op3(M::smwpEnum i1,
                   M::smwpStruct i2,
@@ -75,5 +73,4 @@ class smwpTest11Class extends M::smwpBaseClass implements M::smwpBaseInterface
         throws M::smwpException;
 }
 
-}
 }

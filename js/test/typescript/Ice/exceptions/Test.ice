@@ -6,7 +6,7 @@
 
 #include <Ice/BuiltinSequences.ice>
 
-[["js:es6-module"]]
+[[js:es6-module]]
 
 module Test
 {
@@ -22,12 +22,12 @@ exception A
     int aMem;
 }
 
-exception B extends A
+exception B : A
 {
     int bMem;
 }
 
-exception C extends B
+exception C : B
 {
     int cMem;
 }

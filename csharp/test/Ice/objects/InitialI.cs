@@ -1,236 +1,120 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Objects
 {
-    namespace objects
+    public sealed class Initial : IInitial
     {
-        public sealed class InitialI : Test.InitialDisp_
+        public Initial(ObjectAdapter adapter)
         {
-            public InitialI(Ice.ObjectAdapter adapter)
-            {
-                _adapter = adapter;
-                _b1 = new BI();
-                _b2 = new BI();
-                _c = new CI();
-                _d = new DI();
-                _e = new EI();
-                _f = new FI(_e);
+            _adapter = adapter;
+            _b1 = new B();
+            _b2 = new B();
+            _c = new C();
+            _d = new D();
 
-                _b1.theA = _b2; // Cyclic reference to another B
-                _b1.theB = _b1; // Self reference.
-                _b1.theC = null; // Null reference.
+            _b1.TheA = _b2; // Cyclic reference to another B
+            _b1.TheB = _b1; // Self reference.
+            _b1.TheC = null; // Null reference.
 
-                _b2.theA = _b2; // Self reference, using base.
-                _b2.theB = _b1; // Cyclic reference to another B
-                _b2.theC = _c; // Cyclic reference to a C.
+            _b2.TheA = _b2; // Self reference, using base.
+            _b2.TheB = _b1; // Cyclic reference to another B
+            _b2.TheC = _c; // Cyclic reference to a C.
 
-                _c.theB = _b2; // Cyclic reference to a B.
+            _c.TheB = _b2; // Cyclic reference to a B.
 
-                _d.theA = _b1; // Reference to a B.
-                _d.theB = _b2; // Reference to a B.
-                _d.theC = null; // Reference to a C.
-            }
-
-            public override void getAll(out Test.B b1, out Test.B b2, out Test.C c, out Test.D d, Ice.Current current)
-            {
-                b1 = _b1;
-                b2 = _b2;
-                c = _c;
-                d = _d;
-            }
-
-            public override Test.B getB1(Ice.Current current)
-            {
-                return _b1;
-            }
-
-            public override Test.B getB2(Ice.Current current)
-            {
-                return _b2;
-            }
-
-            public override Test.C getC(Ice.Current current)
-            {
-                return _c;
-            }
-
-            public override Test.D getD(Ice.Current current)
-            {
-                return _d;
-            }
-
-            public override Test.E getE(Ice.Current current)
-            {
-                return _e;
-            }
-
-            public override Test.F getF(Ice.Current current)
-            {
-                return _f;
-            }
-
-            public override Ice.Value getI(Ice.Current current)
-            {
-                return new II();
-            }
-
-            public override Ice.Value getJ(Ice.Current current)
-            {
-                return new JI();
-            }
-
-            public override Ice.Value getH(Ice.Current current)
-            {
-                return new HI();
-            }
-
-            public override Test.K getK(Ice.Current current)
-            {
-                return new Test.K(new Test.L("l"));
-            }
-
-            public override Ice.Value opValue(Ice.Value v1, out Ice.Value v2, Ice.Current current)
-            {
-                v2 = v1;
-                return v1;
-            }
-
-            public override Ice.Value[] opValueSeq(Ice.Value[] v1, out Ice.Value[] v2, Ice.Current current)
-            {
-                v2 = v1;
-                return v1;
-            }
-
-            public override Dictionary<string, Ice.Value>
-            opValueMap(Dictionary<string, Ice.Value> v1, out Dictionary<string, Ice.Value> v2,
-                       Ice.Current current)
-            {
-                v2 = v1;
-                return v1;
-            }
-
-            public override void setRecursive(Test.Recursive r, Ice.Current current)
-            {
-            }
-
-            public override bool supportsClassGraphDepthMax(Ice.Current current)
-            {
-                return true;
-            }
-
-            public override Test.D1 getD1(Test.D1 d1, Ice.Current current)
-            {
-                return d1;
-            }
-
-            public override void throwEDerived(Ice.Current current)
-            {
-                throw new Test.EDerived(new Test.A1("a1"), new Test.A1("a2"), new Test.A1("a3"), new Test.A1("a4"));
-            }
-
-            public override void setG(Test.G theG, Ice.Current current)
-            {
-            }
-
-            public override void setI(Ice.Value theI, Ice.Current current)
-            {
-            }
-
-            public override Test.Base[] opBaseSeq(Test.Base[] inS, out Test.Base[] outS, Ice.Current current)
-            {
-                outS = inS;
-                return inS;
-            }
-
-            public override Test.Compact getCompact(Ice.Current current)
-            {
-                return new Test.CompactExt();
-            }
-
-            public override void shutdown(Ice.Current current = null)
-            {
-                _adapter.getCommunicator().shutdown();
-            }
-
-            public override Test.Inner.A
-            getInnerA(Ice.Current current)
-            {
-                return new Test.Inner.A(_b1);
-            }
-
-            public override Test.Inner.Sub.A
-            getInnerSubA(Ice.Current current)
-            {
-                return new Test.Inner.Sub.A(new Test.Inner.A(_b1));
-            }
-
-            public override void throwInnerEx(Ice.Current current)
-            {
-                throw new Test.Inner.Ex("Inner::Ex");
-            }
-
-            public override void throwInnerSubEx(Ice.Current current)
-            {
-                throw new Test.Inner.Sub.Ex("Inner::Sub::Ex");
-            }
-
-            public override Test.Initial_GetMBMarshaledResult getMB(Ice.Current current)
-            {
-                return new Test.Initial_GetMBMarshaledResult(_b1, current);
-            }
-
-            public override Task<Test.Initial_GetAMDMBMarshaledResult> getAMDMBAsync(Ice.Current current)
-            {
-                return Task.FromResult(new Test.Initial_GetAMDMBMarshaledResult(_b1, current));
-            }
-
-            public override Test.M
-            opM(Test.M v1, out Test.M v2, Ice.Current current)
-            {
-                v2 = v1;
-                return v1;
-            }
-
-            public override Test.F1
-            opF1(Test.F1 f11, out Test.F1 f12, Ice.Current current)
-            {
-                f12 = new Test.F1("F12");
-                return f11;
-            }
-
-            public override Test.F2Prx
-            opF2(Test.F2Prx f21, out Test.F2Prx f22, Ice.Current current)
-            {
-                f22 = Test.F2PrxHelper.uncheckedCast(current.adapter.getCommunicator().stringToProxy("F22"));
-                return f21;
-            }
-
-            public override Test.F3
-            opF3(Test.F3 f31, out Test.F3 f32, Ice.Current current)
-            {
-                f32 = new Test.F3(new Test.F1("F12"),
-                    Test.F2PrxHelper.uncheckedCast(current.adapter.getCommunicator().stringToProxy("F22")));
-                return f31;
-            }
-
-            public override bool
-            hasF3(Ice.Current current)
-            {
-                return true;
-            }
-
-            private Ice.ObjectAdapter _adapter;
-            private Test.B _b1;
-            private Test.B _b2;
-            private Test.C _c;
-            private Test.D _d;
-            private Test.E _e;
-            private Test.F _f;
+            _d.TheA = _b1; // Reference to a B.
+            _d.TheB = _b2; // Reference to a B.
+            _d.TheC = null; // Reference to a C.
         }
+
+        public (B, B, C, D) GetAll(Current current, CancellationToken cancel) => (_b1, _b2, _c, _d);
+
+        public B GetB1(Current current, CancellationToken cancel) => _b1;
+
+        public B GetB2(Current current, CancellationToken cancel) => _b2;
+
+        public C GetC(Current current, CancellationToken cancel) => _c;
+
+        public D GetD(Current current, CancellationToken cancel) => _d;
+
+        public K GetK(Current current, CancellationToken cancel) => new K(new L("l"));
+
+        public (AnyClass?, AnyClass?) OpClass(AnyClass? v1, Current current, CancellationToken cancel) => (v1, v1);
+
+        public (IEnumerable<AnyClass?>, IEnumerable<AnyClass?>) OpClassSeq(
+            AnyClass?[] v1,
+            Current current,
+            CancellationToken cancel) =>
+            (v1, v1);
+
+        public (IReadOnlyDictionary<string, AnyClass?>, IReadOnlyDictionary<string, AnyClass?>) OpClassMap(
+            Dictionary<string, AnyClass?> v1,
+            Current current,
+            CancellationToken cancel) => (v1, v1);
+
+        public void SetRecursive(Recursive? r, Current current, CancellationToken cancel)
+        {
+        }
+
+        public bool SupportsClassGraphDepthMax(Current current, CancellationToken cancel) => true;
+
+        public D1? GetD1(D1? d1, Current current, CancellationToken cancel) => d1;
+
+        public void ThrowEDerived(Current current, CancellationToken cancel) =>
+            throw new EDerived(new A1("a1"), new A1("a2"), new A1("a3"), new A1("a4"));
+
+        public void SetG(G? theG, Current current, CancellationToken cancel)
+        {
+        }
+        public (IEnumerable<Base?>, IEnumerable<Base?>) OpBaseSeq(
+            Base?[] inS,
+            Current current,
+            CancellationToken cancel) =>
+            (inS, inS);
+
+        public Compact GetCompact(Current current, CancellationToken cancel) => new CompactExt();
+
+        public void Shutdown(Current current, CancellationToken cancel) => _adapter.Communicator.ShutdownAsync();
+
+        public Inner.A GetInnerA(Current current, CancellationToken cancel) => new Inner.A(_b1);
+
+        public Inner.Sub.A GetInnerSubA(Current current, CancellationToken cancel) =>
+            new Inner.Sub.A(new Inner.A(_b1));
+
+        public void ThrowInnerEx(Current current, CancellationToken cancel) => throw new Inner.Ex("Inner::Ex");
+
+        public void ThrowInnerSubEx(Current current, CancellationToken cancel) =>
+            throw new Inner.Sub.Ex("Inner::Sub::Ex");
+
+        public IInitial.GetMBMarshaledReturnValue GetMB(Current current, CancellationToken cancel) =>
+            new IInitial.GetMBMarshaledReturnValue(_b1, current);
+
+        public ValueTask<IInitial.GetAMDMBMarshaledReturnValue> GetAMDMBAsync(
+            Current current,
+            CancellationToken cancel) =>
+            new ValueTask<IInitial.GetAMDMBMarshaledReturnValue>(
+                new IInitial.GetAMDMBMarshaledReturnValue(_b1, current));
+
+        public (M?, M?) OpM(M? v1, Current current, CancellationToken cancel) => (v1, v1);
+
+        public (F1?, F1?) OpF1(F1? f11, Current current, CancellationToken cancel) => (f11, new F1("F12"));
+
+        public (IF2Prx?, IF2Prx?) OpF2(IF2Prx? f21, Current current, CancellationToken cancel) =>
+            (f21, IF2Prx.Parse("F22", current.Adapter.Communicator));
+
+        public (F3?, F3?) OpF3(F3? f31, Current current, CancellationToken cancel) =>
+            (f31, new F3(new F1("F12"), IF2Prx.Parse("F22", current.Adapter.Communicator)));
+
+        public bool HasF3(Current current, CancellationToken cancel) => true;
+
+        private ObjectAdapter _adapter;
+        private readonly B _b1;
+        private readonly B _b2;
+        private readonly C _c;
+        private readonly D _d;
     }
 }

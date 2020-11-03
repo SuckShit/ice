@@ -1,490 +1,513 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System.Threading.Tasks;
+using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace Ice
+namespace ZeroC.Ice.Test.SeqMapping
 {
-    namespace seqMapping
+    public sealed class AsyncMyClass : IAsyncMyClass
     {
-        namespace AMD
+        public ValueTask ShutdownAsync(Current current, CancellationToken cancel)
         {
-            public sealed class MyClassI : Test.MyClassDisp_
-            {
-                public override Task shutdownAsync(Ice.Current current)
-                {
-                    current.adapter.getCommunicator().shutdown();
-                    return null;
-                }
-
-                public override Task<Test.MyClass_OpAByteSResult>
-                opAByteSAsync(byte[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAByteSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLByteSResult>
-                opLByteSAsync(List<byte> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLByteSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKByteSResult>
-                opKByteSAsync(LinkedList<byte> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKByteSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQByteSResult>
-                opQByteSAsync(Queue<byte> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQByteSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSByteSResult>
-                opSByteSAsync(Stack<byte> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSByteSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpABoolSResult>
-                opABoolSAsync(bool[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpABoolSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLBoolSResult>
-                opLBoolSAsync(List<bool> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLBoolSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKBoolSResult>
-                opKBoolSAsync(LinkedList<bool> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKBoolSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQBoolSResult>
-                opQBoolSAsync(Queue<bool> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQBoolSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSBoolSResult>
-                opSBoolSAsync(Stack<bool> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSBoolSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAShortSResult>
-                opAShortSAsync(short[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAShortSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLShortSResult>
-                opLShortSAsync(List<short> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLShortSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKShortSResult>
-                opKShortSAsync(LinkedList<short> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKShortSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQShortSResult>
-                opQShortSAsync(Queue<short> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQShortSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSShortSResult>
-                opSShortSAsync(Stack<short> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSShortSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAIntSResult>
-                opAIntSAsync(int[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLIntSResult>
-                opLIntSAsync(List<int> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKIntSResult>
-                opKIntSAsync(LinkedList<int> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQIntSResult>
-                opQIntSAsync(Queue<int> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSIntSResult>
-                opSIntSAsync(Stack<int> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpALongSResult>
-                opALongSAsync(long[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpALongSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLLongSResult>
-                opLLongSAsync(List<long> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLLongSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKLongSResult>
-                opKLongSAsync(LinkedList<long> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKLongSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQLongSResult>
-                opQLongSAsync(Queue<long> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQLongSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSLongSResult>
-                opSLongSAsync(Stack<long> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSLongSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAFloatSResult>
-                opAFloatSAsync(float[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAFloatSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLFloatSResult>
-                opLFloatSAsync(List<float> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLFloatSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKFloatSResult>
-                opKFloatSAsync(LinkedList<float> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKFloatSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQFloatSResult>
-                opQFloatSAsync(Queue<float> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQFloatSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSFloatSResult>
-                opSFloatSAsync(Stack<float> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSFloatSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpADoubleSResult>
-                opADoubleSAsync(double[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpADoubleSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLDoubleSResult>
-                opLDoubleSAsync(List<double> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLDoubleSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKDoubleSResult>
-                opKDoubleSAsync(LinkedList<double> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKDoubleSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQDoubleSResult>
-                opQDoubleSAsync(Queue<double> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQDoubleSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSDoubleSResult>
-                opSDoubleSAsync(Stack<double> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSDoubleSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAStringSResult>
-                opAStringSAsync(string[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAStringSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLStringSResult>
-                opLStringSAsync(List<string> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLStringSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKStringSResult>
-                opKStringSAsync(LinkedList<string> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKStringSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQStringSResult>
-                opQStringSAsync(Queue<string> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQStringSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSStringSResult>
-                opSStringSAsync(Stack<string> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSStringSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAObjectSResult> opAObjectSAsync(Ice.Value[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAObjectSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLObjectSResult>
-                opLObjectSAsync(List<Ice.Value> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLObjectSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAObjectPrxSResult>
-                opAObjectPrxSAsync(Ice.ObjectPrx[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAObjectPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLObjectPrxSResult>
-                opLObjectPrxSAsync(List<Ice.ObjectPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLObjectPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKObjectPrxSResult>
-                opKObjectPrxSAsync(LinkedList<Ice.ObjectPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKObjectPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQObjectPrxSResult>
-                opQObjectPrxSAsync(Queue<Ice.ObjectPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQObjectPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSObjectPrxSResult>
-                opSObjectPrxSAsync(Stack<Ice.ObjectPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSObjectPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAStructSResult>
-                opAStructSAsync(Test.S[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAStructSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLStructSResult>
-                opLStructSAsync(List<Test.S> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLStructSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKStructSResult>
-                opKStructSAsync(LinkedList<Test.S> i, Ice.Current current)
-                {
-                    return Task.FromResult<Test.MyClass_OpKStructSResult>(new Test.MyClass_OpKStructSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQStructSResult>
-                opQStructSAsync(Queue<Test.S> i, Ice.Current current)
-                {
-                    return Task.FromResult<Test.MyClass_OpQStructSResult>(new Test.MyClass_OpQStructSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSStructSResult>
-                opSStructSAsync(Stack<Test.S> i, Ice.Current current)
-                {
-                    return Task.FromResult<Test.MyClass_OpSStructSResult>(new Test.MyClass_OpSStructSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAStructSDResult>
-                opAStructSDAsync(Test.SD[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAStructSDResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLStructSDResult>
-                opLStructSDAsync(List<Test.SD> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLStructSDResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKStructSDResult>
-                opKStructSDAsync(LinkedList<Test.SD> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKStructSDResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQStructSDResult>
-                opQStructSDAsync(Queue<Test.SD> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQStructSDResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSStructSDResult>
-                opSStructSDAsync(Stack<Test.SD> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSStructSDResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpACVSResult>
-                opACVSAsync(Test.CV[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpACVSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLCVSResult>
-                opLCVSAsync(List<Test.CV> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLCVSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAIPrxSResult>
-                opAIPrxSAsync(Test.IPrx[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAIPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLIPrxSResult>
-                opLIPrxSAsync(List<Test.IPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLIPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKIPrxSResult>
-                opKIPrxSAsync(LinkedList<Test.IPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKIPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQIPrxSResult>
-                opQIPrxSAsync(Queue<Test.IPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQIPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSIPrxSResult>
-                opSIPrxSAsync(Stack<Test.IPrx> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSIPrxSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpACRSResult>
-                opACRSAsync(Test.CR[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpACRSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLCRSResult>
-                opLCRSAsync(List<Test.CR> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLCRSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpAEnSResult> opAEnSAsync(Test.En[] i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpAEnSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpLEnSResult>
-                opLEnSAsync(List<Test.En> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpLEnSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpKEnSResult>
-                opKEnSAsync(LinkedList<Test.En> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpKEnSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpQEnSResult>
-                opQEnSAsync(Queue<Test.En> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpQEnSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSEnSResult>
-                opSEnSAsync(Stack<Test.En> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSEnSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpCustomIntSResult>
-                opCustomIntSAsync(Custom<int> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpCustomIntSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpCustomCVSResult>
-                opCustomCVSAsync(Custom<Test.CV> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpCustomCVSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpCustomIntSSResult>
-                opCustomIntSSAsync(Custom<Custom<int>> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpCustomIntSSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpCustomCVSSResult>
-                opCustomCVSSAsync(Custom<Custom<Test.CV>> i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpCustomCVSSResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSerialSmallCSharpResult>
-                opSerialSmallCSharpAsync(Serialize.Small i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSerialSmallCSharpResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSerialLargeCSharpResult>
-                opSerialLargeCSharpAsync(Serialize.Large i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSerialLargeCSharpResult(i, i));
-                }
-
-                public override Task<Test.MyClass_OpSerialStructCSharpResult>
-                opSerialStructCSharpAsync(Serialize.Struct i, Ice.Current current)
-                {
-                    return Task.FromResult(new Test.MyClass_OpSerialStructCSharpResult(i, i));
-                }
-            }
+            current.Adapter.Communicator.ShutdownAsync();
+            return new ValueTask(Task.CompletedTask);
         }
+
+        public ValueTask<(ReadOnlyMemory<byte>, ReadOnlyMemory<byte>)> OpAByteSAsync(
+            byte[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<byte>, IEnumerable<byte>)> OpLByteSAsync(
+            List<byte> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<byte>, IEnumerable<byte>)> OpKByteSAsync(
+            LinkedList<byte> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<byte>, IEnumerable<byte>)> OpQByteSAsync(
+            Queue<byte> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<byte>, IEnumerable<byte>)> OpSByteSAsync(
+            Stack<byte> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<byte>, IEnumerable<byte>)> OpCByteSAsync(
+            Custom<byte> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<bool>, ReadOnlyMemory<bool>)> OpABoolSAsync(
+            bool[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<bool>, IEnumerable<bool>)> OpLBoolSAsync(
+            List<bool> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<bool>, IEnumerable<bool>)> OpKBoolSAsync(
+            LinkedList<bool> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<bool>, IEnumerable<bool>)> OpQBoolSAsync(
+            Queue<bool> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<bool>, IEnumerable<bool>)> OpSBoolSAsync(
+            Stack<bool> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<bool>, IEnumerable<bool>)> OpCBoolSAsync(
+            Custom<bool> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<short>, ReadOnlyMemory<short>)> OpAShortSAsync(
+            short[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<short>, IEnumerable<short>)> OpLShortSAsync(
+            List<short> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<short>, IEnumerable<short>)> OpKShortSAsync(
+            LinkedList<short> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<short>, IEnumerable<short>)> OpQShortSAsync(
+            Queue<short> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<short>, IEnumerable<short>)> OpSShortSAsync(
+            Stack<short> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<short>, IEnumerable<short>)> OpCShortSAsync(
+            Custom<short> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<int>, ReadOnlyMemory<int>)> OpAIntSAsync(
+            int[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpLIntSAsync(
+            List<int> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpKIntSAsync(
+            LinkedList<int> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpQIntSAsync(
+            Queue<int> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpSIntSAsync(
+            Stack<int> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpCIntSAsync(
+            Custom<int> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<long>, ReadOnlyMemory<long>)> OpALongSAsync(
+            long[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<long>, IEnumerable<long>)> OpLLongSAsync(
+            List<long> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<long>, IEnumerable<long>)> OpKLongSAsync(
+            LinkedList<long> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<long>, IEnumerable<long>)> OpQLongSAsync(
+            Queue<long> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<long>, IEnumerable<long>)> OpSLongSAsync(
+            Stack<long> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<long>, IEnumerable<long>)> OpCLongSAsync(
+            Custom<long> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<float>, ReadOnlyMemory<float>)> OpAFloatSAsync(
+            float[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<float>, IEnumerable<float>)> OpLFloatSAsync(
+            List<float> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<float>, IEnumerable<float>)> OpKFloatSAsync(
+            LinkedList<float> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<float>, IEnumerable<float>)> OpQFloatSAsync(
+            Queue<float> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<float>, IEnumerable<float>)> OpSFloatSAsync(
+            Stack<float> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<float>, IEnumerable<float>)> OpCFloatSAsync(
+            Custom<float> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(ReadOnlyMemory<double>, ReadOnlyMemory<double>)> OpADoubleSAsync(
+            double[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<double>, IEnumerable<double>)> OpLDoubleSAsync(
+            List<double> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<double>, IEnumerable<double>)> OpKDoubleSAsync(
+            LinkedList<double> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<double>, IEnumerable<double>)> OpQDoubleSAsync(
+            Queue<double> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<double>, IEnumerable<double>)> OpSDoubleSAsync(
+            Stack<double> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<double>, IEnumerable<double>)> OpCDoubleSAsync(
+            Custom<double> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpAStringSAsync(
+            string[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpLStringSAsync(
+            List<string> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpKStringSAsync(
+            LinkedList<string> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpQStringSAsync(
+            Queue<string> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpSStringSAsync(
+            Stack<string> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<string>, IEnumerable<string>)> OpCStringSAsync(
+            Custom<string> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<AnyClass?>, IEnumerable<AnyClass?>)> OpAObjectSAsync(
+            AnyClass?[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<AnyClass?>, IEnumerable<AnyClass?>)> OpLObjectSAsync(
+            List<AnyClass?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<AnyClass?>, IEnumerable<AnyClass?>)> OpCObjectSAsync(
+            Custom<AnyClass?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpAObjectPrxSAsync(
+            IObjectPrx?[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpLObjectPrxSAsync(
+            List<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpKObjectPrxSAsync(
+            LinkedList<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpQObjectPrxSAsync(
+            Queue<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpSObjectPrxSAsync(
+            Stack<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IObjectPrx?>, IEnumerable<IObjectPrx?>)> OpCObjectPrxSAsync(
+            Custom<IObjectPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpAStructSAsync(
+            S[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpLStructSAsync(
+            List<S> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpKStructSAsync(
+            LinkedList<S> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpQStructSAsync(
+            Queue<S> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpSStructSAsync(
+            Stack<S> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<S>, IEnumerable<S>)> OpCStructSAsync(
+            Custom<S> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpAStructSDAsync(
+            SD[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpLStructSDAsync(
+            List<SD> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpKStructSDAsync(
+            LinkedList<SD> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpQStructSDAsync(
+            Queue<SD> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpSStructSDAsync(
+            Stack<SD> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<SD>, IEnumerable<SD>)> OpCStructSDAsync(
+            Custom<SD> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<CV?>, IEnumerable<CV?>)> OpACVSAsync(
+            CV?[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<CV?>, IEnumerable<CV?>)> OpLCVSAsync(
+            List<CV?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpAIPrxSAsync(
+            IIPrx?[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpLIPrxSAsync(
+            List<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpKIPrxSAsync(
+            LinkedList<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpQIPrxSAsync(
+            Queue<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpSIPrxSAsync(
+            Stack<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IIPrx?>, IEnumerable<IIPrx?>)> OpCIPrxSAsync(
+            Custom<IIPrx?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<CR?>, IEnumerable<CR?>)> OpACRSAsync(
+            CR?[] i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<CR?>, IEnumerable<CR?>)> OpLCRSAsync(
+            List<CR?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<CR?>, IEnumerable<CR?>)> OpCCRSAsync(
+            Custom<CR?> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpAEnSAsync(
+            En[] i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpLEnSAsync(
+            List<En> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpKEnSAsync(
+            LinkedList<En> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpQEnSAsync(
+            Queue<En> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpSEnSAsync(
+            Stack<En> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<En>, IEnumerable<En>)> OpCEnSAsync(
+            Custom<En> i,
+            Current current,
+            CancellationToken cancel) =>
+            new ((i, i));
+
+        public ValueTask<(IEnumerable<int>, IEnumerable<int>)> OpCustomIntSAsync(
+            Custom<int> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<CV?>, IEnumerable<CV?>)> OpCustomCVSAsync(
+            Custom<CV?> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IEnumerable<int>>, IEnumerable<IEnumerable<int>>)> OpCustomIntSSAsync(
+            Custom<Custom<int>> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
+
+        public ValueTask<(IEnumerable<IEnumerable<CV?>>, IEnumerable<IEnumerable<CV?>>)> OpCustomCVSSAsync(
+            Custom<Custom<CV?>> i,
+            Current current,
+            CancellationToken cancel) => new ((i, i));
     }
 }

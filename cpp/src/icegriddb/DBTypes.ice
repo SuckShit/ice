@@ -6,20 +6,19 @@
 
 #include <IceGrid/Admin.ice>
 
-[["ice-prefix", "cpp:header-ext:h"]]
+[[suppress-warning(reserved-identifier)]]
+[[cpp:header-ext(h)]]
 
 module IceGrid
 {
+    dictionary<string, long> StringLongDict;
 
-dictionary<string, long> StringLongDict;
-
-struct AllData
-{
-    ApplicationInfoSeq applications;
-    AdapterInfoSeq adapters;
-    ObjectInfoSeq objects;
-    ObjectInfoSeq internalObjects;
-    StringLongDict serials;
-}
-
+    struct AllData
+    {
+        ApplicationInfoSeq applications;
+        AdapterInfoSeq adapters;
+        ObjectInfoSeq objects;
+        ObjectInfoSeq internalObjects;
+        StringLongDict serials;
+    }
 }

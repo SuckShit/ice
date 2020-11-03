@@ -16,9 +16,7 @@ namespace IceInternal
 {
 
 class WSEndpoint : public EndpointI
-#ifdef ICE_CPP11_MAPPING
                  , public std::enable_shared_from_this<WSEndpoint>
-#endif
 {
 public:
 
@@ -28,7 +26,7 @@ public:
 
     virtual void streamWriteImpl(Ice::OutputStream*) const;
 
-    virtual Ice::EndpointInfoPtr getInfo() const ICE_NOEXCEPT;
+    virtual Ice::EndpointInfoPtr getInfo() const noexcept;
     virtual Ice::Short type() const;
     virtual const std::string& protocol() const;
 
@@ -52,13 +50,8 @@ public:
 
     WSEndpointPtr endpoint(const EndpointIPtr&) const;
 
-#ifdef ICE_CPP11_MAPPING
     virtual bool operator==(const Ice::Endpoint&) const;
     virtual bool operator<(const Ice::Endpoint&) const;
-#else
-    virtual bool operator==(const Ice::LocalObject&) const;
-    virtual bool operator<(const Ice::LocalObject&) const;
-#endif
 
 protected:
 

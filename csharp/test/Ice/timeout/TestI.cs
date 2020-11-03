@@ -1,77 +1,51 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
+using System;
 using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
-namespace Ice
+namespace ZeroC.Ice.Test.Timeout
 {
-    namespace timeout
+    internal class Timeout : ITimeout
     {
-        internal class ActivateAdapterThread
+        public void Op(Current current, CancellationToken cancel)
         {
-            internal ActivateAdapterThread(Ice.ObjectAdapter adapter, int timeout)
-            {
-                _adapter = adapter;
-                _timeout = timeout;
-            }
-
-            internal void run()
-            {
-                _adapter.waitForHold();
-                Thread.Sleep(_timeout);
-                _adapter.activate();
-            }
-
-            private Ice.ObjectAdapter _adapter;
-            private int _timeout;
         }
 
-        internal class TimeoutI : Test.TimeoutDisp_
+        public void SendData(byte[] seq, Current current, CancellationToken cancel)
         {
-            public override void op(Ice.Current current)
-            {
-            }
+        }
 
-            public override void sendData(byte[] seq, Ice.Current current)
+        public void Sleep(int to, Current current, CancellationToken cancel)
+        {
+            if (current.Connection == null)
             {
+                // Ensure the collocated dispatch is canceled when the invocation is canceled because of the invocation
+                // timeout.
+                try
+                {
+                    Task.Delay(to, cancel).Wait(cancel);
+                    TestHelper.Assert(false);
+                }
+                catch (TaskCanceledException)
+                {
+                }
             }
-
-            public override void sleep(int to, Ice.Current current)
+            else
             {
                 Thread.Sleep(to);
             }
         }
 
-        internal class ControllerI : Test.ControllerDisp_
+        public bool CheckDeadline(Current current, CancellationToken cancel)
         {
-            public ControllerI(Ice.ObjectAdapter adapter)
+            if (current.Protocol == Protocol.Ice2)
             {
-                _adapter = adapter;
+                return current.Deadline ==
+                    DateTime.UnixEpoch + TimeSpan.FromMilliseconds(long.Parse(current.Context["deadline"]));
             }
-
-            public override void holdAdapter(int to, Ice.Current current)
-            {
-                _adapter.hold();
-                if(to >= 0)
-                {
-                    ActivateAdapterThread act = new ActivateAdapterThread(_adapter, to);
-                    Thread thread = new Thread(new ThreadStart(act.run));
-                    thread.Start();
-                }
-            }
-
-            public override void resumeAdapter(Ice.Current current)
-            {
-                _adapter.activate();
-            }
-
-            public override void shutdown(Ice.Current current)
-            {
-                current.adapter.getCommunicator().shutdown();
-            }
-
-            private Ice.ObjectAdapter _adapter;
+            return true;
         }
     }
 }

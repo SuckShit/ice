@@ -8,12 +8,7 @@
 
 using namespace std;
 
-// Work-around for anonymous namspace bug in xlclang++
-#ifdef __ibmxl__
-namespace BatchOnewaysAMINamespace
-#else
 namespace
-#endif
 {
 
 class Callback : public IceUtil::Monitor<IceUtil::Mutex>, public IceUtil::Shared
@@ -90,16 +85,11 @@ public:
 };
 }
 
-#ifdef __ibmxl__
-using namespace BatchOnewaysAMINamespace;
-#endif
-
 void
 batchOnewaysAMI(const Test::MyClassPrxPtr& p)
 {
     const Test::ByteS bs1(10 * 1024);
     Test::MyClassPrxPtr batch = ICE_UNCHECKED_CAST(Test::MyClassPrx, p->ice_batchOneway());
-#ifdef ICE_CPP11_MAPPING
 
     promise<void> prom;
     batch->ice_flushBatchRequestsAsync(nullptr,
@@ -123,7 +113,7 @@ batchOnewaysAMI(const Test::MyClassPrxPtr& p)
     }
 
     if(batch->ice_getConnection() &&
-       p->ice_getCommunicator()->getProperties()->getProperty("Ice.Default.Protocol") != "bt")
+       p->ice_getCommunicator()->getProperties()->getProperty("Ice.Default.Transport") != "bt")
     {
         shared_ptr<Test::MyClassPrx> batch1 = Ice::uncheckedCast<Test::MyClassPrx>(p->ice_batchOneway());
         shared_ptr<Test::MyClassPrx> batch2 = Ice::uncheckedCast<Test::MyClassPrx>(p->ice_batchOneway());
@@ -131,7 +121,7 @@ batchOnewaysAMI(const Test::MyClassPrxPtr& p)
         batch1->ice_pingAsync().get();
         batch2->ice_pingAsync().get();
         batch1->ice_flushBatchRequestsAsync().get();
-        batch1->ice_getConnection()->close(Ice::ICE_SCOPED_ENUM(ConnectionClose, GracefullyWithWait));
+        batch1->ice_getConnection()->close(Ice::ConnectionClose::GracefullyWithWait);
         batch1->ice_pingAsync().get();
         batch2->ice_pingAsync().get();
 
@@ -139,7 +129,7 @@ batchOnewaysAMI(const Test::MyClassPrxPtr& p)
         batch2->ice_getConnection();
 
         batch1->ice_pingAsync().get();
-        batch1->ice_getConnection()->close(Ice::ICE_SCOPED_ENUM(ConnectionClose, GracefullyWithWait));
+        batch1->ice_getConnection()->close(Ice::ConnectionClose::GracefullyWithWait);
 
         batch1->ice_pingAsync().get();
         batch2->ice_pingAsync().get();
@@ -156,60 +146,4 @@ batchOnewaysAMI(const Test::MyClassPrxPtr& p)
     batch->ice_pingAsync();
     batch->ice_flushBatchRequestsAsync().get();
     batch->ice_pingAsync();
-#else
-    batch->end_ice_flushBatchRequests(batch->begin_ice_flushBatchRequests()); // Empty flush
-
-    test(batch->begin_ice_flushBatchRequests()->isSent()); // Empty flush
-    test(batch->begin_ice_flushBatchRequests()->isCompleted()); // Empty flush
-    test(batch->begin_ice_flushBatchRequests()->sentSynchronously()); // Empty flush
-
-    for(int i = 0; i < 30; ++i)
-    {
-        batch->begin_opByteSOneway(bs1, Test::newCallback_MyClass_opByteSOneway(new Callback_ByteSOneway(),
-                                                                                &Callback_ByteSOneway::response,
-                                                                                &Callback_ByteSOneway::exception));
-    }
-
-    int count = 0;
-    while(count < 27) // 3 * 9 requests auto-flushed.
-    {
-        count += p->opByteSOnewayCallCount();
-        IceUtil::ThreadControl::sleep(IceUtil::Time::milliSeconds(10));
-    }
-
-    if(batch->ice_getConnection() &&
-       p->ice_getCommunicator()->getProperties()->getProperty("Ice.Default.Protocol") != "bt")
-    {
-        Test::MyClassPrx batch1 = Test::MyClassPrx::uncheckedCast(p->ice_batchOneway());
-        Test::MyClassPrx batch2 = Test::MyClassPrx::uncheckedCast(p->ice_batchOneway());
-
-        batch1->end_ice_ping(batch1->begin_ice_ping());
-        batch2->end_ice_ping(batch2->begin_ice_ping());
-        batch1->end_ice_flushBatchRequests(batch1->begin_ice_flushBatchRequests());
-        batch1->ice_getConnection()->close(Ice::ICE_SCOPED_ENUM(ConnectionClose, GracefullyWithWait));
-        batch1->end_ice_ping(batch1->begin_ice_ping());
-        batch2->end_ice_ping(batch2->begin_ice_ping());
-
-        batch1->ice_getConnection();
-        batch2->ice_getConnection();
-
-        batch1->end_ice_ping(batch1->begin_ice_ping());
-        batch1->ice_getConnection()->close(Ice::ICE_SCOPED_ENUM(ConnectionClose, GracefullyWithWait));
-
-        batch1->end_ice_ping(batch1->begin_ice_ping());
-        batch2->end_ice_ping(batch2->begin_ice_ping());
-    }
-
-    Ice::Identity identity;
-    identity.name = "invalid";
-    Ice::ObjectPrx batch3 = batch->ice_identity(identity);
-    batch3->begin_ice_ping();
-    batch3->end_ice_flushBatchRequests(batch3->begin_ice_flushBatchRequests());
-
-    // Make sure that a bogus batch request doesn't cause troubles to other ones.
-    batch3->begin_ice_ping();
-    batch->begin_ice_ping();
-    batch->end_ice_flushBatchRequests(batch->begin_ice_flushBatchRequests());
-    batch->begin_ice_ping();
-#endif
 }

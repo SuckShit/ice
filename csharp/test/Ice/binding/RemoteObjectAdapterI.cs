@@ -1,41 +1,33 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-namespace Ice
+using System;
+using System.Threading;
+
+namespace ZeroC.Ice.Test.Binding
 {
-    namespace binding
+    public class RemoteObjectAdapter : IRemoteObjectAdapter
     {
-        public class RemoteObjectAdapterI : Test.RemoteObjectAdapterDisp_
+        public RemoteObjectAdapter(ObjectAdapter adapter)
         {
-            public RemoteObjectAdapterI(Ice.ObjectAdapter adapter)
-            {
-                _adapter = adapter;
-                _testIntf = Test.TestIntfPrxHelper.uncheckedCast(_adapter.add(new TestI(),
-                                                            Ice.Util.stringToIdentity("test")));
-                _adapter.activate();
-            }
-
-            public override Test.TestIntfPrx
-            getTestIntf(Ice.Current current)
-            {
-                return _testIntf;
-            }
-
-            public override void
-            deactivate(Ice.Current current)
-            {
-                try
-                {
-                    _adapter.destroy();
-                }
-                catch(Ice.ObjectAdapterDeactivatedException)
-                {
-                }
-            }
-
-            private Ice.ObjectAdapter _adapter;
-            private Test.TestIntfPrx _testIntf;
+            _adapter = adapter;
+            _testIntf = _adapter.Add("test", new TestIntf(), ITestIntfPrx.Factory);
+            _adapter.Activate();
         }
+
+        public ITestIntfPrx GetTestIntf(Current current, CancellationToken cancel) => _testIntf;
+
+        public void Deactivate(Current current, CancellationToken cancel)
+        {
+            try
+            {
+                _adapter.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        private readonly ObjectAdapter _adapter;
+        private readonly ITestIntfPrx _testIntf;
     }
 }

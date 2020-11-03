@@ -1,27 +1,25 @@
-//
 // Copyright (c) ZeroC, Inc. All rights reserved.
-//
 
-using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Test;
 
-public class Server : Test.TestHelper
+namespace ZeroC.Ice.Test.Slicing.Objects
 {
-    public override void run(string[] args)
+    public class Server : TestHelper
     {
-        Ice.Properties properties = createTestProperties(ref args);
-        properties.setProperty("Ice.Warn.Dispatch", "0");
-        using(var communicator = initialize(properties))
+        public override async Task RunAsync(string[] args)
         {
-            properties.setProperty("TestAdapter.Endpoints", getTestEndpoint(0) + " -t 2000");
-            Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-            adapter.add(new TestI(), Ice.Util.stringToIdentity("Test"));
-            adapter.activate();
-            communicator.waitForShutdown();
+            Dictionary<string, string>? properties = CreateTestProperties(ref args);
+            properties["Ice.Warn.Dispatch"] = "0";
+            await using Communicator communicator = Initialize(properties);
+            communicator.SetProperty("TestAdapter.Endpoints", GetTestEndpoint(0));
+            ObjectAdapter adapter = communicator.CreateObjectAdapter("TestAdapter");
+            adapter.Add("Test", new TestIntf());
+            await adapter.ActivateAsync();
+            await communicator.WaitForShutdownAsync();
         }
-    }
 
-    public static int Main(string[] args)
-    {
-        return Test.TestDriver.runTest<Server>(args);
+        public static Task<int> Main(string[] args) => TestDriver.RunTestAsync<Server>(args);
     }
 }

@@ -1,16 +1,18 @@
 
 #include <Core.ice>
 
-module User
-{
+[[3.7]]
 
-class UserInfo
-{
-}
+[[suppress-warning(reserved-identifier)]]
 
-interface Registry
+module ZeroC::Ice::Test::Assemblies::User
 {
-    UserInfo getUserInfo(string id) throws Core::ArgumentException;
-}
+    class UserInfo
+    {
+    }
 
+    interface Registry
+    {
+        UserInfo getUserInfo(string id, ZeroC::Ice::Test::Assemblies::Core::Data data);
+    }
 }

@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include <Ice/Current.ice>
+#include <Ice/Context.ice>
 
-["cs:namespace:Ice.info"]
-module Test
+[[suppress-warning(reserved-identifier)]]
+
+module ZeroC::Ice::Test::Info
 {
 
 interface TestIntf
